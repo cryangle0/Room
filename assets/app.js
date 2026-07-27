@@ -7,10 +7,30 @@
     roleLogin: "platform",
     selectedBrand: "HAIZHEN WANG",
     selectedGoods: null,
-    cart: JSON.parse(localStorage.getItem("rr_cart") || "[]"),
+    selectedSel: RR.selections[0],
+    selectedOrder: RR.orders[0],
+    cart: JSON.parse(localStorage.getItem("rr_cart") || '["121BZX122","121DRX037G","JL26SS001"]'),
+    hearts: JSON.parse(localStorage.getItem("rr_hearts") || '["121BZX122","121DRX037G","JL26SS001"]'),
     qty: { XS: 0, S: 2, M: 1, L: 0 },
-    toast: ""
+    viewMode: "image", // image | code
+    cartOpen: false,
+    orderAction: "", // modify | invoice | voucher | whitelist | substore | return | deposit
+    reconTab: "rate",
+    toast: "",
+    hasFirstOrder: true,
+    replenishBlocked: false
   };
+
+  function toast(msg) {
+    state.toast = msg;
+    render();
+    setTimeout(() => { state.toast = ""; render(); }, 2200);
+  }
+
+  function saveCart() {
+    localStorage.setItem("rr_cart", JSON.stringify(state.cart));
+    localStorage.setItem("rr_hearts", JSON.stringify(state.hearts));
+  }
 
   const routes = {
     platform: {
@@ -65,11 +85,15 @@
           { id: "buyer-address", label: "修改地址" },
           { id: "buyer-edit", label: "编辑店铺资料" },
           { id: "buyer-sub", label: "查看/添加子店铺" },
+          { id: "buyer-add-brand", label: "添加品牌（待定）" },
           { id: "buyer-appoint", label: "添加预约" }
         ],
         role: [
           { id: "role-list", label: "角色管理" },
           { id: "role-perm", label: "权限管理" }
+        ],
+        account: [
+          { id: "account-center", label: "账号管理" }
         ]
       },
       defaultPage: "goods-list"
@@ -82,8 +106,7 @@
         { id: "ship", label: "发货管理" },
         { id: "intent", label: "意向审核" }
       ],
-      side: null, // reuse platform side filtered
-      defaultPage: "brand-list"
+      defaultPage: "brand-discount"
     },
     buyer: {
       top: [
@@ -102,26 +125,31 @@
     localStorage.setItem("rr_portal", p);
     if (p === "mp") state.page = "mp-home";
     else if (p === "buyer") state.page = "buyer-home";
-    else if (p === "brand") state.page = "brand-list";
+    else if (p === "brand") state.page = "brand-discount";
+    else if (p === "audit") state.page = "coverage";
     else state.page = "goods-list";
+    state.cartOpen = false;
+    state.orderAction = "";
     render();
   }
 
   function go(page) {
     state.page = page;
+    state.cartOpen = false;
+    if (!page.startsWith("order-detail") && page !== "order-detail") state.orderAction = "";
     window.scrollTo(0, 0);
     render();
   }
 
   function topGroup(page) {
+    if (page === "coverage" || page === "account-center") return "account";
     if (page.startsWith("brand")) return "brand";
     if (page.startsWith("goods")) return "goods";
-    if (page.startsWith("order")) return "order";
+    if (page.startsWith("order") || page.startsWith("selection") || page.startsWith("contract") || page.startsWith("oc-")) return "order";
     if (page.startsWith("ship")) return "ship";
     if (page.startsWith("intent")) return "intent";
     if (page.startsWith("buyer-") && state.portal !== "buyer") return "buyer";
     if (page.startsWith("role")) return "role";
-    if (page.startsWith("buyer-")) return page.replace("buyer-", "").split("-")[0] === "home" ? "home" : page.split("-")[1] || "home";
     return "goods";
   }
 
@@ -178,7 +206,9 @@
       ${items.map(([id, lab]) =>
         `<a href="javascript:;" class="${state.portal === id ? "on" : ""}" data-portal="${id}">${lab}</a>`
       ).join("")}
-      <span style="margin-left:12px;opacity:.6">基于 order.roomroom.com.cn 现网风格</span>
+      <span>|</span>
+      <a href="javascript:;" class="${state.page === "coverage" ? "on" : ""}" data-go="coverage">覆盖核对</a>
+      <span style="margin-left:12px;opacity:.6">菜单≈90% · 业务闭环见核对页</span>
     </div>`;
   }
 
@@ -208,7 +238,7 @@
     const cfg = portal === "brand" ? routes.brand : routes.platform;
     const group = topGroup(state.page);
     const firstPage = {
-      brand: "brand-list",
+      brand: state.portal === "brand" ? "brand-discount" : "brand-list",
       goods: "goods-list",
       order: "order-selection",
       ship: "ship-list",
@@ -233,19 +263,26 @@
     const group = topGroup(state.page);
     let items = (routes.platform.side[group] || []);
     if (state.portal === "brand") {
-      // brand端去掉平台独占项
-      if (group === "buyer" || group === "role") items = [];
+      if (group === "buyer" || group === "role" || group === "account") items = [];
+      if (group === "brand") {
+        // 品牌端无「全品牌列表」，直接进本品牌配置
+        items = items.filter(i => i.id !== "brand-list");
+      }
       if (group === "order") {
-        items = items.filter(i => !["order-recon"].includes(i.id));
+        items = items.filter(i => !["order-recon", "order-appoint"].includes(i.id));
       }
       if (group === "goods") {
-        items = items.filter(i => i.id !== "goods-cat");
+        items = items.filter(i => !["goods-cat", "goods-look"].includes(i.id));
       }
     }
     if (!items.length) return "";
     return `<aside class="sidebar"><ul>
       ${items.map(i => `<li><a href="javascript:;" class="${state.page === i.id ? "active" : ""}" data-go="${i.id}">${i.label}</a></li>`).join("")}
     </ul></aside>`;
+  }
+
+  function toastHtml() {
+    return state.toast ? `<div class="toast">${state.toast}</div>` : "";
   }
 
   /* ---------- Pages ---------- */
@@ -443,39 +480,40 @@
 
   function pageBrandDiscount() {
     return `<h1 class="page-title">设置优惠规则</h1>
-      <div class="note">首单 / 补货单分别设置最小起订金额；分类统一折扣；金额阶梯折扣；订货会场次单独配置</div>
+      <div class="note">对齐现网：最小起订金额（吊牌价）+ 服饰/配饰/生活方式统一折扣（需先设统一折扣，阶梯折扣才生效）+ 金额阶梯；首单/补货分别配置；订货会场次可单独覆盖。</div>
       <div class="tabs">
-        <button class="on">首单规则</button><button>补货单规则</button>
+        <button class="on" data-tabsoft>首单规则</button>
+        <button data-tabsoft>补货单规则</button>
+        <button data-tabsoft>订货会单独规则</button>
       </div>
       <div class="form-section">
-        <h3>最小起订金额</h3>
+        <h3>最小起订金额（吊牌价）</h3>
         <div class="form-grid">
-          <label>首单起订额</label><div>${input("例如 30000")}</div>
-          <label>补货起订额</label><div>${input("例如 10000")}</div>
+          <label>最小起订金额</label><div>${input("例如 30000")}</div>
         </div>
       </div>
       <div class="form-section">
         <h3>分类统一折扣</h3>
         <table class="data-table">
-          <thead><tr><th>品类</th><th>折扣</th></tr></thead>
+          <thead><tr><th>分类</th><th>统一折扣</th><th>说明</th></tr></thead>
           <tbody>
-            <tr><td>女装</td><td>${input("0.45")}</td></tr>
-            <tr><td>配饰</td><td>${input("0.50")}</td></tr>
+            <tr><td>服饰统一折扣</td><td>${input("0.45")}</td><td>需设置后阶梯折扣才生效</td></tr>
+            <tr><td>配饰统一折扣</td><td>${input("0.50")}</td><td>需设置后阶梯折扣才生效</td></tr>
+            <tr><td>生活方式统一折扣</td><td>${input("0.55")}</td><td>需设置后阶梯折扣才生效</td></tr>
           </tbody>
         </table>
       </div>
       <div class="form-section">
         <h3>金额阶梯折扣</h3>
         <table class="data-table">
-          <thead><tr><th>满额</th><th>折扣</th><th></th></tr></thead>
+          <thead><tr><th>满额（吊牌价）</th><th>折扣</th><th></th></tr></thead>
           <tbody>
             <tr><td>${input("50000")}</td><td>${input("0.43")}</td><td><a href="javascript:;">删除</a></td></tr>
             <tr><td>${input("100000")}</td><td>${input("0.40")}</td><td><a href="javascript:;">删除</a></td></tr>
           </tbody>
         </table>
-        ${btn("添加阶梯", "btn-outline")}
-      </div>
-      ${btn("保存规则")}`;
+        <div class="action-bar">${btn("添加阶梯", "btn-outline")}${btn("保存规则")}</div>
+      </div>`;
   }
 
   function pageBrandSize() {
@@ -569,15 +607,72 @@
 
   function pageOrderSelection() {
     return `<h1 class="page-title">选款单管理</h1>
+      <div class="note">列表形态对齐现网：品牌 / 下单时间 / 店铺 / 季节 / 总金额 / 件数 / SKU 数；可进详情做生成订单、取消、下载。</div>
       ${filterPanel([
-        ["品牌", select(RR.brands.map(b => b.name))],
+        ["选择品牌", select(RR.brands.map(b => b.name))],
         ["季节", select(RR.seasons)],
         ["国家", input("输入国家")],
         ["省", input("输入省")],
         ["城市", input("输入城市")],
         ["店铺名", input("输入店铺名")]
       ])}
-      ${orderTable(RR.selections, "查看详情 · 直接生成订单 · 取消选款单 · 下载")}`;
+      <div class="ops" style="margin-bottom:12px">
+        <a href="javascript:;" data-action-toast="打开已上传合同列表">查看已上传合同</a>
+        <a href="javascript:;" data-action-toast="打开已上传付款凭证">查看已上传凭证</a>
+      </div>
+      ${RR.selections.map(s => `
+        <div class="sel-card">
+          <div class="sel-card-head">
+            <span>买手/店铺：<strong>${s.store}</strong></span>
+            <span>下单时间：${s.time}</span>
+            <span class="badge">${s.status}</span>
+          </div>
+          <div class="sel-card-body">
+            <div>
+              <div class="brand">${s.brand}</div>
+              <div style="color:#999;font-size:12px;margin-top:4px">${s.id}</div>
+            </div>
+            <div>季节<br/><strong>${s.season}</strong></div>
+            <div>总金额<br/><strong>${s.amount}</strong></div>
+            <div>件数：${s.pieces}<br/>SKU数：${s.skus}</div>
+            <div class="ops" style="flex-direction:column;align-items:stretch">
+              <button class="btn btn-outline btn-sm" data-go="selection-detail" data-sel="${s.id}">查看详情</button>
+              <button class="btn btn-primary btn-sm" data-gen-order="${s.id}">生成订单</button>
+              <button class="btn btn-outline btn-sm" data-action-toast="已取消选款单 ${s.id}">取消选款单</button>
+              <button class="btn btn-outline btn-sm" data-action-toast="开始下载选款单 Excel">下载</button>
+            </div>
+          </div>
+        </div>`).join("")}`;
+  }
+
+  function pageSelectionDetail() {
+    const s = state.selectedSel || RR.selections[0];
+    return `<h1 class="page-title">选款单详情</h1>
+      <div class="detail-sticky">
+        <strong>${s.brand}</strong>
+        <span>${s.store}</span>
+        <span>${s.season}</span>
+        <span>¥${s.amount}</span>
+        <span class="badge">${s.status}</span>
+      </div>
+      <div class="action-bar">
+        ${btn("生成订单", "btn-primary", "")}
+        ${btn("取消选款单", "btn-outline")}
+        ${btn("下载选款单", "btn-outline")}
+        ${btn("返回列表", "btn-outline")}
+      </div>
+      <table class="data-table">
+        <thead><tr><th>SKU</th><th>款式</th><th>尺码数量</th><th>买手价</th><th>小计示意</th></tr></thead>
+        <tbody>${RR.selectionLines.map(l => {
+          const qty = Object.values(l.sizes).reduce((a, b) => a + b, 0);
+          return `<tr>
+            <td>${l.sku}</td><td>${l.title}</td>
+            <td>${Object.entries(l.sizes).map(([k, v]) => k + "×" + v).join(" / ")}</td>
+            <td>${l.price}</td><td>${qty} 件</td>
+          </tr>`;
+        }).join("")}</tbody>
+      </table>
+      <p style="color:#999;font-size:12px">生成订单后选款单锁定；若需再改，需后台驳回订单后重选。</p>`;
   }
 
   function pageOrderList() {
@@ -598,22 +693,69 @@
           <td>${o.amount}</td><td>${o.deposit}</td>
           <td><span class="badge">${o.status}</span></td>
           <td class="ops">
-            <a href="javascript:;" data-go="order-detail">详情</a>
-            <a href="javascript:;">下载</a>
-            <a href="javascript:;">改单</a>
-            <a href="javascript:;">白名单</a>
+            <a href="javascript:;" data-go="order-detail" data-oid="${o.id}">详情</a>
+            <a href="javascript:;" data-action-toast="下载订单">下载</a>
+            <a href="javascript:;" data-go="order-detail" data-oid="${o.id}">改单</a>
+            <a href="javascript:;" data-go="order-detail" data-oid="${o.id}">白名单</a>
           </td>
         </tr>`).join("")}</tbody>
       </table>`;
   }
 
   function pageOrderDetail() {
-    const o = RR.orders[0];
+    const o = state.selectedOrder || RR.orders[0];
+    const action = state.orderAction;
+    const panels = {
+      modify: `<div class="modal-panel"><h3>修改订单 · 增减款 / 设置折扣</h3>
+        <table class="data-table"><thead><tr><th>SKU</th><th>尺码</th><th>数量</th><th>单款折扣</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>121BZX122</td><td>S/M</td><td>${input("3")}</td><td>${input("1.00")}</td><td><a href="javascript:;">删款</a></td></tr>
+          <tr><td>121DRX037G</td><td>XS/S</td><td>${input("3")}</td><td>${input("0.95")}</td><td><a href="javascript:;">删款</a></td></tr>
+        </tbody></table>
+        <div class="action-bar">${btn("添加款式", "btn-outline")}${btn("保存修改")}</div></div>`,
+      invoice: `<div class="modal-panel"><h3>申请发票</h3>
+        <div class="form-grid"><label>抬头</label><div>${input("Liora Amour 商贸")}</div>
+        <label>税号</label><div>${input()}</div>
+        <label>金额</label><div>${input(o.amount)}</div>
+        <label>类型</label><div>${select(["增值税专用发票", "普通发票"])}</div></div>
+        <div class="action-bar">${btn("提交发票申请")}</div></div>`,
+      voucher: `<div class="modal-panel"><h3>上传付款凭证</h3>
+        <div class="upload-box"><div class="plus">+</div>上传转账截图 / PDF</div>
+        <div class="form-grid" style="margin-top:16px"><label>付款金额</label><div>${input(o.deposit)}</div>
+        <label>付款时间</label><div>${input("2026-07-21")}</div></div>
+        <div class="action-bar">${btn("提交凭证")}</div></div>`,
+      whitelist: `<div class="modal-panel"><h3>白名单特殊处理</h3>
+        <div class="note">订单未达起订量时，可设为白名单允许继续流转。</div>
+        <div class="form-grid"><label>当前金额</label><div>¥${o.amount}</div>
+        <label>起订额</label><div>¥30,000</div>
+        <label>原因</label><div class="span2"><textarea>VIP 买手特批</textarea></div></div>
+        <div class="action-bar">${btn("设为白名单")}</div></div>`,
+      substore: `<div class="modal-panel"><h3>分配订单到子店铺</h3>
+        <table class="data-table"><thead><tr><th>子店铺</th><th>分配金额</th><th>SKU 数</th></tr></thead>
+        <tbody>
+          <tr><td>Liora Amour 静安</td><td>${input("60,000")}</td><td>${input("10")}</td></tr>
+          <tr><td>Liora Amour 主店</td><td>${input("68,600")}</td><td>${input("8")}</td></tr>
+        </tbody></table>
+        <div class="action-bar">${btn("确认分配")}</div></div>`,
+      return: `<div class="modal-panel"><h3>退换货</h3>
+        <div class="form-grid"><label>类型</label><div>${select(["退货", "换货"])}</div>
+        <label>关联 SKU</label><div>${input("121BZX122")}</div>
+        <label>数量</label><div>${input("1")}</div>
+        <label>原因</label><div>${input()}</div></div>
+        <div class="action-bar">${btn("提交退换货")}</div></div>`,
+      deposit: `<div class="modal-panel"><h3>品牌确认 · 设置定金</h3>
+        <div class="form-grid"><label>订单金额</label><div>¥${o.amount}</div>
+        <label>定金比例</label><div>${input("30%")}</div>
+        <label>应收定金</label><div>${input(o.deposit)}</div></div>
+        <div class="action-bar">${btn("确认定金并确认订单")}</div></div>`
+    };
+
     return `<h1 class="page-title">订单详情</h1>
       <div class="detail-sticky">
         <strong>${o.brand}</strong>
         <span class="badge">${o.type}</span>
         <span>最小起订额 ¥30,000</span>
+        <span>品类折扣 服饰 0.45</span>
         <span>已选金额 ¥${o.amount}</span>
         <span class="badge gray">${o.status}</span>
       </div>
@@ -624,18 +766,21 @@
         <div class="stat"><div class="l">SKU 数</div><div class="n">18</div></div>
       </div>
       <div class="form-section">
-        <h3>订单操作</h3>
-        <div class="ops">
-          ${btn("确认定金并确认订单")}
-          ${btn("增减款 / 设折扣", "btn-outline")}
-          ${btn("上传付款凭证", "btn-outline")}
-          ${btn("申请发票", "btn-outline")}
-          ${btn("确认尾款", "btn-outline")}
-          ${btn("分配子店铺", "btn-outline")}
-          ${btn("退换货", "btn-outline")}
-          ${btn("生成合同", "btn-outline")}
-          ${btn("生成 OC", "btn-outline")}
+        <h3>订单操作（点击展开子流程）</h3>
+        <div class="action-bar">
+          <button class="btn btn-primary" data-order-action="deposit">确认定金并确认订单</button>
+          <button class="btn btn-outline" data-order-action="modify">增减款 / 设折扣</button>
+          <button class="btn btn-outline" data-order-action="voucher">上传付款凭证</button>
+          <button class="btn btn-outline" data-order-action="invoice">申请发票</button>
+          <button class="btn btn-outline" data-action-toast="确认尾款成功">确认尾款</button>
+          <button class="btn btn-outline" data-order-action="substore">分配子店铺</button>
+          <button class="btn btn-outline" data-order-action="return">退换货</button>
+          <button class="btn btn-outline" data-order-action="whitelist">白名单</button>
+          <button class="btn btn-outline" data-go="contract-preview">生成合同</button>
+          <button class="btn btn-outline" data-go="oc-preview">生成 OC</button>
+          <button class="btn btn-outline" data-action-toast="开始下载订单 Excel">下载订单</button>
         </div>
+        ${action ? panels[action] || "" : '<div class="note">请选择上方操作查看完整子流程（此前版本仅有按钮文案，未闭合）。</div>'}
       </div>
       <table class="data-table">
         <thead><tr><th>SKU</th><th>款式</th><th>尺码明细</th><th>数量</th><th>买手价</th><th>小计</th></tr></thead>
@@ -775,23 +920,48 @@
   }
 
   function pageOrderRecon() {
-    return `<h1 class="page-title">对账管理</h1>
-      <div class="note">抽佣比例 / 阶梯抽佣、品牌付款信息、抽佣单、代/抽发票、挂帐余额等财务功能</div>
-      <div class="tabs">
-        <button class="on">抽佣设置</button><button>抽佣单</button><button>发票</button><button>挂帐余额</button>
-      </div>
-      <div class="form-grid">
+    const tab = state.reconTab;
+    const tabs = [
+      ["rate", "抽佣设置"],
+      ["bill", "抽佣单"],
+      ["invoice", "代/抽发票"],
+      ["balance", "挂帐余额"],
+      ["payinfo", "品牌付款信息"]
+    ];
+    const bodies = {
+      rate: `<div class="form-grid">
         <label>品牌</label><div>${select(RR.brands.map(b => b.name))}</div>
         <label>季节</label><div>${select(RR.seasons)}</div>
         <label>基础抽佣比例</label><div>${input("5%")}</div>
-        <label>阶梯抽佣</label><div>${input("满 100万 → 4%")}</div>
-      </div>
-      <div style="margin-top:20px">${btn("保存")}</div>`;
+        <label>阶梯抽佣</label><div>${input("满100万→4%")}</div>
+      </div><div class="action-bar">${btn("保存抽佣设置")}</div>`,
+      bill: `<table class="data-table"><thead><tr><th>抽佣单号</th><th>品牌</th><th>季节</th><th>基数</th><th>比例</th><th>抽佣额</th><th>状态</th></tr></thead>
+        <tbody><tr><td>CM-2026SS-01</td><td>JUNLI</td><td>2026SS</td><td>960,000</td><td>5%</td><td>48,000</td><td><span class="badge">待确认</span></td></tr></tbody></table>`,
+      invoice: `<table class="data-table"><thead><tr><th>类型</th><th>品牌</th><th>金额</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr><td>代开发票</td><td>JUNLI</td><td>48,000</td><td>待开</td><td><a href="javascript:;">处理</a></td></tr>
+          <tr><td>抽佣发票</td><td>HAIZHEN WANG</td><td>32,000</td><td>已开</td><td><a href="javascript:;">下载</a></td></tr>
+        </tbody></table>`,
+      balance: `<table class="data-table"><thead><tr><th>品牌</th><th>买手</th><th>挂帐余额</th><th>操作</th></tr></thead>
+        <tbody><tr><td>JUNLI</td><td>B1OCK</td><td>12,400.00</td><td><a href="javascript:;">冲销</a></td></tr></tbody></table>`,
+      payinfo: `<div class="form-grid">
+        <label>品牌</label><div>${select(RR.brands.map(b => b.name))}</div>
+        <label>收款账户</label><div>${input()}</div>
+        <label>开户行</label><div>${input()}</div>
+        <label>账号</label><div>${input()}</div>
+      </div><div class="action-bar">${btn("保存付款信息")}</div>`
+    };
+    return `<h1 class="page-title">对账管理</h1>
+      <div class="note">需求：抽佣比例/阶梯、品牌付款信息、抽佣单、代/抽发票、挂帐余额。现网有入口；本页补齐 Tab 实质内容供确认。</div>
+      <div class="tabs">${tabs.map(([id, lab]) =>
+        `<button class="${tab === id ? "on" : ""}" data-recon="${id}">${lab}</button>`
+      ).join("")}</div>
+      ${bodies[tab]}`;
   }
 
   function pageShip() {
     return `<h1 class="page-title">发货管理</h1>
-      <div class="note">订单发货时生成发货单并关联订单，记录发货内容，可填物流单号</div>
+      <div class="note">现网发货入口当前几乎空白；按需求补齐：发货单关联订单、记录发货明细、填写物流单号。差额可转买手余额。</div>
       ${filterPanel([
         ["订单号", input()],
         ["品牌", select(RR.brands.map(b => b.name))],
@@ -801,11 +971,65 @@
       <table class="data-table">
         <thead><tr><th>发货单号</th><th>订单</th><th>品牌</th><th>店铺</th><th>物流单号</th><th>状态</th><th>操作</th></tr></thead>
         <tbody>
-          <tr><td>SH-260321-01</td><td>ORD-20260319-088</td><td>JUNLI</td><td>B1OCK</td><td>${input("填写单号")}</td>
+          <tr><td>SH-260321-01</td><td>ORD-20260319-088</td><td>JUNLI</td><td>B1OCK</td><td>${input("SF123…")}</td>
             <td><span class="badge">待发货</span></td>
-            <td class="ops"><a href="javascript:;">编辑发货内容</a><a href="javascript:;">确认发货</a></td></tr>
+            <td class="ops"><a href="javascript:;" data-go="ship-detail">编辑发货内容</a><a href="javascript:;" data-action-toast="已确认发货">确认发货</a></td></tr>
         </tbody>
       </table>`;
+  }
+
+  function pageShipDetail() {
+    return `<h1 class="page-title">发货明细</h1>
+      <div class="detail-sticky">
+        <strong>SH-260321-01</strong>
+        <span>订单 ORD-20260319-088</span>
+        <span>JUNLI · B1OCK</span>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>SKU</th><th>尺码</th><th>应发</th><th>实发</th><th>差额</th></tr></thead>
+        <tbody>
+          <tr><td>JL26SS001</td><td>M</td><td>4</td><td>${input("3")}</td><td>1 → 转余额</td></tr>
+          <tr><td>JL26SS001</td><td>L</td><td>2</td><td>${input("2")}</td><td>0</td></tr>
+        </tbody>
+      </table>
+      <div class="form-grid" style="margin-top:16px">
+        <label>物流单号</label><div>${input()}</div>
+        <label>发货备注</label><div>${input()}</div>
+      </div>
+      <div class="action-bar">${btn("保存发货明细")}${btn("确认发货并回写余额", "btn-outline")}</div>`;
+  }
+
+  function pageContractPreview() {
+    return `<h1 class="page-title">合同预览 / 生成</h1>
+      <div class="note">企业信息与公章自动取自品牌资料（收款设置中的合同公章）。</div>
+      <div class="filter-panel" style="min-height:320px;line-height:1.9">
+        <strong>经销合同 · 2026SS</strong><br/><br/>
+        甲方：JUNLI<br/>
+        乙方：B1OCK<br/>
+        关联订单：ORD-20260319-088<br/>
+        合同类型：经销 · 发货周期：45-60天<br/>
+        授权期：2026-03-01 ~ 2026-09-30<br/><br/>
+        <div style="width:120px;height:120px;border:1px dashed #999;display:flex;align-items:center;justify-content:center;color:#999">公章</div>
+      </div>
+      <div class="action-bar">${btn("确认生成")}${btn("下载 PDF", "btn-outline")}${btn("返回订单", "btn-outline")}</div>`;
+  }
+
+  function pageOCPreview() {
+    return `<h1 class="page-title">OC 快速生成</h1>
+      <div class="note">需求强调：OC 需快速生成及下载；含企业信息 + 商品信息及图片。</div>
+      <div class="filter-panel">
+        <div style="display:flex;justify-content:space-between;margin-bottom:16px">
+          <div><strong>OC-20260319-088</strong><div style="color:#666;font-size:13px">JUNLI · B1OCK · 2026SS</div></div>
+          <div class="brand-logo" style="width:64px;height:64px">OC章</div>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>图</th><th>SKU</th><th>款式</th><th>数量</th><th>单价</th></tr></thead>
+          <tbody>
+            <tr><td><div class="thumb ph" style="width:48px;height:60px">IMG</div></td><td>JL26SS001</td><td>羊毛大衣</td><td>6</td><td>3,960.00</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="action-bar">${btn("快速生成并下载")}${btn("仅预览", "btn-outline")}</div>`;
   }
 
   function pageIntent() {
@@ -911,30 +1135,207 @@
 
   function pageBuyerBrand() {
     const brand = state.selectedBrand;
-    const goods = RR.goods.filter(g => g.brand === brand || brand === "HAIZHEN WANG");
+    const goods = RR.goods.filter(g => g.brand === brand);
+    const list = goods.length ? goods : RR.goods.filter(g => g.brand === "HAIZHEN WANG");
+    const imageView = `<div class="product-grid">
+        ${list.map(g => `
+          <div class="product-card">
+            <button class="heart ${state.hearts.includes(g.sku) ? "on" : ""}" data-heart="${g.sku}" title="选款（仅款式，不带尺码）">♥</button>
+            <div class="cover" data-go="buyer-detail" data-sku="${g.sku}">LOOK</div>
+            <div class="name" data-go="buyer-detail" data-sku="${g.sku}">${g.title}</div>
+            <div class="meta">${g.sku} · ¥${g.wholesale}${g.carry ? " · Carry Over" : ""}</div>
+          </div>`).join("")}
+      </div>`;
+    const codeView = `<div class="code-grid">
+        ${list.map(g => `
+          <div class="code-cell ${state.hearts.includes(g.sku) ? "on" : ""}" data-go="buyer-detail" data-sku="${g.sku}">
+            <button class="heart ${state.hearts.includes(g.sku) ? "on" : ""}" data-heart="${g.sku}">♥</button>
+            ${g.sku.slice(-4)}
+          </div>`).join("")}
+      </div>`;
     return `<div class="detail-sticky">
         <div class="brand-logo" style="width:48px;height:48px;font-size:9px">${brand.split(" ")[0]}</div>
         <div>
           <strong>${brand}</strong>
           <div style="font-size:12px;color:#666">先锋解构女装 · <a href="javascript:;" data-go="buyer-brand-about">查看全部介绍</a></div>
         </div>
-        <div style="margin-left:auto;display:flex;gap:12px;align-items:center">
+        <div style="margin-left:auto;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
           ${select(RR.seasons, "选择季节")}
-          <button class="btn btn-outline btn-sm">图片视图</button>
-          <button class="btn btn-outline btn-sm">编码视图</button>
-          ${input("搜索商品 / SKU")}
+          <button class="btn btn-outline btn-sm ${state.viewMode === "image" ? "" : ""}" data-view="image">图片视图</button>
+          <button class="btn btn-outline btn-sm" data-view="code">编码视图</button>
+          ${input("搜索商品 / SKU（不区分大小写）")}
+          <label style="margin:0;display:flex;align-items:center;gap:6px;color:#666"><input type="checkbox" style="width:auto;height:auto" /> Carry Over</label>
         </div>
       </div>
-      <div class="product-grid">
-        ${(goods.length ? goods : RR.goods).map(g => `
-          <div class="product-card" data-go="buyer-detail" data-sku="${g.sku}">
-            <button class="heart on" title="选款">♥</button>
-            <div class="cover">LOOK</div>
-            <div class="name">${g.title}</div>
-            <div class="meta">${g.sku} · ¥${g.wholesale}</div>
+      ${state.viewMode === "code" ? codeView : imageView}
+      <div class="float-cart" data-toggle-cart>选款单 <span class="dot">${state.cart.length}</span></div>
+      ${cartDrawer()}`;
+  }
+
+  function cartDrawer() {
+    if (!state.cartOpen) return "";
+    const items = RR.goods.filter(g => state.cart.includes(g.sku));
+    return `<div class="drawer-mask" data-toggle-cart></div>
+      <div class="drawer">
+        <h3>选款单小窗</h3>
+        <p style="color:#666;font-size:13px">选款只选款式，不带尺码；确认后再进详情/选款单改数量。</p>
+        ${items.map(g => `
+          <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #eee">
+            <div class="thumb ph" style="width:48px;height:60px">IMG</div>
+            <div style="flex:1">
+              <div style="font-size:13px">${g.title}</div>
+              <div style="color:#999;font-size:12px">${g.sku}</div>
+            </div>
+            <a href="javascript:;" data-heart="${g.sku}">移除</a>
+          </div>`).join("") || "<p>暂无选款</p>"}
+        <div class="action-bar" style="margin-top:20px">
+          ${btn("去选款单", "btn-primary")}
+          <button class="btn btn-outline" data-toggle-cart>关闭</button>
+        </div>
+      </div>`;
+  }
+
+  function pageBuyerSelection() {
+    const block = !state.hasFirstOrder;
+    return `<h1 class="page-title">我的选款单</h1>
+      <div class="note">按品牌拆分卡片。规则：同季无首单不可下补货；上一补货未完成不可新开。</div>
+      ${block ? `<div class="note" style="background:#fde8ee;color:#9f1239">拦截示例：本季尚未完成首单，补货选款单确认将被拒绝。</div>` : ""}
+      <div class="order-cards">
+        ${RR.selections.slice(0, 3).map(s => `
+          <div class="order-card">
+            <div>
+              <div class="title">${s.brand} · ${s.season}</div>
+              <div class="meta">
+                <span>${s.id}</span><span>${s.skus} 款</span><span>¥${s.amount}</span>
+                <span class="badge">${s.status}</span>
+              </div>
+            </div>
+            <div class="ops" style="flex-direction:column">
+              <button class="btn btn-outline btn-sm" data-go="buyer-selection-edit" data-sel="${s.id}">修改选款</button>
+              <button class="btn btn-outline btn-sm" data-action-toast="下载选款单">下载</button>
+              <button class="btn btn-primary btn-sm" data-confirm-sel="${s.id}">确认订单</button>
+            </div>
+          </div>`).join("")}
+      </div>`;
+  }
+
+  function pageBuyerSelectionEdit() {
+    return `<h1 class="page-title">选款单修改</h1>
+      <div class="note">可增减款式、修改各尺码数量；确认生成订单后不可再改（需后台驳回）。</div>
+      <table class="data-table">
+        <thead><tr><th>SKU</th><th>款式</th><th>尺码数量</th><th></th></tr></thead>
+        <tbody>${RR.selectionLines.map(l => `<tr>
+          <td>${l.sku}</td><td>${l.title}</td>
+          <td>${Object.keys(l.sizes).map(s => `
+            <div class="size-row" style="border:none;padding:4px 0">
+              <span style="width:28px">${s}</span>
+              <div class="qty"><button>-</button><input value="${l.sizes[s]}" /><button>+</button></div>
+            </div>`).join("")}</td>
+          <td><a href="javascript:;">删除款式</a></td>
+        </tr>`).join("")}</tbody>
+      </table>
+      <div class="action-bar">${btn("保存修改")}${btn("返回", "btn-outline")}</div>`;
+  }
+
+  function pageBuyerOrders() {
+    return `<h1 class="page-title">我的订单</h1>
+      <div class="tabs">
+        <button class="on" data-tabsoft>全部</button>
+        <button data-tabsoft>未完成</button>
+        <button data-tabsoft>已完成</button>
+      </div>
+      <div class="order-cards">
+        ${RR.orders.map(o => `
+          <div class="order-card">
+            <div>
+              <div class="title">${o.brand}</div>
+              <div class="meta">
+                <span>${o.id}</span><span>下单时间 2026-03-20</span>
+                <span>${o.season}</span><span>${o.type}</span>
+                <span>¥${o.amount}</span><span class="badge">${o.status}</span>
+              </div>
+            </div>
+            <div class="ops" style="flex-direction:column">
+              <button class="btn btn-outline btn-sm" data-go="buyer-order-detail" data-oid="${o.id}">查看</button>
+              <button class="btn btn-outline btn-sm" data-action-toast="下载订单 Excel">下载 Excel</button>
+              ${o.status.includes("未确认") || o.status.includes("驳回")
+                ? `<button class="btn btn-outline btn-sm" data-go="buyer-selection-edit">修改</button>` : ""}
+              <button class="btn btn-primary btn-sm" data-action-toast="已确认提交，等待品牌/平台审核">确认提交</button>
+            </div>
+          </div>`).join("")}
+      </div>`;
+  }
+
+  function pageBuyerOrderDetail() {
+    const o = state.selectedOrder || RR.orders[0];
+    const steps = ["买手未确认", "买手已确认待品牌确认", "定金确认", "尾款确认"];
+    const cur = steps.findIndex(s => o.status.includes(s.slice(0, 4))) ;
+    const idx = cur < 0 ? 1 : cur;
+    return `<h1 class="page-title">订单查看</h1>
+      <div class="detail-sticky">
+        <strong>${o.brand}</strong>
+        <div class="brand-logo" style="width:36px;height:36px;font-size:8px">LG</div>
+        <span>最小起订额 ¥30,000</span>
+        <span>品类折扣 服饰 0.45</span>
+        <span class="badge">${o.status}</span>
+      </div>
+      <h3 style="font-size:15px">订单进度</h3>
+      <div class="timeline">
+        ${steps.map((s, i) => `
+          <div class="timeline-item ${i < idx ? "done" : ""} ${i === idx ? "on" : ""}">
+            <div class="timeline-dot"></div>
+            <div><strong>${s}</strong><div style="color:#999;font-size:12px">${i <= idx ? "已到达" : "未到达"}</div></div>
           </div>`).join("")}
       </div>
-      <div class="float-cart" data-go="buyer-selection">选款单 <span class="dot">3</span></div>`;
+      <div class="action-bar">
+        ${btn("下载 Excel", "btn-outline")}
+        ${o.status.includes("未确认") ? btn("修改订单", "btn-outline") : ""}
+        ${btn("确认提交")}
+      </div>
+      <table class="data-table">
+        <thead><tr><th>SKU</th><th>款式</th><th>数量</th><th>金额</th></tr></thead>
+        <tbody>
+          <tr><td>121BZX122</td><td>双v面包西服</td><td>3</td><td>8,235.00</td></tr>
+        </tbody>
+      </table>`;
+  }
+
+  function pageCoverage() {
+    const rows = [
+      ["登录（身份分流）", "有", "有", "闭合", "ok"],
+      ["品牌规则配置", "有", "有", "字段已对齐现网折扣结构", "ok"],
+      ["商品列表/增删改/CO", "有", "有", "闭合（示意）", "ok"],
+      ["选款单管理", "有", "有", "已补详情/生成/取消/下载", "ok"],
+      ["订单全操作链", "有（深）", "有", "已补子流程面板", "ok"],
+      ["合同/OC", "弱/内嵌", "要求独立能力", "已补预览生成页", "partial"],
+      ["对账管理", "有入口", "有", "Tab 内容已补", "ok"],
+      ["发货管理", "现网空页", "有", "按需求补明细", "partial"],
+      ["角色权限", "现网未见", "有", "原型增量页", "partial"],
+      ["买手选货/双视图/红心", "未用买手号验证", "有", "已补编码视图+悬浮选款单", "partial"],
+      ["买手选款单修改/订单进度", "—", "有", "已补", "ok"],
+      ["LOOK / 添加品牌", "有入口", "待定/不清", "保留入口+说明", "miss"],
+      ["金蝶对接", "无页", "有", "不做 UI", "miss"]
+    ];
+    return `<h1 class="page-title">覆盖核对（实事求是）</h1>
+      <div class="note">结论：信息架构基本闭合；业务操作闭环本次已补强，但<strong>并非 100%</strong>。金蝶、LOOK、添加品牌、买手现网对照仍开放。</div>
+      <table class="data-table gap-table">
+        <thead><tr><th>能力</th><th>现网</th><th>需求</th><th>原型现状</th><th>状态</th></tr></thead>
+        <tbody>${rows.map(r => `<tr>
+          <td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td>
+          <td class="${r[4]}">${r[4] === "ok" ? "闭合" : r[4] === "partial" ? "部分" : "未闭合"}</td>
+        </tr>`).join("")}</tbody>
+      </table>
+      <p style="color:#666;font-size:13px;margin-top:16px">详细说明见仓库 <code>COVERAGE.md</code>。</p>`;
+  }
+
+  function pageAccount() {
+    return `<h1 class="page-title">账号管理</h1>
+      <div class="form-grid">
+        <label>登录手机</label><div>13800000000</div>
+        <label>角色</label><div>${state.portal === "brand" ? "品牌管理员" : "高级管理员"}</div>
+        <label>修改手机</label><div>${input()}</div>
+        <label></label><div>${btn("保存", "btn-outline")}</div>
+      </div>`;
   }
 
   function pageBuyerBrandAbout() {
@@ -992,53 +1393,6 @@
       </div>`;
   }
 
-  function pageBuyerSelection() {
-    return `<h1 class="page-title">我的选款单</h1>
-      <div class="note">按品牌拆分卡片；同季无首单不可下补货；上一补货未完成不可新开</div>
-      <div class="order-cards">
-        ${RR.selections.map(s => `
-          <div class="order-card">
-            <div>
-              <div class="title">${s.brand} · ${s.season}</div>
-              <div class="meta">
-                <span>${s.id}</span><span>${s.styles} 款</span><span>¥${s.amount}</span>
-                <span class="badge">${s.status}</span>
-              </div>
-            </div>
-            <div class="ops" style="flex-direction:column">
-              ${btn("修改选款", "btn-outline btn-sm")}
-              ${btn("下载", "btn-outline btn-sm")}
-              ${btn("确认订单", "btn-primary btn-sm")}
-            </div>
-          </div>`).join("")}
-      </div>`;
-  }
-
-  function pageBuyerOrders() {
-    return `<h1 class="page-title">我的订单</h1>
-      <div class="tabs">
-        <button class="on">全部</button><button>未完成</button><button>已完成</button>
-      </div>
-      <div class="order-cards">
-        ${RR.orders.map(o => `
-          <div class="order-card">
-            <div>
-              <div class="title">${o.brand}</div>
-              <div class="meta">
-                <span>${o.id}</span><span>${o.season}</span><span>${o.type}</span>
-                <span>¥${o.amount}</span><span class="badge">${o.status}</span>
-              </div>
-            </div>
-            <div class="ops" style="flex-direction:column">
-              ${btn("查看", "btn-outline btn-sm")}
-              ${btn("下载 Excel", "btn-outline btn-sm")}
-              ${o.status.includes("未确认") || o.status.includes("驳回") ? btn("修改", "btn-outline btn-sm") : ""}
-              ${btn("确认提交", "btn-primary btn-sm")}
-            </div>
-          </div>`).join("")}
-      </div>`;
-  }
-
   function pageBuyerProfile() {
     return `<h1 class="page-title">个人中心</h1>
       <div class="form-section">
@@ -1070,7 +1424,10 @@
 
   function pageBuyerReplenish() {
     return `<h1 class="page-title">补货</h1>
-      <div class="note">同品牌板块结构；受首单/补货开关与订单完成状态约束</div>
+      <div class="note">同品牌板块结构。若无首单或上一补货未完成，确认订单时拦截。</div>
+      <div class="action-bar">
+        <button class="btn btn-outline" data-toggle-rule="first">${state.hasFirstOrder ? "模拟：无首单" : "模拟：已有首单"}</button>
+      </div>
       ${pageBuyerHome()}`;
   }
 
@@ -1088,7 +1445,7 @@
             <div class="login-field"><label>手机号</label>${input()}</div>
             <div class="login-field"><label>预约场次</label>${select(["2026SS 上海", "2026SS 北京"])}</div>
             <div class="login-field"><label>预约时间</label>${input("2026-04-08 14:00")}</div>
-            ${btn("提交预约", "btn-primary btn-block")}
+            <button class="btn btn-primary btn-block" data-action-toast="预约已提交，已同步后台预约列表">提交预约</button>
           </div>
         </div>
       </div>`;
@@ -1096,6 +1453,8 @@
 
   const pages = {
     login: pageLogin,
+    coverage: pageCoverage,
+    "account-center": pageAccount,
     "goods-list": pageGoodsList,
     "goods-add": pageGoodsAdd,
     "goods-view": pageGoodsAdd,
@@ -1111,14 +1470,14 @@
     "brand-contract": pageBrandContract,
     "brand-edit": pageBrandEdit,
     "order-selection": pageOrderSelection,
+    "selection-detail": pageSelectionDetail,
     "order-list": pageOrderList,
     "order-detail": pageOrderDetail,
-    "order-replenish": () => {
-      const html = pageOrderList();
-      return html.replace(">订单管理<", ">补货单管理<").replace("订单管理</h1>", "补货单管理</h1>");
-    },
+    "order-replenish": () => pageOrderList().replaceAll("订单管理", "补货单管理"),
     "order-contract": pageOrderContract,
     "order-oc": pageOrderOC,
+    "contract-preview": pageContractPreview,
+    "oc-preview": pageOCPreview,
     "order-style": pageOrderStyle,
     "order-realtime": pageOrderRealtime,
     "order-all-sel": pageOrderAllSel,
@@ -1127,6 +1486,7 @@
     "order-appoint": pageOrderAppoint,
     "order-recon": pageOrderRecon,
     "ship-list": pageShip,
+    "ship-detail": pageShipDetail,
     "intent-list": pageIntent,
     "buyer-list": pageBuyerList,
     "buyer-balance": pageBuyerBalance,
@@ -1147,6 +1507,11 @@
       <table class="data-table"><thead><tr><th>子店铺</th><th>城市</th><th>操作</th></tr></thead>
       <tbody><tr><td>Liora Amour 静安</td><td>上海</td><td><a href="javascript:;">编辑</a></td></tr></tbody></table>
       <div style="margin-top:16px">${btn("新建子店铺")}</div>`,
+    "buyer-add-brand": () => `<h1 class="page-title">添加品牌</h1>
+      <div class="note">需求备注：暂不清楚需求。保留入口待客户确认业务含义（给买手开通某品牌？还是新建品牌主体？）。</div>
+      <div class="form-grid"><label>选择品牌</label><div>${select(RR.brands.map(b => b.name))}</div>
+      <label>备注</label><div>${input()}</div></div>
+      <div class="action-bar">${btn("提交（示意）", "btn-outline")}</div>`,
     "buyer-appoint": () => simpleFormPage("添加预约", "代买手创建展会预约", `
       <label>品牌</label><div>${select(RR.brands.map(b => b.name))}</div>
       <label>时间</label><div>${input()}</div>`),
@@ -1157,7 +1522,9 @@
     "buyer-brand-about": pageBuyerBrandAbout,
     "buyer-detail": pageBuyerDetail,
     "buyer-selection": pageBuyerSelection,
+    "buyer-selection-edit": pageBuyerSelectionEdit,
     "buyer-orders": pageBuyerOrders,
+    "buyer-order-detail": pageBuyerOrderDetail,
     "buyer-profile": pageBuyerProfile,
     "buyer-replenish": pageBuyerReplenish,
     "mp-home": pageMP
@@ -1165,12 +1532,17 @@
 
   function render() {
     if (state.page === "login") {
-      app.innerHTML = pageLogin();
+      app.innerHTML = toastHtml() + pageLogin();
       bind();
       return;
     }
-    if (state.portal === "mp") {
-      app.innerHTML = pageMP();
+    if (state.portal === "mp" && state.page !== "coverage") {
+      app.innerHTML = toastHtml() + pageMP();
+      bind();
+      return;
+    }
+    if (state.page === "coverage") {
+      app.innerHTML = toastHtml() + protoBar() + `<div class="shell full-main"><div class="main">${pageCoverage()}</div></div>` + footer();
       bind();
       return;
     }
@@ -1178,11 +1550,11 @@
     const isBuyer = state.portal === "buyer";
     const body = (pages[state.page] || pageGoodsList)();
     if (isBuyer) {
-      app.innerHTML = `${protoBar()}${topnav("buyer")}
-        <div class="shell full-main"><div class="main">${body}</div></div>${footer()}`;
+      app.innerHTML = toastHtml() + protoBar() + topnav("buyer") +
+        `<div class="shell full-main"><div class="main">${body}</div></div>` + footer();
     } else {
-      app.innerHTML = `${protoBar()}${topnav(state.portal)}
-        <div class="shell">${sidebar()}<div class="main">${body}</div></div>${footer()}`;
+      app.innerHTML = toastHtml() + protoBar() + topnav(state.portal) +
+        `<div class="shell">${sidebar()}<div class="main">${body}</div></div>` + footer();
     }
     bind();
   }
@@ -1194,8 +1566,13 @@
     app.querySelectorAll("[data-go]").forEach(el => {
       el.addEventListener("click", (e) => {
         e.preventDefault();
+        e.stopPropagation();
         const brand = el.getAttribute("data-brand");
+        const sel = el.getAttribute("data-sel");
+        const oid = el.getAttribute("data-oid");
         if (brand) state.selectedBrand = brand;
+        if (sel) state.selectedSel = RR.selections.find(s => s.id === sel) || state.selectedSel;
+        if (oid) state.selectedOrder = RR.orders.find(o => o.id === oid) || state.selectedOrder;
         go(el.getAttribute("data-go"));
       });
     });
@@ -1210,7 +1587,7 @@
       loginBtn.addEventListener("click", () => {
         state.portal = state.roleLogin;
         localStorage.setItem("rr_portal", state.portal);
-        state.page = state.portal === "buyer" ? "buyer-home" : state.portal === "brand" ? "brand-list" : "goods-list";
+        state.page = state.portal === "buyer" ? "buyer-home" : state.portal === "brand" ? "brand-discount" : "goods-list";
         render();
       });
     }
@@ -1222,16 +1599,91 @@
         render();
       });
     });
-    // tab buttons cosmetic
-    app.querySelectorAll(".tabs button").forEach(btn => {
+    app.querySelectorAll("[data-tabsoft]").forEach(btn => {
       btn.addEventListener("click", () => {
         btn.parentElement.querySelectorAll("button").forEach(b => b.classList.remove("on"));
         btn.classList.add("on");
       });
     });
+    app.querySelectorAll("[data-recon]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        state.reconTab = btn.getAttribute("data-recon");
+        render();
+      });
+    });
+    app.querySelectorAll("[data-order-action]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        state.orderAction = btn.getAttribute("data-order-action");
+        render();
+      });
+    });
+    app.querySelectorAll("[data-action-toast]").forEach(el => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        toast(el.getAttribute("data-action-toast"));
+      });
+    });
+    app.querySelectorAll("[data-gen-order]").forEach(el => {
+      el.addEventListener("click", () => toast("已从选款单生成订单，选款单锁定不可改"));
+    });
+    app.querySelectorAll("[data-confirm-sel]").forEach(el => {
+      el.addEventListener("click", () => {
+        if (!state.hasFirstOrder) toast("拦截：本季未下过首单，不允许确认补货相关订单");
+        else toast("选款单已生成订单，等待品牌/平台审核");
+      });
+    });
+    app.querySelectorAll("[data-toggle-rule]").forEach(el => {
+      el.addEventListener("click", () => {
+        state.hasFirstOrder = !state.hasFirstOrder;
+        toast(state.hasFirstOrder ? "已恢复：存在首单" : "已模拟：无首单（确认将被拦截）");
+      });
+    });
+    app.querySelectorAll("[data-view]").forEach(el => {
+      el.addEventListener("click", () => {
+        state.viewMode = el.getAttribute("data-view");
+        render();
+      });
+    });
+    app.querySelectorAll("[data-toggle-cart]").forEach(el => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (el.classList.contains("btn-primary") || el.textContent.includes("去选款单")) {
+          go("buyer-selection");
+          return;
+        }
+        state.cartOpen = !state.cartOpen;
+        render();
+      });
+    });
+    app.querySelectorAll("[data-heart]").forEach(el => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const sku = el.getAttribute("data-heart");
+        if (state.hearts.includes(sku)) {
+          state.hearts = state.hearts.filter(x => x !== sku);
+          state.cart = state.cart.filter(x => x !== sku);
+        } else {
+          state.hearts.push(sku);
+          if (!state.cart.includes(sku)) state.cart.push(sku);
+        }
+        saveCart();
+        render();
+      });
+    });
+    // account center link
+    app.querySelectorAll(".nav-right a").forEach(a => {
+      if ((a.textContent || "").includes("账户中心")) {
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          if (state.portal === "buyer") go("buyer-profile");
+          else go("account-center");
+        });
+      }
+    });
   }
 
-  // boot: show login first for client walkthrough
+  // boot
   if (location.hash === "#app") {
     state.page = state.portal === "buyer" ? "buyer-home" : "goods-list";
   } else {

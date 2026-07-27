@@ -22,9 +22,16 @@ window.RR = {
     { sku: "MS26AW012", brand: "Ms MIN", season: "2025AW", title: "羊毛混纺直筒裤", sizes: ["34", "36", "38", "40"], retail: "3,600.00", wholesale: "1,620.00", status: "正常" }
   ],
   selections: [
-    { id: "SEL-20260318-001", brand: "HAIZHEN WANG", season: "2026SS", store: "Liora Amour", city: "北京市", styles: 12, amount: "86,400.00", status: "待确认" },
-    { id: "SEL-20260317-014", brand: "JUNLI", season: "2026SS", store: "B1OCK", city: "杭州市", styles: 8, amount: "52,100.00", status: "已生成订单" },
-    { id: "SEL-20260316-008", brand: "Ms MIN", season: "2025AW", store: "BeautyFM", city: "南京市", styles: 15, amount: "103,200.00", status: "已取消" }
+    { id: "SEL-20260720-001", brand: "IAN HYLTON", season: "2027PS", store: "三叁设计师品牌集合店", time: "2026-07-20 11:55", amount: "83,240", pieces: 24, skus: 8, status: "待确认", buyer: "三叁" },
+    { id: "SEL-20260715-014", brand: "IAN HYLTON", season: "2027PS", store: "ASSEMBLE BY REEL", time: "2026-07-15 17:23", amount: "434,920", pieces: 127, skus: 29, status: "待确认", buyer: "ASSEMBLE" },
+    { id: "SEL-20260715-008", brand: "HIDEMI", season: "2027PS", store: "Ding", time: "2026-07-15 17:35", amount: "0", pieces: 0, skus: 20, status: "仅选款", buyer: "Ding" },
+    { id: "SEL-20260715-040", brand: "IAN HYLTON", season: "2027PS", store: "IAN HYLTON POP-UP", time: "2026-07-15 10:40", amount: "1,027,120", pieces: 300, skus: 52, status: "已生成订单", buyer: "POP-UP" },
+    { id: "SEL-20260712-055", brand: "KHIHO", season: "2026SS", store: "BeautyFM", time: "2026-07-12 13:01", amount: "3,285.51", pieces: 6, skus: 2, status: "待确认", buyer: "BeautyFM" }
+  ],
+  selectionLines: [
+    { sku: "IH27PS001", title: "结构羊毛夹克", sizes: { S: 2, M: 4, L: 1 }, price: "3,200.00" },
+    { sku: "IH27PS014", title: "阔腿西裤", sizes: { S: 1, M: 3, L: 2 }, price: "1,890.00" },
+    { sku: "IH27PS022", title: "真丝衬衫", sizes: { XS: 1, S: 2, M: 2 }, price: "2,100.00" }
   ],
   orders: [
     { id: "ORD-20260320-102", brand: "HAIZHEN WANG", season: "2026SS", store: "Liora Amour", type: "首单", amount: "128,600.00", deposit: "38,580.00", status: "买手已确认待品牌确认" },
