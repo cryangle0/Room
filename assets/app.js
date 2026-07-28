@@ -324,7 +324,7 @@
         </div>
         <div style="margin-top:8px">沪ICP备17050349号-2 · © Ontimeshow. All Rights Reserved</div>
       </div>
-      <div>客户确认原型 · 严格复刻现网 UI</div>
+      <div></div>
     </footer>`;
   }
 
