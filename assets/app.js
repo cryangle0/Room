@@ -1228,7 +1228,7 @@
             <div style="font-size:13px;font-weight:600">${b.name}</div>
           </div>`).join("")}
       </div>
-      <div class="float-cart" data-go="buyer-selection">
+      <div class="float-cart" data-toggle-cart>
         选款单 <span class="dot">${state.cart.length || 3}</span>
       </div>`;
   }
@@ -1268,31 +1268,36 @@
         </div>
       </div>
       ${state.viewMode === "code" ? codeView : imageView}
-      <div class="float-cart" data-toggle-cart>选款单 <span class="dot">${state.cart.length}</span></div>
-      ${cartDrawer()}`;
+      <div class="float-cart" data-toggle-cart>选款单 <span class="dot">${state.cart.length}</span></div>`;
   }
 
   function cartDrawer() {
     if (!state.cartOpen) return "";
     const items = RR.goods.filter(g => state.cart.includes(g.sku));
-    return `<div class="drawer-mask" data-toggle-cart></div>
-      <div class="drawer">
-        <h3>选款单小窗</h3>
-        <p style="color:#666;font-size:13px">选款只选款式，不带尺码；确认后再进详情/选款单改数量。</p>
-        ${items.map(g => `
-          <div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #eee">
-            <div class="thumb ph" style="width:48px;height:60px">IMG</div>
-            <div style="flex:1">
-              <div style="font-size:13px">${g.title}</div>
-              <div style="color:#999;font-size:12px">${g.sku}</div>
-            </div>
-            <a href="javascript:;" data-heart="${g.sku}">移除</a>
-          </div>`).join("") || "<p>暂无选款</p>"}
-        <div class="action-bar" style="margin-top:20px">
-          ${btn("去选款单", "btn-primary", "go:buyer-selection")}
+    return `<div class="rr-drawer-root">
+      <div class="rr-drawer-mask" data-toggle-cart></div>
+      <aside class="rr-drawer" role="dialog" aria-label="选款单小窗">
+        <div class="rr-drawer-head">
+          <h3>选款单小窗</h3>
+          <p>选款只选款式，不带尺码；确认后再进详情/选款单改数量。</p>
+        </div>
+        <div class="rr-drawer-body">
+          ${items.map(g => `
+            <div class="rr-drawer-item">
+              <div class="thumb ph" style="width:48px;height:60px;flex:0 0 auto">IMG</div>
+              <div class="meta">
+                <div class="name">${g.title}</div>
+                <div class="sku">${g.sku}</div>
+              </div>
+              <a href="javascript:;" data-heart="${g.sku}">移除</a>
+            </div>`).join("") || '<p style="color:#999;padding:24px 0;text-align:center">暂无选款</p>'}
+        </div>
+        <div class="rr-drawer-foot">
+          <button type="button" class="btn btn-primary" data-act="go:buyer-selection">去选款单</button>
           <button type="button" class="btn btn-outline" data-toggle-cart>关闭</button>
         </div>
-      </div>`;
+      </aside>
+    </div>`;
   }
 
   function pageBuyerSelection() {
@@ -1842,9 +1847,10 @@
 
     const isBuyer = state.portal === "buyer";
     const body = (pages[state.page] || pageGoodsList)();
+    const drawer = (isBuyer && state.cartOpen) ? cartDrawer() : "";
     if (isBuyer) {
       app.innerHTML = toastHtml() + protoBar() + topnav("buyer") +
-        `<div class="shell full-main"><div class="main">${body}</div></div>` + footer();
+        `<div class="shell full-main"><div class="main">${body}</div></div>` + footer() + drawer;
     } else {
       app.innerHTML = toastHtml() + protoBar() + topnav(state.portal) +
         `<div class="shell">${sidebar()}<div class="main">${body}</div></div>` + footer();
