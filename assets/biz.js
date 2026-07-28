@@ -3,7 +3,7 @@
  * Implements requirement-driven stateful operations (persisted in localStorage).
  */
 (() => {
-  const KEY = "rr_biz_v2";
+  const KEY = "rr_biz_v3";
 
   const ORDER_FLOW = ["买手未确认", "买手已确认待品牌确认", "定金确认", "尾款确认", "已完成"];
 
@@ -56,18 +56,51 @@
       appointments: clone(RR.appointments),
       contracts: [
         { id: "CT-2026SS-088", orderId: "ORD-20260319-088", brand: "JUNLI", season: "2026SS", status: "已生成" },
-        { id: "CT-2026SS-102", orderId: "ORD-20260320-102", brand: "HAIZHEN WANG", season: "2026SS", status: "待生成" }
+        { id: "CT-2026SS-102", orderId: "ORD-20260320-102", brand: "HAIZHEN WANG", season: "2026SS", status: "待生成" },
+        { id: "CT-2027PS-040", orderId: "ORD-20260715-040", brand: "IAN HYLTON", season: "2027PS", status: "已生成" },
+        { id: "CT-2026SS-077", orderId: "ORD-20260628-077", brand: "SUSAN FANG", season: "2026SS", status: "已生成" },
+        { id: "CT-2026SS-008", orderId: "ORD-20260501-008", brand: "self-portrait", season: "2026SS", status: "待生成" }
       ],
       ocs: [
-        { id: "OC-20260319-088", orderId: "ORD-20260319-088", brand: "JUNLI", status: "可下载" }
+        { id: "OC-20260319-088", orderId: "ORD-20260319-088", brand: "JUNLI", status: "可下载" },
+        { id: "OC-20260715-040", orderId: "ORD-20260715-040", brand: "IAN HYLTON", status: "可下载" },
+        { id: "OC-20260628-077", orderId: "ORD-20260628-077", brand: "SUSAN FANG", status: "可下载" },
+        { id: "OC-20260320-102", orderId: "ORD-20260320-102", brand: "HAIZHEN WANG", status: "待生成" }
       ],
       shipments: [
         {
           id: "SH-260321-01", orderId: "ORD-20260319-088", brand: "JUNLI", store: "B1OCK",
-          tracking: "", status: "待发货",
+          tracking: "SF1388291001", status: "待发货",
           lines: [
             { sku: "JL26SS001", size: "M", should: 4, actual: 4 },
-            { sku: "JL26SS001", size: "L", should: 2, actual: 2 }
+            { sku: "JL26SS001", size: "L", should: 2, actual: 2 },
+            { sku: "JL26SS014", size: "S", should: 3, actual: 2 },
+            { sku: "JL26SS028", size: "M", should: 5, actual: 5 }
+          ]
+        },
+        {
+          id: "SH-260322-02", orderId: "ORD-20260320-102", brand: "HAIZHEN WANG", store: "Liora Amour",
+          tracking: "", status: "待发货",
+          lines: [
+            { sku: "121BZX122", size: "S/6", should: 6, actual: 6 },
+            { sku: "121DRX037G", size: "XS/4", should: 3, actual: 3 },
+            { sku: "121PAX055", size: "M/8", should: 4, actual: 3 }
+          ]
+        },
+        {
+          id: "SH-260710-03", orderId: "ORD-20260715-040", brand: "IAN HYLTON", store: "IAN HYLTON POP-UP",
+          tracking: "YT9988120033", status: "部分发货",
+          lines: [
+            { sku: "IH27PS001", size: "M", should: 20, actual: 18 },
+            { sku: "IH27PS035", size: "L", should: 12, actual: 12 },
+            { sku: "IH27PS022", size: "S", should: 15, actual: 10 }
+          ]
+        },
+        {
+          id: "SH-260601-04", orderId: "ORD-20260530-019", brand: "RENLI SU", store: "识季",
+          tracking: "ZTO7788123456", status: "已发货",
+          lines: [
+            { sku: "RS26SS009", size: "M", should: 8, actual: 8 }
           ]
         }
       ],
@@ -110,12 +143,24 @@
       brandProfile: clone(RR.brands[0]),
       recon: {
         rate: { brand: "JUNLI", season: "2026SS", base: "5%", stair: "满100万→4%" },
-        bills: [{ id: "CM-2026SS-01", brand: "JUNLI", season: "2026SS", base: 960000, rate: "5%", amount: 48000, status: "待确认" }],
+        bills: [
+          { id: "CM-2026SS-01", brand: "JUNLI", season: "2026SS", base: 960000, rate: "5%", amount: 48000, status: "待确认" },
+          { id: "CM-2026SS-02", brand: "HAIZHEN WANG", season: "2026SS", base: 1286000, rate: "5%", amount: 64300, status: "已确认" },
+          { id: "CM-2027PS-01", brand: "IAN HYLTON", season: "2027PS", base: 1843120, rate: "4.5%", amount: 82940, status: "待确认" },
+          { id: "CM-2026SS-03", brand: "SUSAN FANG", season: "2026SS", base: 156800, rate: "5%", amount: 7840, status: "已确认" }
+        ],
         invoices: [
           { type: "代开发票", brand: "JUNLI", amount: 48000, status: "待开" },
-          { type: "抽佣发票", brand: "HAIZHEN WANG", amount: 32000, status: "已开" }
+          { type: "抽佣发票", brand: "HAIZHEN WANG", amount: 64300, status: "已开" },
+          { type: "代开发票", brand: "IAN HYLTON", amount: 82940, status: "待开" },
+          { type: "抽佣发票", brand: "SUSAN FANG", amount: 7840, status: "已开" }
         ],
-        balances: [{ brand: "JUNLI", store: "B1OCK", amount: 12400 }],
+        balances: [
+          { brand: "JUNLI", store: "B1OCK", amount: 12400 },
+          { brand: "HAIZHEN WANG", store: "Liora Amour", amount: 2480 },
+          { brand: "IAN HYLTON", store: "IAN HYLTON POP-UP", amount: 18600 },
+          { brand: "ANGEL CHEN", store: "Felix", amount: 0 }
+        ],
         payinfo: { brand: "JUNLI", account: "", bank: "", no: "" }
       },
       buyerSession: {
@@ -138,9 +183,10 @@
         goodsFilter: { carry: "全部", linesheet: "", sku: "", cat: "全部", subcat: "全部", brand: "全部", title: "", season: "全部" },
         orderFilter: { brand: "全部", season: "全部", type: "全部", status: "全部", store: "", id: "" },
         selectionFilter: { brand: "全部", season: "全部", store: "" },
-        buyerFilter: { keyword: "" },
+        buyerFilter: { keyword: "", levelTab: "全部" },
         styleDim: "sku",
-        discountMode: "first"
+        discountMode: "first",
+        listPage: 1
       }
     };
   }

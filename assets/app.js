@@ -21,7 +21,8 @@
     replenishBlocked: false,
     selectedShip: null,
     selectedBuyer: null,
-    selectedRole: null
+    selectedRole: null,
+    listPage: 1
   };
 
   function syncBuyerCart() {
@@ -77,15 +78,12 @@
           { id: "goods-look", label: "LOOK列表" },
           { id: "goods-add", label: "添加新商品" },
           { id: "goods-batch", label: "批量添加新商品" },
-          { id: "goods-list", label: "商品信息管理" },
-          { id: "goods-cat", label: "商品分类" }
+          { id: "goods-list", label: "商品信息管理" }
         ],
         order: [
           { id: "order-selection", label: "选款单管理" },
           { id: "order-list", label: "订单管理" },
           { id: "order-replenish", label: "补货单管理" },
-          { id: "order-contract", label: "合同管理" },
-          { id: "order-oc", label: "OC管理" },
           { id: "order-style", label: "款式汇总" },
           { id: "order-realtime", label: "实时订单汇总" },
           { id: "order-all-sel", label: "总选款单管理" },
@@ -102,9 +100,9 @@
           { id: "buyer-store", label: "查看店铺资料" },
           { id: "buyer-invoice", label: "修改发票信息" },
           { id: "buyer-address", label: "修改地址" },
-          { id: "buyer-edit", label: "编辑店铺资料" },
-          { id: "buyer-sub", label: "查看/添加子店铺" },
-          { id: "buyer-add-brand", label: "添加品牌（待定）" },
+          { id: "buyer-edit", label: "编辑资料" },
+          { id: "buyer-sub", label: "查看子店铺信息" },
+          { id: "buyer-add-brand", label: "添加品牌" },
           { id: "buyer-appoint", label: "添加预约" }
         ],
         role: [
@@ -155,6 +153,7 @@
   function go(page) {
     state.page = page;
     state.cartOpen = false;
+    state.listPage = 1;
     if (!page.startsWith("order-detail") && page !== "order-detail") state.orderAction = "";
     window.scrollTo(0, 0);
     render();
@@ -225,6 +224,7 @@
       [/^下载订单$/, "download:订单"],
       [/^生成订单$/, "gen-order"],
       [/^取消选款单$/, "cancel-selection"],
+      [/^取消订单$/, "cancel-selection"],
       [/^确认定金并确认订单$/, "confirm-deposit"],
       [/^确认尾款$/, "confirm-final"],
       [/^提交发票申请$/, "submit-invoice"],
@@ -443,8 +443,27 @@
     </div>`;
   }
 
+  function pagination(total, pageSize = 10) {
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    const cur = Math.min(state.listPage || 1, pages);
+    state.listPage = cur;
+    const nums = [];
+    for (let i = 1; i <= Math.min(pages, 12); i++) nums.push(i);
+    return `<div class="pagination"><ul>
+      ${nums.map(n => `<li class="${n === cur ? "uk-active" : ""}"><a href="javascript:;" data-page="${n}">${n}</a></li>`).join("")}
+      ${pages > 12 ? `<li><a href="javascript:;" data-page="${Math.min(pages, cur + 1)}">下一页 ›</a></li>` : ""}
+    </ul><span style="color:#999;font-size:12px;margin-left:12px">共 ${total} 条</span></div>`;
+  }
+
+  function pageSlice(list, pageSize = 10) {
+    const cur = state.listPage || 1;
+    const start = (cur - 1) * pageSize;
+    return list.slice(start, start + pageSize);
+  }
+
   function pageGoodsList() {
-    const list = Store.filteredGoods();
+    const all = Store.filteredGoods();
+    const list = pageSlice(all, 10);
     const f = Store.db.ui.goodsFilter;
     const rows = list.map(g => `
       <div class="goods-card">
@@ -463,30 +482,29 @@
           <div>${g.retail}</div>
           <div>${g.wholesale}</div>
           <div class="${g.status === "已删款" ? "status-del" : "status-ok"}">${g.status}</div>
-          <div class="link-row">
-            <button class="btn btn-outline btn-sm" data-go="goods-add">编辑</button>
-            <button class="btn btn-outline btn-sm" data-go="goods-view">查看</button>
-            <button class="btn btn-outline btn-sm" data-act="${g.status === "已删款" ? "restore-style" : "delete-style"}" data-sku="${g.sku}">${g.status === "已删款" ? "取消删款" : "删款"}</button>
+          <div class="ops">
+            <a href="javascript:;" data-go="goods-add">编辑</a>
+            <a href="javascript:;" data-go="goods-view">查看</a>
           </div>
         </div>
       </div>`).join("") || '<div class="note">无匹配商品，请调整筛选条件</div>';
 
     return `<h1 class="page-title">商品信息管理</h1>
-      <div class="note">需求：筛选 / Carry Over / 编辑·查看·删款（可恢复）。当前 ${list.length} / ${Store.db.goods.length} 条</div>
       ${filterPanel([
         ["Carry Over", select(["是", "否"], "全部", f.carry)],
         ["LineSheet", input("", f.linesheet)],
         ["SKU", input("", f.sku)],
         ["品类", select(["女装", "男装", "男女装", "配饰", "生活方式"], "全部", f.cat)],
-        ["二级品类", select(["外套", "连衣裙", "裤装"], "全部", f.subcat)],
+        ["二级品类", select(["外套", "连衣裙", "裤装", "裙装", "上衣", "包袋"], "全部", f.subcat)],
         ["选择品牌", select(RR.brands.map(b => b.name), "全部", f.brand === "全部" ? "全部" : f.brand)],
         ["款式名称", input("", f.title)],
         ["选择季节", select(RR.seasons, "全部", f.season)]
-      ], `${btn("设置Carry Over", "btn-outline", "go:goods-carry")}`)}
+      ], `<a href="javascript:;" class="btn btn-outline" data-act="go:goods-carry">设置Carry Over</a>`)}
       <div class="table-head">
         <div>商品信息</div><div>可选尺寸</div><div>零售价(RMB)</div><div>买手价(RMB)</div><div>状态</div><div>操作</div>
       </div>
-      ${rows}`;
+      ${rows}
+      ${pagination(all.length, 10)}`;
   }
 
   function pageGoodsAdd() {
@@ -775,45 +793,44 @@
   }
 
   function pageOrderSelection() {
-    const list = Store.filteredSelections();
+    const all = Store.filteredSelections();
+    const list = pageSlice(all, 10);
     const f = Store.db.ui.selectionFilter;
     return `<h1 class="page-title">选款单管理</h1>
-      <div class="note">列表形态对齐现网：品牌 / 下单时间 / 店铺 / 季节 / 总金额 / 件数 / SKU 数。当前 ${list.length} 条</div>
-      ${filterPanel([
-        ["选择品牌", select(RR.brands.map(b => b.name), "全部", f.brand)],
-        ["季节", select(RR.seasons, "全部", f.season)],
-        ["国家", input("输入国家")],
-        ["省", input("输入省")],
-        ["城市", input("输入城市")],
-        ["店铺名", input("输入店铺名", f.store)]
-      ])}
-      <div class="ops" style="margin-bottom:12px">
-        <a href="javascript:;" data-act="go:order-contract">查看已上传合同</a>
-        <a href="javascript:;" data-act="toast:已打开付款凭证列表（可在订单详情上传）">查看已上传凭证</a>
+      <div class="filter-panel">
+        <div class="filter-grid">
+          <div class="filter-label">选择品牌</div><div>${select(RR.brands.map(b => b.name), "全部", f.brand)}</div>
+          <div class="filter-label">季节</div><div>${select(RR.seasons, "全部", f.season)}</div>
+          <div class="filter-label">国家</div><div>${input("输入国家")}</div>
+          <div class="filter-label">省</div><div>${input("输入省")}</div>
+          <div class="filter-label">店铺名</div><div>${input("输入店铺名", f.store)}</div>
+        </div>
+        <div class="filter-actions">${btn("筛选")}</div>
+      </div>
+      <div class="sel-head-row">
+        <div>买手</div><div>季节</div><div>总金额</div><div>总件数</div><div>操作</div>
       </div>
       ${list.map(s => `
         <div class="sel-card">
           <div class="sel-card-head">
-            <span>买手/店铺：<strong>${s.store}</strong></span>
+            <span class="brand-logo" style="width:40px;height:40px;font-size:8px;display:inline-flex;align-items:center;justify-content:center">${(s.brand || "").split(" ")[0]}</span>
+            <strong>${s.brand}</strong>
             <span>下单时间：${s.time}</span>
-            <span class="badge">${s.status}</span>
           </div>
           <div class="sel-card-body">
-            <div>
-              <div class="brand">${s.brand}</div>
-              <div style="color:#999;font-size:12px;margin-top:4px">${s.id}</div>
-            </div>
-            <div>季节<br/><strong>${s.season}</strong></div>
-            <div>总金额<br/><strong>${s.amount}</strong></div>
+            <div><h5 style="margin:0">${s.store}</h5></div>
+            <div>${s.season}</div>
+            <div><strong>${s.amount}</strong></div>
             <div>件数：${s.pieces}<br/>SKU数：${s.skus}</div>
-            <div class="ops" style="flex-direction:column;align-items:stretch">
-              <button class="btn btn-outline btn-sm" data-go="selection-detail" data-sel="${s.id}">查看详情</button>
-              <button class="btn btn-primary btn-sm" data-gen-order="${s.id}" ${s.locked || s.status === "已生成订单" || s.status === "已取消" ? "disabled" : ""}>生成订单</button>
-              <button class="btn btn-outline btn-sm" data-act="cancel-selection" data-sel="${s.id}">取消选款单</button>
-              <button class="btn btn-outline btn-sm" data-act="download:选款单">下载</button>
+            <div class="ops" style="flex-direction:column;align-items:stretch;gap:6px">
+              <a class="oto_btn" href="javascript:;" data-go="selection-detail" data-sel="${s.id}">查看详情</a>
+              <a class="oto_btn" href="javascript:;" data-gen-order="${s.id}">生成订单</a>
+              <a class="oto_btn" href="javascript:;" data-act="cancel-selection" data-sel="${s.id}">取消订单</a>
+              <a class="oto_btn" href="javascript:;" data-act="download:选款单">下载选款单</a>
             </div>
           </div>
-        </div>`).join("") || '<div class="note">无匹配选款单</div>'}`;
+        </div>`).join("") || '<div class="note">无匹配选款单</div>'}
+      ${pagination(all.length, 10)}`;
   }
 
   function pageSelectionDetail() {
@@ -829,7 +846,7 @@
       </div>
       <div class="action-bar">
         ${btn("生成订单", "btn-primary", "gen-order")}
-        ${btn("取消选款单", "btn-outline", "cancel-selection")}
+        ${btn("取消订单", "btn-outline", "cancel-selection")}
         ${btn("下载选款单", "btn-outline")}
         ${btn("返回列表", "btn-outline", "go:order-selection")}
       </div>
@@ -848,11 +865,11 @@
   }
 
   function pageOrderList(forceType) {
-    const list = Store.filteredOrders(forceType || null);
+    const all = Store.filteredOrders(forceType || null);
+    const list = pageSlice(all, 10);
     const f = Store.db.ui.orderFilter;
     const title = forceType === "补货单" ? "补货单管理" : "订单管理";
     return `<h1 class="page-title">${title}</h1>
-      <div class="note">状态流：买手未确认 → 买手已确认待品牌确认（设定金）→ 定金确认 → 尾款确认。当前 ${list.length} 条</div>
       ${filterPanel([
         ["品牌", select(RR.brands.map(b => b.name), "全部", f.brand)],
         ["季节", select(RR.seasons, "全部", f.season)],
@@ -874,7 +891,8 @@
             <a href="javascript:;" data-go="order-detail" data-oid="${o.id}">白名单</a>
           </td>
         </tr>`).join("") || '<tr><td colspan="8">无匹配订单</td></tr>'}</tbody>
-      </table>`;
+      </table>
+      ${pagination(all.length, 10)}`;
   }
 
   function pageOrderDetail() {
@@ -1269,25 +1287,45 @@
   }
 
   function pageBuyerList() {
+    const tab = (Store.db.ui.buyerFilter && Store.db.ui.buyerFilter.levelTab) || "全部";
+    const kw = (Store.db.ui.buyerFilter && Store.db.ui.buyerFilter.keyword) || "";
+    let all = Store.db.buyers.slice();
+    if (tab === "待审核") all = all.filter(b => b.status === "待审核");
+    else if (tab !== "全部") all = all.filter(b => b.level === tab);
+    if (kw) all = all.filter(b => b.name.includes(kw) || (b.phone || "").includes(kw) || (b.city || "").includes(kw));
+    const list = pageSlice(all, 10);
+    const tabs = ["全部", "A", "B", "C", "D", "待审核"];
     return `<h1 class="page-title">买手审核</h1>
-      <div style="margin-bottom:16px">${btn("添加买手", "btn-outline")}</div>
+      <div class="buyer-toolbar">
+        <div class="tabs">
+          ${tabs.map(t => `<button class="${tab === t ? "on" : ""}" data-tabsoft data-buyer-tab="${t}">${t}</button>`).join("")}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin:12px 0">
+          ${field("buyerKw", input("搜索店铺 / 手机号", kw))}
+          ${btn("搜索", "btn-outline", "buyer-search")}
+          ${btn("添加买手", "btn-primary")}
+          <a href="javascript:;" data-act="toast:已打开邀请买手链接">邀请买手</a>
+        </div>
+      </div>
       <table class="data-table">
-        <thead><tr><th>店铺名</th><th>地区</th><th>手机号</th><th>店铺级别</th><th>状态</th><th>操作</th></tr></thead>
-        <tbody>${Store.db.buyers.map(b => `<tr>
+        <thead><tr><th>店铺名</th><th>地区</th><th>手机号</th><th>店铺级别</th><th>巡店图</th><th>操作</th></tr></thead>
+        <tbody>${list.map(b => `<tr>
           <td>${b.name}</td><td>${b.city}</td><td>${b.phone}</td><td>${b.level}</td>
-          <td><span class="badge ${b.status === "已通过" ? "green" : ""}">${b.status}</span></td>
+          <td><div class="thumb ph" style="width:48px;height:36px">图</div></td>
           <td class="ops">
             <a href="javascript:;" data-go="buyer-balance">余额管理</a>
-            <a href="javascript:;" data-go="buyer-store">店铺资料</a>
-            <a href="javascript:;" data-go="buyer-invoice">发票</a>
-            <a href="javascript:;" data-go="buyer-address">地址</a>
-            <a href="javascript:;" data-go="buyer-edit">编辑</a>
-            <a href="javascript:;" data-go="buyer-sub">子店铺</a>
-            <a href="javascript:;" data-go="buyer-appoint">预约</a>
+            <a href="javascript:;" data-go="buyer-store">查看店铺资料</a>
+            <a href="javascript:;" data-go="buyer-invoice">修改发票信息</a>
+            <a href="javascript:;" data-go="buyer-address">修改地址</a>
+            <a href="javascript:;" data-go="buyer-edit">编辑资料</a>
+            <a href="javascript:;" data-go="buyer-sub">查看子店铺信息</a>
+            <a href="javascript:;" data-go="buyer-add-brand">添加品牌</a>
+            <a href="javascript:;" data-go="buyer-appoint">添加预约</a>
             ${b.status === "待审核" ? `${link("通过", "approve")}${link("关闭权限", "reject")}` : ""}
           </td>
         </tr>`).join("")}</tbody>
-      </table>`;
+      </table>
+      ${pagination(all.length, 10)}`;
   }
 
   function pageBuyerBalance() {
@@ -1793,10 +1831,21 @@
 
     switch (act) {
       case "filter": {
+        state.listPage = 1;
         if (state.page === "goods-list" || state.page.startsWith("goods")) { applyGoodsFilterFromDom(); go(state.page); toast(`筛选到 ${Store.filteredGoods().length} 条商品`); }
         else if (state.page === "order-selection") { applySelectionFilterFromDom(); render(); toast(`筛选到 ${Store.filteredSelections().length} 条选款单`); }
         else if (state.page === "order-list" || state.page === "order-replenish") { applyOrderFilterFromDom(); render(); toast(`筛选到 ${Store.filteredOrders(state.page === "order-replenish" ? "补货单" : null).length} 条订单`); }
         else { toast("已按条件筛选"); render(); }
+        break;
+      }
+      case "buyer-search": {
+        const f = readFields();
+        Store.db.ui.buyerFilter = Store.db.ui.buyerFilter || {};
+        Store.db.ui.buyerFilter.keyword = f.buyerKw || "";
+        Store.persist();
+        state.listPage = 1;
+        render();
+        toast("已搜索买手");
         break;
       }
       case "clear-filter":
@@ -2284,7 +2333,7 @@
       const special = ["data-go", "data-portal", "data-role", "data-act", "data-heart", "data-qty",
         "data-order-action", "data-action-toast", "data-gen-order", "data-confirm-sel",
         "data-toggle-rule", "data-view", "data-toggle-cart", "data-recon", "data-tabsoft",
-        "data-line-qty", "data-carry-sku"];
+        "data-line-qty", "data-carry-sku", "data-page", "data-buyer-tab"];
       if (special.some(a => el.hasAttribute(a))) return;
       if (el.id === "do-login") return;
       el.dataset.wiredCatch = "1";
@@ -2613,9 +2662,26 @@
         if (mode) { Store.setDiscountMode(mode); render(); toast("已切换：" + btnEl.textContent.trim()); return; }
         if (styleDim) { Store.setStyleDim(styleDim); render(); toast("已切换：" + btnEl.textContent.trim()); return; }
         if (orderTab) { Store.setBuyerOrderTab(orderTab); render(); toast("已切换：" + orderTab); return; }
+        const buyerTab = btnEl.getAttribute("data-buyer-tab");
+        if (buyerTab) {
+          Store.db.ui.buyerFilter = Store.db.ui.buyerFilter || {};
+          Store.db.ui.buyerFilter.levelTab = buyerTab;
+          Store.persist();
+          state.listPage = 1;
+          render();
+          toast("已切换：" + buyerTab);
+          return;
+        }
         btnEl.parentElement.querySelectorAll("button").forEach(b => b.classList.remove("on"));
         btnEl.classList.add("on");
         toast(`已切换：${btnEl.textContent.trim()}`);
+      });
+    });
+    app.querySelectorAll("[data-page]").forEach(el => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        state.listPage = Number(el.getAttribute("data-page")) || 1;
+        render();
       });
     });
     app.querySelectorAll("[data-recon]").forEach(btnEl => {
