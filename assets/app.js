@@ -303,17 +303,18 @@
   }
 
   /** 原站：brand_goodsFilter > goods_filter > item_inner(label+控件) + oto_btn */
-  function filterPanel(fields, extras = "") {
-    const cols = fields.length >= 6 ? "cols-4" : "cols-3";
+  function filterPanel(fields, extras = "", submitLabel = "筛选", submitAct = "filter") {
+    const cols = fields.length >= 6 ? "cols-4" : (fields.length <= 2 ? "cols-2" : "cols-3");
     const rows = fields.map(([lab, ctrl]) =>
       `<div class="item_inner"><label>${lab}</label>${ctrl}</div>`
     ).join("");
+    const showClear = submitAct === "filter";
     return `<div class="brand_goodsFilter">
       <div class="goods_filter ${cols}">
         <div class="filter-items">${rows}</div>
         <div class="item item_submit">
-          <button type="button" class="oto_btn" data-act="filter">筛选</button>
-          ${link("清空条件", "clear-filter", "btn-ghost")}
+          <button type="button" class="oto_btn" data-act="${submitAct}">${submitLabel}</button>
+          ${showClear ? link("清空条件", "clear-filter", "btn-ghost") : ""}
           ${extras}
         </div>
       </div>
@@ -322,6 +323,10 @@
 
   function subTitle(text) {
     return `<div class="sub_title"><h4>${text}</h4></div>`;
+  }
+
+  function pageWrap(title, body) {
+    return `<div class="brand_goodsList-container">${subTitle(title)}${body}</div>`;
   }
 
   function select(opts, ph = "全部", selected) {
@@ -428,15 +433,28 @@
   }
 
   function sidebar() {
-    // #1 品牌管理首页不需要左侧导航
-    if (state.page === "brand-list") return "";
+    // 原站：品牌列表 + 品牌设置子页均为 no-sidebars（从品牌行链接进入）
+    const brandNoSide = [
+      "brand-list", "brand-discount", "brand-size", "brand-fair",
+      "brand-pay", "brand-contract", "brand-edit"
+    ];
+    if (brandNoSide.includes(state.page)) return "";
     const group = topGroup(state.page);
     let items = (routes.platform.side[group] || []);
+    // 主数据页：侧栏仅保留品牌列表 + 三项主数据
+    if (/^brand-master-/.test(state.page)) {
+      items = [
+        { id: "brand-list", label: "品牌管理" },
+        { id: "brand-master-style", label: "风格资料维护" },
+        { id: "brand-master-crowd", label: "适用人群维护" },
+        { id: "brand-master-size", label: "平台标准尺码" }
+      ];
+    }
     if (state.portal === "brand") {
       if (group === "buyer" || group === "role" || group === "account") items = [];
       if (group === "brand") {
         // 品牌端无「全品牌列表」，直接进本品牌配置
-        items = items.filter(i => i.id !== "brand-list");
+        items = items.filter(i => i.id !== "brand-list" && !/^brand-master-/.test(i.id));
       }
       if (group === "order") {
         items = items.filter(i => !["order-recon", "order-appoint"].includes(i.id));
@@ -547,7 +565,7 @@
   }
 
   function pageGoodsAdd() {
-    return `<h1 class="page-title">添加新商品</h1>
+    return `${subTitle("添加新商品")}
       <div class="note">手动添加：基础信息 + 多类型图片/视频（固定排序位）+ 富文本详情。保存写入商品库。</div>
       <div class="form-section">
         <h3>基础属性（标注 * 为必填）</h3>
@@ -555,7 +573,7 @@
           <label class="req">所属品牌</label><div>${field("brand", select(RR.brands.map(b => b.name), "选择品牌", "JUNLI"))}</div>
           <label class="req">款式名称</label><div>${field("title", input("款式名称"))}</div>
           <label class="req">款式编码SKU</label><div>${field("sku", input("SKU"))}</div>
-          <label>波段</label><div>${field("band", select(RR.bands, null, "第一波"))}</div>
+          <label>波段</label><div>${field("band", input("波段名称"))}</div>
           <label class="req">季节</label><div>${field("season", select(RR.seasons, null, "2026SS"))}</div>
           <label>预计发货时间</label><div>${field("shipAt", dateInput(""))}</div>
           <label>Carry Over</label><div>${field("carry", select(["否", "是"], null, "否"))}</div>
@@ -591,18 +609,12 @@
   }
 
   function pageGoodsBatch() {
-    return `<h1 class="page-title">批量添加新商品</h1>
+    return `${subTitle("批量添加新商品")}
       <div class="note">选择品牌与分类 → 下载对应 Excel 模板 → 上传批量导入（不同分类不同模板）</div>
-      <div class="filter-panel">
-        <div class="filter-grid">
-          <div class="filter-label">选择品牌</div><div>${field("brand", select(RR.brands.map(b => b.name), "选择品牌", "JUNLI"))}</div>
-          <div class="filter-label">选择分类</div><div>${field("cat", select(["女装", "男装", "男女装", "配饰", "生活方式"], null, "女装"))}</div>
-        </div>
-        <div class="filter-actions">
-          ${btn("下载模板", "btn-outline")}
-          ${btn("上传 Excel")}
-        </div>
-      </div>
+      ${filterPanel([
+        ["选择品牌", field("brand", select(RR.brands.map(b => b.name), "选择品牌", "JUNLI"))],
+        ["选择分类", field("cat", select(["女装", "男装", "男女装", "配饰", "生活方式"], null, "女装"))]
+      ], `${btn("下载模板", "btn-outline")}${btn("上传 Excel", "btn-outline")}`, "下载模板", "toast:已下载模板")}
       <div class="upload-box" style="height:180px" data-act="upload:批量商品"><div class="plus">+</div>拖拽或点击上传 Excel 文件</div>`;
   }
 
@@ -611,7 +623,7 @@
     const brand = ui.restockBrand;
     const kind = ui.restockKind;
     if (!brand || !kind) {
-      return `<h1 class="page-title">补货/隐藏管理</h1>
+      return `${subTitle("补货/隐藏管理")}
         <div class="note">参照现网：每行一个品牌。进入后按季度展示商品并批量修改；隐藏=全部不可见，不区分首单/补单。</div>
         <table class="data-table">
           <thead><tr><th>品牌名称</th><th>补货设置</th><th>隐藏设置</th></tr></thead>
@@ -627,7 +639,7 @@
     const season = ui.restockSeason || "全部";
     const list = Store.db.goods.filter(g => g.brand === brand && (season === "全部" || g.season === season) && g.status !== "已删款");
     const seasons = [...new Set(Store.db.goods.filter(g => g.brand === brand).map(g => g.season))];
-    return `<h1 class="page-title">${kind === "hide" ? "设置隐藏" : "设置补货"} · ${brand}</h1>
+    return `<div class="sub_title"><h4>${kind === "hide" ? "设置隐藏" : "设置补货"} · ${brand}</h4></div>
       <div class="note">${kind === "hide" ? "隐藏后买手端完全不可见，不区分首单/补货。" : "关闭补货后买手端该款不可下补货单。"} 可按季度批量修改。</div>
       <div class="action-bar">
         <button type="button" class="btn btn-outline" data-act="restock-back">返回品牌列表</button>
@@ -655,7 +667,7 @@
 
   function pageGoodsLook() {
     const looks = Store.db.looks;
-    return `<h1 class="page-title">LOOK 列表</h1>
+    return `${subTitle("LOOK 列表")}
       <div class="note">需求备注：待定。原型保留可增删 LOOK，绑定季节与关联 SKU。</div>
       <div class="action-bar">${btn("新增 LOOK", "btn-outline", "add-look")}</div>
       <div class="product-grid">
@@ -668,7 +680,7 @@
   }
 
   function pageGoodsCat() {
-    return `<h1 class="page-title">商品分类</h1>
+    return `${subTitle("商品分类")}
       <div class="note">平台端：设置商品分类，用于商品资料与买手端筛选</div>
       <table class="data-table">
         <thead><tr><th>一级分类</th><th>二级分类</th><th>商品数</th><th>操作</th></tr></thead>
@@ -697,14 +709,19 @@
         ${RR.brands.map(b => `
           <div class="item uk-flex-nowrap">
             <div class="g-name"><h4>${b.name}</h4></div>
-            <h4><a href="javascript:;" data-go="brand-discount">设置优惠规则</a></h4>
-            <h4><a href="javascript:;" data-go="brand-size">设置尺寸别名</a></h4>
-            <h4><a href="javascript:;" data-go="brand-fair">订货会设置</a></h4>
-            <h4><a href="javascript:;" data-go="brand-pay">收款设置</a></h4>
-            <h4><a href="javascript:;" data-go="brand-contract">合同设置</a></h4>
-            <h4><a href="javascript:;" data-go="brand-edit">编辑</a></h4>
+            <h4><a href="javascript:;" data-go="brand-discount" data-brand="${b.name}">设置优惠规则</a></h4>
+            <h4><a href="javascript:;" data-go="brand-size" data-brand="${b.name}">设置尺寸别名</a></h4>
+            <h4><a href="javascript:;" data-go="brand-fair" data-brand="${b.name}">订货会设置</a></h4>
+            <h4><a href="javascript:;" data-go="brand-pay" data-brand="${b.name}">收款设置</a></h4>
+            <h4><a href="javascript:;" data-go="brand-contract" data-brand="${b.name}">合同设置</a></h4>
+            <h4><a href="javascript:;" data-go="brand-edit" data-brand="${b.name}">编辑</a></h4>
           </div>`).join("")}
       </div>
+      ${state.portal === "platform" ? `<div class="note" style="margin-top:24px">平台主数据：
+        <a href="javascript:;" data-go="brand-master-style">风格资料维护</a> ·
+        <a href="javascript:;" data-go="brand-master-crowd">适用人群维护</a> ·
+        <a href="javascript:;" data-go="brand-master-size">平台标准尺码</a>
+      </div>` : ""}
     </div>`;
   }
 
@@ -717,49 +734,52 @@
     const mode = (Store.db.ui.discountMode || "first") === "replenish" ? "replenish" : "first";
     const rules = Store.getDiscountRules(season, mode);
     const tabs = [["first", "首单规则"], ["replenish", "补货单规则"]];
-    return `<h1 class="page-title">设置优惠规则</h1>
-      <div class="note">每个已有季度单独配置、单独生效；订货会场次开关请到「订货会设置」，本页仅首单/补货两套规则。</div>
-      <div class="season-tabs" style="margin-bottom:12px">
-        ${seasons.map(s => `<button type="button" class="${season === s ? "on" : ""}" data-act="discount-season:${s}">${s}</button>`).join("")}
-      </div>
-      <div class="tabs">${tabs.map(([id, lab]) => `<button class="${mode === id ? "on" : ""}" data-tabsoft data-mode="${id}">${lab}</button>`).join("")}</div>
-      <div class="form-section">
-        <h3>最小起订金额（吊牌价）· ${season}</h3>
-        <div class="form-grid">
-          <label>最小起订金额</label><div>${field("minAmount", input("例如 30000", String(rules.minAmount || 30000)))}</div>
+    /* 原站：无侧栏；h1.title_underline 店铺设置；季度 ul + 首单/补货 pill；form 纵向 h5+input */
+    return `<h1 class="title_underline">店铺设置</h1>
+      <div class="ots_order-form">
+        <div class="form_item-long"><label>品牌:</label><div>${state.selectedBrand || "JUNLI"}</div></div>
+        <div class="rule_season season-tabs">
+          <ul>${seasons.map(s => `<li class="${season === s ? "uk-active" : ""}"><a href="javascript:;" data-act="discount-season:${s}">${s}</a></li>`).join("")}</ul>
         </div>
-      </div>
-      <div class="form-section">
-        <h3>分类统一折扣</h3>
-        <table class="data-table">
-          <thead><tr><th>分类</th><th>统一折扣</th><th>说明</th></tr></thead>
-          <tbody>
-            <tr><td>服饰统一折扣</td><td>${field("cloth", input("0.45", String(rules.cloth || 0.45)))}</td><td>需设置后阶梯折扣才生效</td></tr>
-            <tr><td>配饰统一折扣</td><td>${field("accessory", input("0.50", String(rules.accessory || 0.5)))}</td><td>需设置后阶梯折扣才生效</td></tr>
-            <tr><td>生活方式统一折扣</td><td>${field("lifestyle", input("0.55", String(rules.lifestyle || 0.55)))}</td><td>需设置后阶梯折扣才生效</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="form-section">
-        <h3>金额阶梯折扣</h3>
+        <ul class="uk-subnav discount-step tabs">
+          ${tabs.map(([id, lab]) => `<li class="${mode === id ? "uk-active on" : ""}"><a href="javascript:;" data-tabsoft data-mode="${id}">${lab.replace("规则", "")}</a></li>`).join("")}
+        </ul>
+        <div class="form_item-long">
+          <h5>最小起订金额(吊牌价）</h5>
+          <div>${field("minAmount", input("请输入金额", String(rules.minAmount || 30000)))}</div>
+          <h5>服饰统一折扣（需设置统一折扣阶梯折扣才会生效）</h5>
+          <div>${field("cloth", input("请输入金额", String(rules.cloth || 0.45)))}</div>
+          <h5>配饰统一折扣（需设置统一折扣阶梯折扣才会生效）</h5>
+          <div>${field("accessory", input("请输入金额", String(rules.accessory || 0.5)))}</div>
+          <h5>生活方式统一折扣（需设置统一折扣阶梯折扣才会生效）</h5>
+          <div>${field("lifestyle", input("请输入金额", String(rules.lifestyle || 0.55)))}</div>
+          <div class="action-bar">${btn("保存", "btn-primary", "save-discount")}</div>
+        </div>
+        <hr/>
+        <div class="form_item-long">
+          <label>阶梯优惠设置</label>
+          <div>${field("ruleType", select(["金额生效"], null, "金额生效"))}</div>
+          <label>选择分类</label>
+          <div>${field("stairCat", select(["服饰", "配饰", "生活方式"], null, "服饰"))}</div>
+        </div>
         <table class="data-table" id="stair-table">
           <thead><tr><th>满额（吊牌价）</th><th>折扣</th><th></th></tr></thead>
           <tbody>
             ${(rules.stairs || []).map((st, i) => `<tr>
-              <td>${field("stair-amt-" + i, input("", String(st.amount)))}</td>
-              <td>${field("stair-disc-" + i, input("", String(st.discount)))}</td>
+              <td>${field("stair-amt-" + i, input("请输入金额(吊牌价）", String(st.amount)))}</td>
+              <td>${field("stair-disc-" + i, input("折扣", String(st.discount)))}</td>
               <td>${link("删除", "delete-stair:" + i)}</td>
             </tr>`).join("")}
           </tbody>
         </table>
-        <div class="action-bar">${btn("添加阶梯", "btn-outline", "add-stair")}${btn("保存规则", "btn-primary", "save-discount")}</div>
+        <div class="submit_area action-bar">${btn("添加阶梯", "btn-outline", "add-stair")}${btn("确认提交", "btn-primary", "save-discount")}</div>
       </div>`;
   }
 
   function pageBrandSize() {
     const list = Store.db.sizeAliasList || [];
     const standards = Store.db.standardSizes || [];
-    return `<h1 class="page-title">设置尺寸别名</h1>
+    return `${subTitle("设置尺寸别名")}
       <div class="note">下拉选择平台标准尺码 → 填写别名 → 确认提交；下方列表可删除后重新提交。</div>
       <div class="form-grid" style="max-width:640px">
         <label>标准尺码</label><div>${field("aliasStd", select(standards, "请选择", standards[0] || ""))}</div>
@@ -779,7 +799,7 @@
   }
 
   function pageBrandFair() {
-    return `<h1 class="page-title">订货会设置</h1>
+    return `${subTitle("订货会设置")}
       <div class="note">每场次含首单/补货两种类型；按季度开关。关闭后商品可见但不支持下单</div>
       <table class="data-table" id="fair-table">
         <thead><tr><th>场次/季节</th><th>首单</th><th>补货</th><th>状态</th></tr></thead>
@@ -801,7 +821,7 @@
 
   function pageBrandPay() {
     const p = Store.db.payInfo;
-    return `<h1 class="page-title">收款设置</h1>
+    return `${subTitle("收款设置")}
       <div class="form-grid">
         <label>收款账户名</label><div>${field("account", input("公司名称", p.account))}</div>
         <label>开户行</label><div>${field("bank", input("", p.bank))}</div>
@@ -814,7 +834,7 @@
 
   function pageBrandContract() {
     const c = Store.db.contractSettings;
-    return `<h1 class="page-title">合同设置</h1>
+    return `${subTitle("合同设置")}
       <div class="note">按季度配置：合同类型、发货周期、联系人/手机/邮箱、签订与授权起止时间</div>
       <div class="form-grid">
         <label>季度</label><div>${field("season", select(RR.seasons, null, c.season))}</div>
@@ -844,7 +864,7 @@
   function pageBrandEdit() {
     const b = Store.db.brandProfile || RR.brands[0];
     const cats = Store.db.catsMaster || ["女装", "男装", "男女装", "配饰", "生活方式"];
-    return `<h1 class="page-title">品牌信息编辑</h1>
+    return `${subTitle("品牌信息编辑")}
       <div class="note">品类 / 风格 / 适用人群从主数据勾选，支持多选。</div>
       <div class="form-grid">
         <label>品牌名</label><div>${field("name", input(b.name, b.name))}</div>
@@ -868,7 +888,7 @@
     const rows = kind === "sizes"
       ? (Store.db.standardSizes || []).map(n => ({ id: n, name: n }))
       : (kind === "styles" ? Store.db.stylesMaster : Store.db.crowdsMaster) || [];
-    return `<h1 class="page-title">${title}</h1>
+    return `<div class="sub_title"><h4>${title}</h4></div>
       <div class="note">${note}（意见 #6，现网无参考页，按主体 UI 自设计）</div>
       <div class="form-grid" style="max-width:560px">
         <label>新增</label><div>${field("masterName", input("输入名称"))}</div>
@@ -1012,7 +1032,7 @@
       ${renderSelQuoteBar(quote, s.brand)}
       <div class="sel-work-head">
         <div>
-          <h1 class="page-title" style="margin:0">选款单详情（件数: ${quote.pieces}, SKU 数: ${quote.skus}）</h1>
+          <div class="sub_title"><h4>选款单详情（件数: ${quote.pieces}, SKU 数: ${quote.skus}）</h4></div>
           <div class="sel-work-sub">${s.id || ""} · ${s.store || ""} · ${s.season || ""} · <span class="badge">${s.status || ""}</span>${s.locked ? " · 已锁定" : ""}</div>
         </div>
         <div class="action-bar" style="margin:0">
@@ -1196,7 +1216,7 @@
         <div class="action-bar">${btn("确认定金并确认订单")}</div></div>`
     };
 
-    return `<h1 class="page-title">订单详情</h1>
+    return `${subTitle("订单详情")}
       <div class="detail-sticky">
         <strong>${o.brand}</strong>
         <span class="badge">${o.type}</span>
@@ -1248,7 +1268,7 @@
   }
 
   function pageOrderContract() {
-    return `<h1 class="page-title">合同管理</h1>
+    return `${subTitle("合同管理")}
       <div class="note">根据订单生成在线合同；企业信息及公章自动取自品牌资料</div>
       <table class="data-table">
         <thead><tr><th>合同号</th><th>关联订单</th><th>品牌</th><th>季度</th><th>状态</th><th>操作</th></tr></thead>
@@ -1266,7 +1286,7 @@
   }
 
   function pageOrderOC() {
-    return `<h1 class="page-title">OC 管理</h1>
+    return `${subTitle("OC 管理")}
       <div class="note">根据订单快速生成 OC（企业信息 + 商品信息及图片），支持快速下载</div>
       <table class="data-table">
         <thead><tr><th>OC 号</th><th>订单</th><th>品牌</th><th>状态</th><th>操作</th></tr></thead>
@@ -1331,19 +1351,18 @@
           </div>`).join("") || '<div class="note">暂无汇总数据</div>'}
       </div>`;
     }
-    return `<h1 class="page-title">款式汇总</h1>
-      <div class="filter-panel">
-        <div class="filter-grid">
-          <div class="filter-label">开始时间</div><div>${field("styleStart", dateInput(f.start))}</div>
-          <div class="filter-label">结束时间</div><div>${field("styleEnd", dateInput(f.end))}</div>
-          <div class="filter-label">品牌</div><div>${field("styleBrand", select(RR.brands.map(b => b.name), "全部", f.brand || "全部"))}</div>
-          <div class="filter-label">季节</div><div>${field("styleSeason", select(RR.seasons, "全部", f.season || "全部"))}</div>
-          <div class="filter-label">订单状态</div><div>${field("styleStatus", select(["全部", "已确认", "买手未确认", "定金确认", "尾款确认", "已完成"], null, f.status || "全部"))}</div>
-          <div class="filter-label">订单类型</div><div>${field("styleType", select(["全部", "首单", "补货单"], null, f.type || "全部"))}</div>
-        </div>
-        <div class="filter-actions">${btn("查询", "btn-primary", "style-filter")}</div>
-      </div>
-      <div class="tabs">
+    /* 原站款式汇总：date×2 + 品牌 select + 款号 text + 季节/类型/状态 select；按钮「查询」 */
+    return `${subTitle("汇总")}
+      ${filterPanel([
+        ["开始时间", field("styleStart", dateInput(f.start))],
+        ["结束时间", field("styleEnd", dateInput(f.end))],
+        ["品牌", field("styleBrand", select(RR.brands.map(b => b.name), "全部", f.brand || "全部"))],
+        ["款号", field("styleSku", input("", f.sku || ""))],
+        ["季节", field("styleSeason", select(RR.seasons, "全部", f.season || "全部"))],
+        ["订单类型", field("styleType", select(["全部", "首单", "补货单"], null, f.type || "全部"))],
+        ["订单状态", field("styleStatus", select(["全部", "买手已确认", "品牌已确认", "定金已确认", "尾款已确认"], null, f.status || "全部"))]
+      ], "", "查询", "style-filter")}
+      <div class="tabs brand_orders-filter">
         <button type="button" class="${dim === "sku" ? "on" : ""}" data-tabsoft data-style-dim="sku">SKU维度</button>
         <button type="button" class="${dim === "buyer" ? "on" : ""}" data-tabsoft data-style-dim="buyer">买手维度</button>
       </div>
@@ -1353,17 +1372,14 @@
   function pageOrderRealtime() {
     const f = Store.db.ui.realtimeFilter || {};
     const rows = Store.realtimeSummary(f);
-    return `<h1 class="page-title">实时订单汇总</h1>
-      <div class="filter-panel">
-        <div class="filter-grid">
-          <div class="filter-label">开始时间</div><div>${field("rtStart", dateInput(f.start))}</div>
-          <div class="filter-label">结束时间</div><div>${field("rtEnd", dateInput(f.end))}</div>
-          <div class="filter-label">季节</div><div>${field("rtSeason", select(RR.seasons, "全部", f.season || "全部"))}</div>
-          <div class="filter-label">订单类型</div><div>${field("rtType", select(["全部", "首单", "补货单"], null, f.type || "全部"))}</div>
-          <div class="filter-label">订单状态</div><div>${field("rtStatus", select(["全部", "买手未确认", "买手已确认待品牌确认", "定金确认", "尾款确认", "已完成", "已驳回"], null, f.status || "全部"))}</div>
-        </div>
-        <div class="filter-actions">${btn("查询", "btn-primary", "realtime-filter")}</div>
-      </div>
+    return `${subTitle("实时订单汇总")}
+      ${filterPanel([
+        ["开始时间", field("rtStart", dateInput(f.start))],
+        ["结束时间", field("rtEnd", dateInput(f.end))],
+        ["季节", field("rtSeason", select(RR.seasons, "全部", f.season || "全部"))],
+        ["订单类型", field("rtType", select(["全部", "首单", "补货单"], null, f.type || "全部"))],
+        ["订单状态", field("rtStatus", select(["全部", "买手未确认", "买手已确认待品牌确认", "定金确认", "尾款确认", "已完成", "已驳回"], null, f.status || "全部"))]
+      ], "", "查询", "realtime-filter")}
       <div class="rt-sum-list">
         ${rows.map(r => `
           <div class="rt-sum-row">
@@ -1381,34 +1397,28 @@
   }
 
   function pageOrderAllSel() {
-    return `<h1 class="page-title">总选款单管理</h1>
+    return `${subTitle("总选款单管理")}
       <div class="note">选择指定品牌 + 季度，下载该品牌指定季度总选款单</div>
-      <div class="filter-panel">
-        <div class="filter-grid">
-          <div class="filter-label">品牌</div><div>${select(RR.brands.map(b => b.name))}</div>
-          <div class="filter-label">季度</div><div>${select(RR.seasons)}</div>
-        </div>
-        <div class="filter-actions">${btn("下载总选款单")}</div>
-      </div>`;
+      ${filterPanel([
+        ["品牌", select(RR.brands.map(b => b.name))],
+        ["季度", select(RR.seasons)]
+      ], "", "下载总选款单", "download:总选款单")}`;
   }
 
   function pageOrderAll() {
-    return `<h1 class="page-title">总订单管理</h1>
-      <div class="filter-panel">
-        <div class="filter-grid">
-          <div class="filter-label">品牌</div><div>${select(RR.brands.map(b => b.name))}</div>
-          <div class="filter-label">季节</div><div>${select(RR.seasons)}</div>
-          <div class="filter-label">订单类型</div><div>${select(["首单", "补货单"])}</div>
-          <div class="filter-label">开始时间</div><div>${dateInput("")}</div>
-          <div class="filter-label">结束时间</div><div>${dateInput("")}</div>
-        </div>
-        <div class="filter-actions">${btn("下载订单汇总")}</div>
-      </div>`;
+    return `${subTitle("总订单管理")}
+      ${filterPanel([
+        ["品牌", select(RR.brands.map(b => b.name))],
+        ["季节", select(RR.seasons)],
+        ["订单类型", select(["首单", "补货单"])],
+        ["开始时间", dateInput("")],
+        ["结束时间", dateInput("")]
+      ], "", "下载订单汇总", "download:订单汇总")}`;
   }
 
   function pageOrderAnalysis() {
     const st = Store.analysisStats("全部", "全部");
-    return `<h1 class="page-title">订单分析</h1>
+    return `${subTitle("订单分析")}
       ${filterPanel([
         ["品牌", select(RR.brands.map(b => b.name))],
         ["季度", select(RR.seasons)]
@@ -1426,7 +1436,7 @@
   }
 
   function pageOrderAppoint() {
-    return `<h1 class="page-title">预约列表</h1>
+    return `${subTitle("预约列表")}
       <div class="note">买手小程序预约订货会 → 同步至此，可按品牌/店铺筛选与下载</div>
       ${filterPanel([
         ["品牌", select(RR.brands.map(b => b.name))],
@@ -1474,7 +1484,7 @@
         <label>账号</label><div>${field("payNo", input("", r.payinfo.no))}</div>
       </div><div class="action-bar">${btn("保存付款信息")}</div>`
     };
-    return `<h1 class="page-title">对账管理</h1>
+    return `${subTitle("对账管理")}
       <div class="note">需求：抽佣比例/阶梯、品牌付款信息、抽佣单、代/抽发票、挂帐余额。</div>
       <div class="tabs">${tabs.map(([id, lab]) =>
         `<button class="${tab === id ? "on" : ""}" data-recon="${id}">${lab}</button>`
@@ -1483,7 +1493,7 @@
   }
 
   function pageShip() {
-    return `<h1 class="page-title">发货管理</h1>
+    return `${subTitle("发货管理")}
       <div class="note">按需求：发货单关联订单、记录发货明细、填写物流单号。差额可转买手余额。</div>
       ${filterPanel([
         ["订单号", input()],
@@ -1509,7 +1519,7 @@
 
   function pageShipDetail() {
     const sh = state.selectedShip || Store.db.shipments[0];
-    return `<h1 class="page-title">发货明细</h1>
+    return `${subTitle("发货明细")}
       <div class="detail-sticky">
         <strong>${sh.id}</strong>
         <span>订单 ${sh.orderId}</span>
@@ -1533,9 +1543,9 @@
   }
 
   function pageContractPreview() {
-    return `<h1 class="page-title">合同预览 / 生成</h1>
+    return `${subTitle("合同预览 / 生成")}
       <div class="note">企业信息与公章自动取自品牌资料（收款设置中的合同公章）。</div>
-      <div class="filter-panel" style="min-height:320px;line-height:1.9">
+      <div class="brand_goodsFilter" style="min-height:320px;line-height:1.9">
         <strong>经销合同 · 2026SS</strong><br/><br/>
         甲方：JUNLI<br/>
         乙方：B1OCK<br/>
@@ -1548,9 +1558,9 @@
   }
 
   function pageOCPreview() {
-    return `<h1 class="page-title">OC 快速生成</h1>
+    return `${subTitle("OC 快速生成")}
       <div class="note">需求强调：OC 需快速生成及下载；含企业信息 + 商品信息及图片。</div>
-      <div class="filter-panel">
+      <div class="brand_goodsFilter">
         <div style="display:flex;justify-content:space-between;margin-bottom:16px">
           <div><strong>OC-20260319-088</strong><div style="color:#666;font-size:13px">JUNLI · B1OCK · 2026SS</div></div>
           <div class="brand-logo" style="width:64px;height:64px">OC章</div>
@@ -1566,7 +1576,7 @@
   }
 
   function pageIntent() {
-    return `<h1 class="page-title">意向管理</h1>
+    return `${subTitle("意向管理")}
       <div class="note">品牌审核买手是否可查看本品牌商品</div>
       <table class="data-table">
         <thead><tr><th>店铺名</th><th>申请品牌</th><th>申请日期</th><th>状态</th><th>操作</th></tr></thead>
@@ -1587,7 +1597,7 @@
     if (kw) all = all.filter(b => b.name.includes(kw) || (b.phone || "").includes(kw) || (b.city || "").includes(kw));
     const list = pageSlice(all, 10);
     const tabs = ["全部", "A", "B", "C", "D", "待审核"];
-    return `<h1 class="page-title">买手审核</h1>
+    return `${subTitle("买手审核")}
       <div class="buyer-toolbar">
         <div class="tabs">
           ${tabs.map(t => `<button class="${tab === t ? "on" : ""}" data-tabsoft data-buyer-tab="${t}">${t}</button>`).join("")}
@@ -1626,7 +1636,7 @@
       Object.entries(b.balances || {}).forEach(([brand, amt]) => rows.push({ name: b.name, brand, amt }));
       if (!b.balances || !Object.keys(b.balances).length) rows.push({ name: b.name, brand: "JUNLI", amt: 0 });
     });
-    return `<h1 class="page-title">余额管理</h1>
+    return `${subTitle("余额管理")}
       <div class="note">实发少于应发时，差额转为品牌账户余额，可抵扣下次订单；支持手动编辑</div>
       <table class="data-table">
         <thead><tr><th>买手店铺</th><th>品牌</th><th>余额(CNY)</th><th>操作</th></tr></thead>
@@ -1641,14 +1651,14 @@
   }
 
   function simpleFormPage(title, note, fields) {
-    return `<h1 class="page-title">${title}</h1>
+    return `<div class="sub_title"><h4>${title}</h4></div>
       ${note ? `<div class="note">${note}</div>` : ""}
       <div class="form-grid">${fields}</div>
       <div style="margin-top:20px">${btn("保存")}</div>`;
   }
 
   function pageRoleList() {
-    return `<h1 class="page-title">角色管理</h1>
+    return `${subTitle("角色管理")}
       <div class="note">创建自定义角色；预设角色见下表（需求清单）</div>
       ${btn("创建角色", "btn-outline")}
       <table class="data-table" style="margin-top:16px">
@@ -1664,7 +1674,7 @@
     const perms = ["商品管理", "订单确认", "定金确认", "意向审核", "买手管理", "发票", "结佣", "财务审核"];
     const roleName = state.selectedRole || (Store.db.roles[0] && Store.db.roles[0].name);
     const role = Store.db.roles.find(r => r.name === roleName) || Store.db.roles[0];
-    return `<h1 class="page-title">权限管理</h1>
+    return `${subTitle("权限管理")}
       <div class="note">为指定角色开关功能权限</div>
       <div class="form-grid">
         <label>选择角色</label><div>${field("roleName", select(Store.db.roles.map(r => r.name), null, role.name))}</div>
@@ -1697,7 +1707,7 @@
     return `<div class="buyer-layout">
       ${buyerCatSide()}
       <div class="buyer-main">
-        <h1 class="page-title" style="font-size:20px;margin-top:0">品牌列表</h1>
+        ${subTitle("品牌列表")}
         <div class="brand-grid brand-grid-live">
           ${brands.map(b => `
             <div class="brand-card brand-card-live" data-go="buyer-brand" data-brand="${b.name}">
@@ -1801,7 +1811,7 @@
     const store = Store.db.buyerSession.store;
     const list = Store.db.selections.filter(s => s.store === store || true);
     const hearts = Store.db.buyerSession.selections;
-    return `<h1 class="page-title">我的选款单</h1>
+    return `${subTitle("我的选款单")}
       <div class="note">按品牌独立生成。快捷选款单与详情页展示对齐现网；待确认红心款：${hearts.length}</div>
       ${hearts.length ? `<div class="action-bar">${btn("按品牌确认选款单", "btn-primary", "buyer-confirm-hearts")}</div>` : ""}
       <div class="order-cards">
@@ -1837,7 +1847,7 @@
   function pageBuyerOrders() {
     const tab = Store.db.buyerSession.orderTab || "全部";
     const list = Store.buyerOrders(tab);
-    return `<h1 class="page-title">我的订单</h1>
+    return `${subTitle("我的订单")}
       <div class="tabs">
         ${["全部", "未完成", "已完成"].map(t => `<button class="${tab === t ? "on" : ""}" data-tabsoft data-order-tab="${t}">${t}</button>`).join("")}
       </div>
@@ -1868,7 +1878,7 @@
     const steps = Store.ORDER_FLOW.filter(s => s !== "已完成");
     const idx = Math.max(0, steps.findIndex(s => o.status === s || o.status.includes(s.slice(0, 4))));
     const lines = o.lines || [];
-    return `<h1 class="page-title">订单查看</h1>
+    return `${subTitle("订单查看")}
       <div class="detail-sticky">
         <strong>${o.brand}</strong>
         <div class="brand-logo" style="width:36px;height:36px;font-size:8px">LG</div>
@@ -1918,7 +1928,7 @@
       ["LOOK / 添加品牌", "有入口", "待定/不清", "保留入口+说明", "miss"],
       ["金蝶对接", "无页", "有", "不做 UI", "miss"]
     ];
-    return `<h1 class="page-title">覆盖核对（实事求是）</h1>
+    return `${subTitle("覆盖核对（实事求是）")}
       <div class="note">结论：信息架构基本闭合；业务操作闭环本次已补强，但<strong>并非 100%</strong>。金蝶、LOOK、添加品牌、买手现网对照仍开放。</div>
       <table class="data-table gap-table">
         <thead><tr><th>能力</th><th>现网</th><th>需求</th><th>原型现状</th><th>状态</th></tr></thead>
@@ -1931,7 +1941,7 @@
   }
 
   function pageGoodsCarry() {
-    return `<h1 class="page-title">设置 Carry Over</h1>
+    return `${subTitle("设置 Carry Over")}
       <div class="note">每季可勾选延续款；保存后买手端可筛 Carry Over</div>
       <table class="data-table">
         <thead><tr><th>勾选</th><th>SKU</th><th>款式</th><th>品牌</th><th>季节</th></tr></thead>
@@ -1946,7 +1956,7 @@
   }
 
   function pageBuyerAdd() {
-    return `<h1 class="page-title">添加买手</h1>
+    return `${subTitle("添加买手")}
       <div class="form-grid">
         <label>店铺名</label><div>${field("buyerName", input())}</div>
         <label>手机号</label><div>${field("buyerPhone", input())}</div>
@@ -1957,7 +1967,7 @@
   }
 
   function pageAccount() {
-    return `<h1 class="page-title">账号管理</h1>
+    return `${subTitle("账号管理")}
       <div class="form-grid">
         <label>登录手机</label><div>13800000000</div>
         <label>角色</label><div>${state.portal === "brand" ? "品牌管理员" : "高级管理员"}</div>
@@ -2553,7 +2563,7 @@
         Store.db.ui.styleFilter = {
           start: f.styleStart || "", end: f.styleEnd || "",
           brand: f.styleBrand || "全部", season: f.styleSeason || "全部",
-          status: f.styleStatus || "全部", type: f.styleType || "全部"
+          sku: f.styleSku || "", status: f.styleStatus || "全部", type: f.styleType || "全部"
         };
         Store.persist();
         render();
@@ -2840,7 +2850,7 @@
     return `<div class="buyer-layout">
       ${buyerCatSide()}
       <div class="buyer-main">
-        <h1 class="page-title">${b.name}</h1>
+        <div class="sub_title"><h4>${b.name}</h4></div>
         <div class="brand-hero" style="margin-bottom:24px">
           <div class="brand-logo-rect lg">${b.name}</div>
           <div class="brand-hero-text"><p>${b.about || ""}</p></div>
@@ -2904,7 +2914,7 @@
 
   function pageBuyerProfile() {
     const s = Store.db.buyerSession;
-    return `<h1 class="page-title">个人中心</h1>
+    return `${subTitle("个人中心")}
       <div class="form-section">
         <h3>账号与店铺信息</h3>
         <div class="form-grid">
@@ -2933,7 +2943,7 @@
   }
 
   function pageBuyerReplenish() {
-    return `<h1 class="page-title">补货</h1>
+    return `${subTitle("补货")}
       <div class="note">同品牌板块结构。若无首单或上一补货未完成，确认订单时拦截。</div>
       <div class="action-bar">
         <button class="btn btn-outline" data-toggle-rule="first">${state.hasFirstOrder ? "模拟：无首单" : "模拟：已有首单"}</button>
@@ -3018,11 +3028,11 @@
     "buyer-edit": () => simpleFormPage("编辑店铺资料", "", `
       <label>店铺名</label><div>${field("name", input("Liora Amour", "Liora Amour"))}</div>
       <label>级别</label><div>${field("level", select(["A", "B", "C"], null, "B"))}</div>`),
-    "buyer-sub": () => `<h1 class="page-title">查看/添加子店铺</h1>
+    "buyer-sub": () => `${subTitle("查看/添加子店铺")}
       <table class="data-table"><thead><tr><th>子店铺</th><th>城市</th><th>操作</th></tr></thead>
       <tbody><tr><td>Liora Amour 静安</td><td>上海</td><td>${link("编辑", "toast:编辑子店铺")}</td></tr></tbody></table>
       <div style="margin-top:16px">${btn("新建子店铺")}</div>`,
-    "buyer-add-brand": () => `<h1 class="page-title">添加品牌</h1>
+    "buyer-add-brand": () => `${subTitle("添加品牌")}
       <div class="note">需求备注：暂不清楚需求。保留入口待客户确认业务含义。</div>
       <div class="form-grid"><label>选择品牌</label><div>${select(RR.brands.map(b => b.name))}</div>
       <label>备注</label><div>${input()}</div></div>
@@ -3064,7 +3074,11 @@
     }
 
     const isBuyer = state.portal === "buyer";
-    const body = (pages[state.page] || pageGoodsList)();
+    let body = (pages[state.page] || pageGoodsList)();
+    /* 统一包一层现网右侧容器 class（已自带 brand_goodsList-container 的不重复包） */
+    if (!isBuyer && !/brand_goodsList-container|ots_order-form|title_underline|buyer-layout/.test(body)) {
+      body = `<div class="brand_goodsList-container">${body}</div>`;
+    }
     const drawer = (isBuyer && state.cartOpen) ? cartDrawer() : "";
     /* 原站壳：ots_order-outer > oto-main_container > oto_container > public_left + public_right */
     if (isBuyer) {

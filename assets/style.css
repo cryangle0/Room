@@ -125,8 +125,40 @@ label { display: block; margin-bottom: 6px; color: var(--rr-muted); font-size: 1
   display: grid;
   gap: 16px 20px;
 }
+.goods_filter.cols-2 .filter-items { grid-template-columns: repeat(2, 1fr); }
 .goods_filter.cols-3 .filter-items { grid-template-columns: repeat(3, 1fr); }
 .goods_filter.cols-4 .filter-items { grid-template-columns: repeat(4, 1fr); }
+
+/* 原站品牌设置页 */
+h1.title_underline {
+  font-size: 22px; font-weight: 700; margin: 0 0 24px;
+  padding-bottom: 10px; border-bottom: 2px solid #222;
+}
+.ots_order-form { max-width: 720px; }
+.ots_order-form .form_item-long { margin-bottom: 20px; }
+.ots_order-form .form_item-long h5,
+.ots_order-form .form_item-long label {
+  display: block; margin: 14px 0 8px; font-size: 14px; font-weight: 500; color: #333; text-align: left;
+}
+.ots_order-form .form_item-long input,
+.ots_order-form .form_item-long select { max-width: 360px; }
+.rule_season ul {
+  display: flex; flex-wrap: wrap; gap: 8px 16px; list-style: none; margin: 0 0 16px; padding: 0;
+}
+.rule_season a { color: #666; font-size: 13px; }
+.rule_season li.uk-active a { color: var(--rr-purple); font-weight: 600; }
+.uk-subnav.discount-step {
+  display: flex; gap: 8px; list-style: none; margin: 0 0 20px; padding: 0;
+}
+.uk-subnav.discount-step a {
+  display: inline-flex; align-items: center; height: 34px; padding: 0 16px;
+  border: 1px solid #ddd; color: #444; font-size: 13px;
+}
+.uk-subnav.discount-step li.uk-active a,
+.uk-subnav.discount-step li.on a {
+  border-color: var(--rr-purple); color: var(--rr-purple); background: var(--rr-purple-soft);
+}
+.submit_area { margin-top: 20px; }
 .item_inner label {
   display: block; margin-bottom: 8px; color: var(--rr-muted); font-size: 13px; text-align: left;
 }

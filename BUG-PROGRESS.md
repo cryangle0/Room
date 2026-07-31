@@ -38,10 +38,22 @@
 
 ---
 
-## HTML 布局对齐（相对现网 DOM，2026-07-31）
+## HTML 布局对齐（相对现网 DOM，2026-07-31 · 全量子页）
 
-对照已登录现网 HTML（非截图）：`ots_order-nav` / `oto-main_container` / `public_left-container>ul.mine_side` / `public_right-container` / `sub_title>h4` / `brand_goodsFilter>goods_filter>item_inner` / `oto_btn` / 品牌页 `edit_boduan-list`（无侧栏）/ 商品 `item_goods-row`。  
-选款/订单筛选：品牌·季节·状态为 `<select>`；国家/省/城市/店铺/单号为 `<input type=text>`（与现网一致）。
+对照已登录现网 HTML（非截图），覆盖平台全部子页：
+
+| 结构 | 现网 class / 规则 |
+|------|-------------------|
+| 壳 | `ots_order-nav` / `oto-main_container` / `public_left>ul.mine_side` / `public_right` |
+| 标题 | `sub_title>h4`；优惠规则页为 `h1.title_underline`「店铺设置」 |
+| 筛选 | `brand_goodsFilter>item_inner`；查询按钮 `oto_btn` |
+| 品牌列表 | `edit_boduan-list`，**无侧栏** |
+| 品牌设置子页 | rules/alias/contract/pay/season/edit：**无侧栏**（与 `body.no-sidebars` 一致） |
+| 商品/订单侧栏 | `mine_side` 有 |
+| 商品行 | `item_goods-row` + `oto_btn` |
+| 款式汇总筛 | date×2 + 品牌/季节/类型/状态 select + **款号 text**；按钮「查询」 |
+| 选款/订单筛 | 枚举 select；国家/省/城市/店/单号 text |
+| 添加商品 | 波段=text；色/尺码/季节=select（对齐 taxonomy select） |
 
 ## 控件对齐（相对现网交互习惯，2026-07-31）
 
