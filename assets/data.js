@@ -75,6 +75,8 @@ window.RR = {
     { sku: "IH27PS022", brand: "IAN HYLTON", season: "2027PS", title: "真丝衬衫", sizes: ["XS", "S", "M"], retail: "4,680.00", wholesale: "2,100.00", status: "正常" },
     { sku: "IH27PS035", brand: "IAN HYLTON", season: "2027PS", title: "双排扣大衣", sizes: ["S", "M", "L"], retail: "11,800.00", wholesale: "5,310.00", status: "正常", carry: true },
     { sku: "IH27PS048", brand: "IAN HYLTON", season: "2027PS", title: "针织开衫", sizes: ["S", "M", "L"], retail: "3,980.00", wholesale: "1,791.00", status: "正常" },
+    { sku: "IH27PS056", brand: "IAN HYLTON", season: "2027PS", title: "羊毛西裤", sizes: ["S", "M", "L"], retail: "3,680.00", wholesale: "1,656.00", status: "正常" },
+    { sku: "IH27PS062", brand: "IAN HYLTON", season: "2027PS", title: "丝质吊带", sizes: ["XS", "S", "M"], retail: "2,480.00", wholesale: "1,116.00", status: "正常" },
     { sku: "HD27PS008", brand: "HIDEMI", season: "2027PS", title: "极简吊带", sizes: ["XS", "S", "M"], retail: "2,200.00", wholesale: "990.00", status: "正常" },
     { sku: "HD27PS019", brand: "HIDEMI", season: "2027PS", title: "直筒长裤", sizes: ["S", "M", "L"], retail: "2,800.00", wholesale: "1,260.00", status: "正常" },
     { sku: "KH26SS002", brand: "KHIHO", season: "2026SS", title: "金属链条包", sizes: ["均码"], retail: "3,680.00", wholesale: "1,656.00", status: "正常" },

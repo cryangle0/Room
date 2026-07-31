@@ -562,6 +562,30 @@
       save();
       return "已删除";
     },
+    renameMasterItem(kind, idOrName, newName) {
+      const n = String(newName || "").trim();
+      if (!n) return { ok: false, msg: "名称不能为空" };
+      if (kind === "styles") {
+        const row = db.stylesMaster.find(x => x.id === idOrName || x.name === idOrName);
+        if (!row) return { ok: false, msg: "未找到" };
+        if (db.stylesMaster.some(x => x.name === n && x.id !== row.id)) return { ok: false, msg: "风格已存在" };
+        row.name = n;
+      } else if (kind === "crowds") {
+        const row = db.crowdsMaster.find(x => x.id === idOrName || x.name === idOrName);
+        if (!row) return { ok: false, msg: "未找到" };
+        if (db.crowdsMaster.some(x => x.name === n && x.id !== row.id)) return { ok: false, msg: "人群已存在" };
+        row.name = n;
+      } else if (kind === "sizes") {
+        const i = db.standardSizes.indexOf(idOrName);
+        if (i < 0) return { ok: false, msg: "未找到" };
+        if (db.standardSizes.includes(n) && n !== idOrName) return { ok: false, msg: "尺码已存在" };
+        db.standardSizes[i] = n;
+        // 同步别名列表中的标准尺码名
+        (db.sizeAliasList || []).forEach(a => { if (a.standard === idOrName) a.standard = n; });
+      } else return { ok: false, msg: "未知主数据类型" };
+      save();
+      return { ok: true, msg: "已修改" };
+    },
     setFair(season, patch) {
       db.fairs[season] = { ...(db.fairs[season] || { first: true, replenish: true }), ...patch };
       save();

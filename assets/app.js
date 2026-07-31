@@ -156,9 +156,16 @@
   }
 
   function go(page) {
+    // 补货/隐藏：侧栏再次进入时回到品牌列表（非详情钻取）
+    if (page === "goods-restock") {
+      Store.db.ui.restockBrand = "";
+      Store.db.ui.restockKind = "";
+      Store.persist();
+    }
     state.page = page;
     state.cartOpen = false;
     state.listPage = 1;
+    state.selAddOpen = false;
     if (!page.startsWith("order-detail") && page !== "order-detail") state.orderAction = "";
     window.scrollTo(0, 0);
     render();
@@ -844,7 +851,10 @@
         <tbody>
           ${rows.map(r => `<tr>
             <td>${r.name}</td>
-            <td><a href="javascript:;" data-act="del-master:${kind}:${r.id}">删除</a></td>
+            <td class="ops">
+              <a href="javascript:;" data-act="edit-master:${kind}:${r.id}">修改</a>
+              <a href="javascript:;" data-act="del-master:${kind}:${r.id}">删除</a>
+            </td>
           </tr>`).join("") || '<tr><td colspan="2">暂无数据</td></tr>'}
         </tbody>
       </table>`;
@@ -2084,6 +2094,20 @@
       render();
       return;
     }
+    if (act.startsWith("edit-master:")) {
+      const parts = act.split(":");
+      const kind = parts[1];
+      const id = parts.slice(2).join(":");
+      let cur = id;
+      if (kind === "styles") cur = ((Store.db.stylesMaster.find(x => x.id === id) || {}).name) || id;
+      if (kind === "crowds") cur = ((Store.db.crowdsMaster.find(x => x.id === id) || {}).name) || id;
+      const name = prompt("修改名称", cur);
+      if (name == null) return;
+      const r = Store.renameMasterItem(kind, id, name);
+      toast(r.msg);
+      render();
+      return;
+    }
     if (act.startsWith("style-expand:")) {
       const sku = act.slice("style-expand:".length);
       Store.db.ui.styleExpand = Store.db.ui.styleExpand === sku ? "" : sku;
@@ -3027,6 +3051,11 @@
         if (page === "order-detail" && (el.textContent || "").includes("白名单")) state.orderAction = "whitelist";
         if (page === "order-detail" && (el.textContent || "").includes("改单")) state.orderAction = "modify";
         if (page === "selection-detail" || page === "buyer-selection-edit") state.selAddOpen = false;
+        if (page === "goods-restock") {
+          Store.db.ui.restockBrand = "";
+          Store.db.ui.restockKind = "";
+          Store.persist();
+        }
         go(page);
       });
     });
