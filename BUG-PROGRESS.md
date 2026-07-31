@@ -4,7 +4,7 @@
 > 对照现网：`https://order.roomroom.com.cn/`  
 > 原型发布：`https://cryangle0.github.io/Room/`  
 > Store：`rr_biz_v5`  
-> 更新：2026-07-31
+> 更新：2026-07-31（控件对齐：下拉 / 日期）
 
 ## 总览（相对 Excel）
 
@@ -12,6 +12,7 @@
 |------|------|
 | **Excel 条目均已改** | #1–#14 均有对应实现 |
 | **MCP 门禁** | 本地全量 **19/19 pass**（2026-07-31 清缓存复测） |
+| **控件对齐（本轮）** | 原站枚举项改 `<select>`，日期改 `type=date` / `datetime-local`；不再用 YYYY-MM-DD 文本框 |
 | **非 Excel 范围** | 像素级现网对照、金蝶、LOOK/添加品牌待定项 —— 不在本表 |
 
 ---
@@ -36,6 +37,33 @@
 | #14 | 买手 | 选款详情与平台 #8 一致 | 已改 | pass |
 
 ---
+
+## HTML 布局对齐（相对现网 DOM，2026-07-31）
+
+对照已登录现网 HTML（非截图）：`ots_order-nav` / `oto-main_container` / `public_left-container>ul.mine_side` / `public_right-container` / `sub_title>h4` / `brand_goodsFilter>goods_filter>item_inner` / `oto_btn` / 品牌页 `edit_boduan-list`（无侧栏）/ 商品 `item_goods-row`。  
+选款/订单筛选：品牌·季节·状态为 `<select>`；国家/省/城市/店铺/单号为 `<input type=text>`（与现网一致）。
+
+## 控件对齐（相对现网交互习惯，2026-07-31）
+
+原站部分页曾拒绝访问；已用 chrome-mcp 已登录页 HTML 复核：
+
+| 页面/字段 | 原（错误） | 现 |
+|-----------|------------|----|
+| 添加商品 · 预计发货 | 文本 YYYY-MM-DD | `date` |
+| 添加商品 · 波段/颜色 | 文本 | 下拉 |
+| 添加商品 · 尺寸列表 | 逗号文本 | 标准尺码多选勾选 |
+| 合同 · 发货周期 | 文本 | 下拉 |
+| 合同 · 签订/授权 | 已是 date，统一 helper | `date` |
+| 品牌 · 成立年份 | 文本 | 年份下拉 |
+| 选款筛选 · 国家/省 | 文本 | 下拉 |
+| 总订单 · 时间区间 | 文本「起/止」 | 开始/结束 `date` |
+| 定金比例 / 关联 SKU | 文本 | 下拉 |
+| 付款时间 | 文本 | `date` |
+| 抽佣比例 / 阶梯 | 文本 | 下拉 |
+| 添加买手 · 城市 | 文本 | 下拉 |
+| 预约时间 | 文本 | `datetime-local` |
+
+仍保留文本：店名/SKU/手机/金额/备注等自由输入。
 
 ## 本轮复测揪出并已修的缺口
 
