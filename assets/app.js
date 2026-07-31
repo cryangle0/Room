@@ -683,7 +683,7 @@
     const rules = Store.getDiscountRules(season, mode);
     const tabs = [["first", "首单规则"], ["replenish", "补货单规则"]];
     return `<h1 class="page-title">设置优惠规则</h1>
-      <div class="note">每个已有季度单独配置、单独生效；已去掉「订货会单独规则」。订货会开关请到「订货会设置」。</div>
+      <div class="note">每个已有季度单独配置、单独生效；订货会场次开关请到「订货会设置」，本页仅首单/补货两套规则。</div>
       <div class="season-tabs" style="margin-bottom:12px">
         ${seasons.map(s => `<button type="button" class="${season === s ? "on" : ""}" data-act="discount-season:${s}">${s}</button>`).join("")}
       </div>
@@ -2910,7 +2910,7 @@
     "brand-master-size": () => pageMaster("sizes"),
     "order-selection": pageOrderSelection,
     "selection-detail": pageSelectionDetail,
-    "order-list": pageOrderList,
+    "order-list": () => pageOrderList("首单"),
     "order-detail": pageOrderDetail,
     "order-replenish": pageOrderReplenish,
     "order-contract": pageOrderContract,
