@@ -435,10 +435,17 @@
   function sidebar() {
     // 原站：品牌列表 + 品牌设置子页均为 no-sidebars（从品牌行链接进入）
     const brandNoSide = [
-      "brand-list", "brand-discount", "brand-size", "brand-fair",
-      "brand-pay", "brand-contract", "brand-edit"
+      "brand-list", "brand-discount", "brand-size",
+      "brand-pay", "brand-contract", "brand-edit",
+      "buyer-list", "ship-list"
     ];
     if (brandNoSide.includes(state.page)) return "";
+    // 原站季节页：左侧仅「季节控制」
+    if (state.page === "brand-fair") {
+      return `<div class="public_left-container sidebar">
+        <ul class="mine_side"><li class="active"><a href="javascript:;" data-go="brand-fair">季节控制</a></li></ul>
+      </div>`;
+    }
     const group = topGroup(state.page);
     let items = (routes.platform.side[group] || []);
     // 主数据页：侧栏仅保留品牌列表 + 三项主数据
@@ -565,57 +572,58 @@
   }
 
   function pageGoodsAdd() {
+    /* 原站：sub_title「修改商品信息」；波段=text；季节/色/尺码/品类=select；Carry=checkbox；发货时间=text 控件（原型用 date） */
     return `${subTitle("添加新商品")}
-      <div class="note">手动添加：基础信息 + 多类型图片/视频（固定排序位）+ 富文本详情。保存写入商品库。</div>
-      <div class="form-section">
-        <h3>基础属性（标注 * 为必填）</h3>
-        <div class="form-grid">
-          <label class="req">所属品牌</label><div>${field("brand", select(RR.brands.map(b => b.name), "选择品牌", "JUNLI"))}</div>
-          <label class="req">款式名称</label><div>${field("title", input("款式名称"))}</div>
-          <label class="req">款式编码SKU</label><div>${field("sku", input("SKU"))}</div>
-          <label>波段</label><div>${field("band", input("波段名称"))}</div>
-          <label class="req">季节</label><div>${field("season", select(RR.seasons, null, "2026SS"))}</div>
-          <label>预计发货时间</label><div>${field("shipAt", dateInput(""))}</div>
-          <label>Carry Over</label><div>${field("carry", select(["否", "是"], null, "否"))}</div>
-          <label>可补货</label><div>${field("restock", select(["是", "否"], null, "是"))}</div>
-          <label class="req">尺寸列表</label><div class="span2">${checkGroup("sizes", Store.db.standardSizes || ["XS", "S", "M", "L", "XL"], ["S", "M", "L"])}</div>
-          <label>面料/材质</label><div>${field("fabric", input())}</div>
-          <label class="req">品类</label><div>${field("cat", select(["女装", "男装", "男女装", "配饰", "生活方式"], null, "女装"))}</div>
-          <label>二级品类</label><div>${field("subcat", select(["外套", "连衣裙", "裤装", "裙装"], null, "外套"))}</div>
-          <label class="req">建议零售价</label><div>${field("retail", input("CNY", "3000"))}</div>
-          <label class="req">订货价</label><div>${field("wholesale", input("CNY", "1350"))}</div>
-          <label>颜色</label><div>${field("color", select(RR.colors, "请选择", "黑色"))}</div>
-          <label>最小起订量</label><div>${field("moq", input("件", "1"))}</div>
+      <div class="ots_order-form ots_order-form-column goods-add-form">
+        <div class="form_item-long"><label class="req">所属品牌 *</label><div>${field("brand", select(RR.brands.map(b => b.name), "选择品牌", "JUNLI"))}</div></div>
+        <div class="form_item-long"><label class="req">款式名称 *</label><div>${field("title", input("款式名称"))}</div></div>
+        <div class="form_item-long"><label class="req">sku *</label><div>${field("sku", input("SKU"))}</div></div>
+        <div class="form_item-long"><label>波段</label><div>${field("band", input("波段名称"))}</div></div>
+        <div class="form_item-long"><label>预计发货时间</label><div>${field("shipAt", dateInput(""))}</div></div>
+        <div class="form_item-long"><label class="req">季节 *</label><div>${field("season", select(RR.seasons, null, "2026SS"))}</div></div>
+        <div class="form_item-long"><label>Carry Over</label><div><label class="check-inline"><input type="checkbox" data-field="carry" /></label></div></div>
+        <div class="form_item-long"><label>可补货</label><div><label class="check-inline"><input type="checkbox" data-field="restock" checked /></label></div></div>
+        <div class="form_item-long"><label class="req">尺寸列表 *</label><div>${checkGroup("sizes", Store.db.standardSizes || ["XS", "S", "M", "L", "XL"], ["S", "M", "L"])}</div></div>
+        <div class="form_item-long"><label>面料/材质</label><div>${field("fabric", input())}</div></div>
+        <div class="form_item-long"><label class="req">品类 *</label><div>${field("cat", select(["女装", "男装", "男女装", "配饰", "生活方式"], null, "女装"))}</div></div>
+        <div class="form_item-long"><label>二级品类</label><div>${field("subcat", select(["外套", "连衣裙", "裤装", "裙装"], null, "外套"))}</div></div>
+        <div class="form_item-long"><label class="req">建议零售价 *</label><div>${field("retail", input("CNY", "3000"))}</div></div>
+        <div class="form_item-long"><label class="req">订货价 *</label><div>${field("wholesale", input("CNY", "1350"))}</div></div>
+        <div class="form_item-long"><label>颜色</label><div>${field("color", select(RR.colors, "请选择", "黑色"))}</div></div>
+        <div class="form_item-long"><label>最小起订量</label><div>${field("moq", input("件", "1"))}</div></div>
+        <div class="form_item-long"><label>缩略图</label><div class="upload-box"><div class="plus">+</div>缩略图 · &lt;5MB</div></div>
+        <div class="form_item-long"><label>白底图</label><div class="upload-box"><div class="plus">+</div>白底图 · &lt;5MB</div></div>
+        <div class="form_item-long"><label>商品图片</label><div class="upload-box"><div class="plus">+</div>多图上传</div></div>
+        <div class="form_item-long"><label>视频</label><div class="upload-box"><div class="plus">+</div>mp4 · &lt;8MB</div></div>
+        <div class="form_item-long"><label>视频封面</label><div class="upload-box"><div class="plus">+</div>封面图</div></div>
+        <div class="form_item-long"><label>商品详情</label><div><textarea data-field="detail" placeholder="商品材质信息与详情描述…"></textarea></div></div>
+        <div class="submit_area action-bar">
+          <a href="javascript:;" class="oto_btn" data-act="save-context">保存商品</a>
+          <a href="javascript:;" class="oto_btn" data-act="go:goods-list">返回列表</a>
         </div>
-      </div>
-      <div class="form-section">
-        <h3>商品图片（固定排序定位）</h3>
-        <div class="form-grid">
-          <label>缩略图</label><div class="upload-box"><div class="plus">+</div>缩略图 · &lt;5MB</div>
-          <label>白底图</label><div class="upload-box"><div class="plus">+</div>白底图 · &lt;5MB</div>
-          <label>商品图片</label><div class="span2"><div class="upload-box"><div class="plus">+</div>多图上传 · 按固定位排序</div></div>
-          <label>视频</label><div class="upload-box"><div class="plus">+</div>mp4 · &lt;8MB</div>
-          <label>视频封面</label><div class="upload-box"><div class="plus">+</div>封面图</div>
-        </div>
-      </div>
-      <div class="form-section">
-        <h3>商品详情（富文本）</h3>
-        <textarea data-field="detail" placeholder="商品材质信息与详情描述…"></textarea>
-      </div>
-      <div style="display:flex;gap:12px">
-        ${btn("保存商品")}
-        ${btn("返回列表", "btn-outline", "go:goods-list")}
       </div>`;
   }
 
   function pageGoodsBatch() {
-    return `${subTitle("批量添加新商品")}
-      <div class="note">选择品牌与分类 → 下载对应 Excel 模板 → 上传批量导入（不同分类不同模板）</div>
-      ${filterPanel([
-        ["选择品牌", field("brand", select(RR.brands.map(b => b.name), "选择品牌", "JUNLI"))],
-        ["选择分类", field("cat", select(["女装", "男装", "男女装", "配饰", "生活方式"], null, "女装"))]
-      ], `${btn("下载模板", "btn-outline")}${btn("上传 Excel", "btn-outline")}`, "下载模板", "toast:已下载模板")}
-      <div class="upload-box" style="height:180px" data-act="upload:批量商品"><div class="plus">+</div>拖拽或点击上传 Excel 文件</div>`;
+    /* 原站：ots_order-form ots_order-addlist；商家/分类 select；上传区；下载三模板 + 确认提交 */
+    return `${subTitle("批量添加商品")}
+      <div class="ots_order-form ots_order-addlist uk-margin-large-top">
+        <p>商家:</p>
+        ${field("brand", select(RR.brands.map(b => b.name), "选择品牌", "JUNLI"))}
+        <p>商家</p>
+        ${field("cat", select(["服饰", "配饰/生活方式"], "请选择", "服饰"))}
+        <div class="form_item-long upload_file">
+          <label>批量导入商品</label>
+          <div class="custom-prefix-upload upload-box" data-act="upload:批量商品"><div class="plus">+</div></div>
+          <h6 class="font-red">温馨提示：导入前请先下载模板，然后按照要求填写，模板内容红色标题的为必填项，紫色为必填选项，灰色为非必填项。</h6>
+        </div>
+      </div>
+      <div class="submit_area">
+        <a href="javascript:;" class="btn_addmore btn_download" data-act="download:服饰模板">下载服饰模板</a>
+        <a href="javascript:;" class="btn_addmore btn_download" data-act="download:配饰模板">下载配饰模板</a>
+        <a href="javascript:;" class="btn_addmore btn_download" data-act="download:生活方式模板">下载生活方式模板</a>
+        <button type="button" class="ots_order-btn" data-act="upload:批量商品">确认提交</button>
+      </div>`;
   }
 
   function pageGoodsRestock() {
@@ -623,18 +631,23 @@
     const brand = ui.restockBrand;
     const kind = ui.restockKind;
     if (!brand || !kind) {
-      return `${subTitle("补货/隐藏管理")}
-        <div class="note">参照现网：每行一个品牌。进入后按季度展示商品并批量修改；隐藏=全部不可见，不区分首单/补单。</div>
-        <table class="data-table">
-          <thead><tr><th>品牌名称</th><th>补货设置</th><th>隐藏设置</th></tr></thead>
-          <tbody>
-            ${RR.brands.map(b => `<tr>
-              <td><strong>${b.name}</strong></td>
-              <td><a href="javascript:;" data-act="restock-open:${b.name}:restock">设置补货</a></td>
-              <td><a href="javascript:;" data-act="restock-open:${b.name}:hide">设置隐藏</a></td>
-            </tr>`).join("")}
-          </tbody>
-        </table>`;
+      /* 原站：补货/隐藏管理 · 每行品牌 + 补货设置 / 隐藏设置 */
+      return `<div class="boduan-container">
+        ${subTitle("补货/隐藏管理")}
+        <div class="edit_boduan">
+          <div class="items head_items"><div class="item_boduan-row">
+            <h4>品牌名称</h4><h4>补货设置</h4><h4>隐藏设置</h4>
+          </div></div>
+          <div class="edit_boduan-list">
+            ${RR.brands.map(b => `
+              <div class="item uk-flex-nowrap">
+                <div class="g-name"><h4>${b.name}</h4></div>
+                <h4><a href="javascript:;" data-act="restock-open:${b.name}:restock">设置补货</a></h4>
+                <h4><a href="javascript:;" data-act="restock-open:${b.name}:hide">设置隐藏</a></h4>
+              </div>`).join("")}
+          </div>
+        </div>
+      </div>`;
     }
     const season = ui.restockSeason || "全部";
     const list = Store.db.goods.filter(g => g.brand === brand && (season === "全部" || g.season === season) && g.status !== "已删款");
@@ -777,77 +790,127 @@
   }
 
   function pageBrandSize() {
+    /* 原站：h1.title_underline 店铺设置；尺寸 select + 别名 text；sale_info 当前别名 */
     const list = Store.db.sizeAliasList || [];
     const standards = Store.db.standardSizes || [];
-    return `${subTitle("设置尺寸别名")}
-      <div class="note">下拉选择平台标准尺码 → 填写别名 → 确认提交；下方列表可删除后重新提交。</div>
-      <div class="form-grid" style="max-width:640px">
-        <label>标准尺码</label><div>${field("aliasStd", select(standards, "请选择", standards[0] || ""))}</div>
-        <label>别名</label><div>${field("aliasName", input("请输入别名"))}</div>
+    return `<h1 class="title_underline">店铺设置</h1>
+      <div class="ots_order-form ots_order-form-column">
+        <div><label>品牌:</label> ${state.selectedBrand || "JUNLI"}</div>
+        <div class="form_item-long">
+          <label>选择尺寸</label>
+          ${field("aliasStd", select(standards, "请选择", standards[0] || ""))}
+        </div>
+        <div class="form_item-withtext">
+          <div>${field("aliasName", input("请输入别名"))}</div>
+        </div>
       </div>
-      <div class="action-bar">${btn("确认提交", "btn-primary", "add-size-alias")}</div>
-      <h3 style="font-size:15px">当前别名</h3>
-      <table class="data-table">
-        <thead><tr><th>标准尺码</th><th>别名</th><th>操作</th></tr></thead>
-        <tbody>
-          ${list.map((x, i) => `<tr>
-            <td>${x.standard}</td><td>${x.alias}</td>
-            <td><a href="javascript:;" data-act="del-size-alias:${i}">删除</a></td>
-          </tr>`).join("") || '<tr><td colspan="3">暂无别名</td></tr>'}
-        </tbody>
-      </table>`;
+      <div class="submit_area">
+        <button type="button" class="ots_order-btn" data-act="add-size-alias">确认提交</button>
+      </div>
+      <div class="sale_info-container">
+        <h1>当前别名</h1>
+        <div class="sale_info items">
+          <div class="item sale_info-head">
+            <div><h5>尺寸</h5></div><div><h5>别名</h5></div><div><h5>操作</h5></div>
+          </div>
+          ${list.map((x, i) => `
+            <div class="item sale_info-row">
+              <div>${x.standard}</div><div>${x.alias}</div>
+              <div><a href="javascript:;" data-act="del-size-alias:${i}">删除</a></div>
+            </div>`).join("") || '<div class="item"><div>暂无别名</div></div>'}
+        </div>
+      </div>`;
   }
 
   function pageBrandFair() {
-    return `${subTitle("订货会设置")}
-      <div class="note">每场次含首单/补货两种类型；按季度开关。关闭后商品可见但不支持下单</div>
-      <table class="data-table" id="fair-table">
-        <thead><tr><th>场次/季节</th><th>首单</th><th>补货</th><th>状态</th></tr></thead>
-        <tbody>
-          ${RR.seasons.map(s => {
-            const f = Store.db.fairs[s] || { first: true, replenish: true };
-            const open = f.first || f.replenish;
-            return `<tr data-season="${s}">
-              <td>${s}</td>
-              <td>${field("fair-first-" + s, select(["开启", "关闭"], null, f.first ? "开启" : "关闭"))}</td>
-              <td>${field("fair-rep-" + s, select(["开启", "关闭"], null, f.replenish ? "开启" : "关闭"))}</td>
-              <td><span class="badge ${open ? "green" : "red"}">${open ? "进行中" : "已关闭"}</span></td>
-            </tr>`;
-          }).join("")}
-        </tbody>
-      </table>
-      <div class="action-bar">${btn("保存", "btn-primary", "save-fair")}</div>`;
+    /* 原站：季节开启状态 · season-row + checkbox 首单/补货（非 select） */
+    return `<div class="boduan-container">
+      ${subTitle("季节开启状态")}
+      <div class="season_crtl-container">
+        <div class="season_crtl">
+          <div class="items head_items uk-width-1-1">
+            <div class="season-row uk-width-1-1"><h4>季节</h4><h4>首单</h4><h4>补货</h4></div>
+          </div>
+          <div class="items uk-width-1-1" id="fair-table">
+            ${RR.seasons.map(s => {
+              const f = Store.db.fairs[s] || { first: true, replenish: true };
+              return `<div class="season-row" data-season="${s}">
+                <div><h4>${s}</h4></div>
+                <div><input type="checkbox" class="uk-checkbox" data-field="fair-first-${s}" ${f.first ? "checked" : ""} /></div>
+                <div><input type="checkbox" class="uk-checkbox" data-field="fair-rep-${s}" ${f.replenish ? "checked" : ""} /></div>
+              </div>`;
+            }).join("")}
+          </div>
+        </div>
+        <div class="submit_area action-bar"><a href="javascript:;" class="oto_btn" data-act="save-fair">保存</a></div>
+      </div>
+    </div>`;
   }
 
   function pageBrandPay() {
-    const p = Store.db.payInfo;
-    return `${subTitle("收款设置")}
-      <div class="form-grid">
-        <label>收款账户名</label><div>${field("account", input("公司名称", p.account))}</div>
-        <label>开户行</label><div>${field("bank", input("", p.bank))}</div>
-        <label>银行账号</label><div class="span2">${field("no", input("", p.no))}</div>
-        <label>合同公章</label><div class="upload-box"><div class="plus">+</div>${p.sealContract ? "已上传公章" : "上传公章图片"}</div>
-        <label>OC 公章</label><div class="upload-box"><div class="plus">+</div>${p.sealOc ? "已上传 OC 章" : "上传 OC 盖章图"}</div>
+    /* 原站：bank_payment · 公司名称/收款账户名称/开户行/账号/支行/地址 + 双公章 */
+    const p = Store.db.payInfo || {};
+    return `<div class="bank_payment-container">
+      <div class="bank_payment uk-width-1-1">
+        <h6 class="sub_title">收款信息</h6>
+        <div class="items">
+          <div class="item"><h6>公司名称</h6>${field("company", input("请输入公司名称", p.company || p.account || ""))}</div>
+          <div class="item"><h6>收款账户名称</h6>${field("account", input("请输入开户名称", p.account || ""))}</div>
+          <div class="item"><h6>开户行</h6>${field("bank", input("请输入开户行", p.bank || ""))}</div>
+          <div class="item"><h6>账号</h6>${field("no", input("请输入账号", p.no || ""))}</div>
+          <div class="item"><h6>支行</h6>${field("branch", input("请输入支行", p.branch || ""))}</div>
+          <div class="item item_long"><h6>地址</h6>${field("addr", input("请输入银行地址", p.addr || ""))}</div>
+          <div class="item setLicense"><label>合同公章上传(1张)</label>
+            <div class="file_area upload-box"><div class="plus">+</div>${p.sealContract ? "已上传公章" : "上传"}</div>
+          </div>
+          <div class="item setLicense"><label>OC公章上传(1张)</label>
+            <div class="file_area upload-box"><div class="plus">+</div>${p.sealOc ? "已上传 OC 章" : "上传"}</div>
+          </div>
+          <div class="item submit_area">
+            <a href="javascript:;" class="oto_btn" data-act="toast:已清空表单">清空</a>
+            <a href="javascript:;" class="oto_btn" data-act="save-pay">提交</a>
+          </div>
+        </div>
       </div>
-      <div style="margin-top:20px">${btn("保存", "btn-primary", "save-pay")}</div>`;
+    </div>`;
   }
 
   function pageBrandContract() {
-    const c = Store.db.contractSettings;
-    return `${subTitle("合同设置")}
-      <div class="note">按季度配置：合同类型、发货周期、联系人/手机/邮箱、签订与授权起止时间</div>
-      <div class="form-grid">
-        <label>季度</label><div>${field("season", select(RR.seasons, null, c.season))}</div>
-        <label>合同类型</label><div>${field("type", select(["经销", "代销", "买断"], null, c.type))}</div>
-        <label>发货周期</label><div>${field("cycle", select(RR.shipCycles, null, c.cycle || "45-60天"))}</div>
-        <label>合同联系人</label><div>${field("contact", input("", c.contact))}</div>
-        <label>手机</label><div>${field("phone", input("", c.phone))}</div>
-        <label>邮箱</label><div>${field("email", input("", c.email))}</div>
-        <label>签订时间</label><div>${field("signDate", dateInput(c.signDate))}</div>
-        <label>授权起始</label><div>${field("authStart", dateInput(c.authStart))}</div>
-        <label>授权结束</label><div>${field("authEnd", dateInput(c.authEnd))}</div>
+    /* 原站：编辑合同信息 · season_filter · 合同类型链接 · 发货周期 text · date×3 */
+    const c = Store.db.contractSettings || {};
+    const season = c.season || RR.seasons[RR.seasons.length - 1];
+    const types = ["经销商合同", "三方代收代付合同", "返佣合同"];
+    const curType = c.type || types[0];
+    return `<div class="addr-container contact_edit-container">
+      <div class="sub_title">编辑合同信息</div>
+      <div class="addr_edit contact_edit">
+        <div class="items">
+          <div class="season_filter uk-margin-medium-bottom uk-margin-medium-top">
+            <ul>${RR.seasons.slice(-9).map(s =>
+              `<li class="${season === s ? "uk-active" : ""}"><a href="javascript:;" data-act="contract-season:${s}">${s}</a></li>`
+            ).join("")}</ul>
+          </div>
+          <div class="item">
+            <div class="order_invoice">
+              <label>合同类型</label>
+              <div class="invoice_type">
+                ${types.map(t => `<a href="javascript:;" class="${curType === t ? "on" : ""}" data-act="contract-type:${t}">${t}</a>`).join("")}
+              </div>
+              <input type="hidden" data-field="type" value="${curType}" />
+              <input type="hidden" data-field="season" value="${season}" />
+            </div>
+          </div>
+          <div class="item"><label>设置发货周期</label>${field("cycle", `<input type="tel" placeholder="请输入发货周期" value="${c.cycle || ""}" />`)}</div>
+          <div class="item"><label>合同联系人</label>${field("contact", input("请输入合同联系人", c.contact || ""))}</div>
+          <div class="item"><label>联系人手机</label>${field("phone", `<input type="tel" placeholder="请输入联系人手机" value="${c.phone || ""}" />`)}</div>
+          <div class="item"><label>联系人邮箱</label>${field("email", input("请输入联系人邮箱", c.email || ""))}</div>
+          <div class="item"><label>合同签订日期</label>${field("signDate", dateInput(c.signDate))}</div>
+          <div class="item"><label>授权起始日期</label>${field("authStart", dateInput(c.authStart))}</div>
+          <div class="item"><label>授权结束日期</label>${field("authEnd", dateInput(c.authEnd))}</div>
+        </div>
+        <div class="action_area"><a href="javascript:;" class="oto_btn" data-act="save-contract-settings">保存</a></div>
       </div>
-      <div style="margin-top:20px">${btn("保存", "btn-primary", "save-contract-settings")}</div>`;
+    </div>`;
   }
 
   function checkGroup(name, options, selected) {
@@ -862,22 +925,27 @@
   }
 
   function pageBrandEdit() {
+    /* 原站：店铺信息 · 品类/风格/人群 checkbox · 成立年份 · Logo/LookBook */
     const b = Store.db.brandProfile || RR.brands[0];
     const cats = Store.db.catsMaster || ["女装", "男装", "男女装", "配饰", "生活方式"];
-    return `${subTitle("品牌信息编辑")}
-      <div class="note">品类 / 风格 / 适用人群从主数据勾选，支持多选。</div>
-      <div class="form-grid">
-        <label>品牌名</label><div>${field("name", input(b.name, b.name))}</div>
-        <label>成立年份</label><div>${field("year", select(RR.years, null, String(b.year || "2015")))}</div>
-        <label>品类（多选）</label><div class="span2">${checkGroup("cats", cats, b.cats || [b.cat].filter(Boolean))}</div>
-        <label>风格（多选）</label><div class="span2">${checkGroup("styles", Store.db.stylesMaster || [], b.styles || [])}</div>
-        <label>适用人群（多选）</label><div class="span2">${checkGroup("crowds", Store.db.crowdsMaster || [], b.crowds || [])}</div>
-        <label>设计师介绍</label><div class="span2"><textarea data-field="designer">${b.designer || ""}</textarea></div>
-        <label>品牌介绍</label><div class="span2"><textarea data-field="about">${b.about || ""}</textarea></div>
-        <label>Logo</label><div class="upload-box"><div class="plus">+</div>Logo</div>
-        <label>宣传图</label><div class="upload-box"><div class="plus">+</div>品牌宣传图</div>
-      </div>
-      <div style="margin-top:20px">${btn("保存品牌资料", "btn-primary", "save-brand-profile")}</div>`;
+    return `<div class="ots_order-form ots_order-form-column brand-edit-form">
+      <h1 class="title_underline">店铺信息</h1>
+      <div class="form_item-long"><label class="req">品牌名 *</label><div>${field("name", input("品牌名称", b.name))}</div></div>
+      <div class="form_item-long"><label>成立年份</label><div>${field("year", select(RR.years, null, String(b.year || "2015")))}</div></div>
+      <div class="form_item-long"><h5>品类 *</h5><div>${checkGroup("cats", cats, b.cats || [b.cat].filter(Boolean))}</div></div>
+      <div class="form_item-long"><label>官网</label><div>${field("site", input("官网", b.site || ""))}</div></div>
+      <div class="form_item-long"><label>预计发货时间</label><div>${field("shipAt", input("预计发货时间", b.shipAt || ""))}</div></div>
+      <div class="form_item-long"><h5>风格</h5><div>${checkGroup("styles", Store.db.stylesMaster || [], b.styles || [])}</div></div>
+      <div class="form_item-long"><h5>适用人群</h5><div>${checkGroup("crowds", Store.db.crowdsMaster || [], b.crowds || [])}</div></div>
+      <div class="form_item-long"><label>设计师文字介绍</label><div><textarea data-field="designer">${b.designer || ""}</textarea></div></div>
+      <div class="form_item-long"><label>品牌故事</label><div><textarea data-field="about">${b.about || ""}</textarea></div></div>
+      <div class="form_item-long"><label>品牌Logo</label><div class="upload-box"><div class="plus">+</div>Logo</div></div>
+      <div class="form_item-long"><label>LookBook</label><div class="upload-box"><div class="plus">+</div>宣传图</div></div>
+      <div class="form_item-long"><label>缩写</label><div>${field("abbr", input("缩写", b.abbr || ""))}</div></div>
+      <div class="form_item-long"><label class="req">货币 *</label><div>${field("currency", select(["CNY", "USD", "EUR", "HKD"], null, b.currency || "CNY"))}</div></div>
+      <div class="form_item-long"><label>文字颜色</label><div>${field("textColor", select(["黑色", "白色", "品牌色"], null, b.textColor || "黑色"))}</div></div>
+      <div class="submit_area"><a href="javascript:;" class="oto_btn" data-act="save-brand-profile">保存</a></div>
+    </div>`;
   }
 
   function pageMaster(kind) {
@@ -1370,19 +1438,21 @@
   }
 
   function pageOrderRealtime() {
+    /* 原站标题「汇总」；筛：开始/结束 date、季节、订单类型(首单/补单)、状态；按钮「查询」 */
     const f = Store.db.ui.realtimeFilter || {};
     const rows = Store.realtimeSummary(f);
-    return `${subTitle("实时订单汇总")}
+    return `<div class="filter-container brand_goodsList-container">
+      ${subTitle("汇总")}
       ${filterPanel([
-        ["开始时间", field("rtStart", dateInput(f.start))],
-        ["结束时间", field("rtEnd", dateInput(f.end))],
-        ["季节", field("rtSeason", select(RR.seasons, "全部", f.season || "全部"))],
-        ["订单类型", field("rtType", select(["全部", "首单", "补货单"], null, f.type || "全部"))],
-        ["订单状态", field("rtStatus", select(["全部", "买手未确认", "买手已确认待品牌确认", "定金确认", "尾款确认", "已完成", "已驳回"], null, f.status || "全部"))]
+        ["开始时间:", field("rtStart", dateInput(f.start))],
+        ["结束时间:", field("rtEnd", dateInput(f.end))],
+        ["季节:", field("rtSeason", select(RR.seasons, null, f.season || RR.seasons[RR.seasons.length - 1]))],
+        ["订单类型:", field("rtType", select(["全部", "首单", "补单"], null, f.type === "补货单" ? "补单" : (f.type || "全部")))],
+        ["订单状态:", field("rtStatus", select(["全部", "订单已确认", "已设置定金", "定金已确认", "尾款已确认"], null, f.status || "全部"))]
       ], "", "查询", "realtime-filter")}
-      <div class="rt-sum-list">
+      <div class="filter_details-conainer rt-sum-list">
         ${rows.map(r => `
-          <div class="rt-sum-row">
+          <div class="rt-sum-row item">
             <strong>${r.brand}</strong>
             <span>订单数：${r.count}</span>
             <span>总件数：${r.pieces}</span>
@@ -1391,9 +1461,10 @@
             <span>应收定金：${r.deposit}</span>
             <span>实收定金：${r.paidDeposit}</span>
             <span>实收总额：${r.paidTotal}</span>
-            <button type="button" class="btn btn-outline btn-sm" data-act="toast:查看 ${r.brand} 明细（示意）">查看</button>
+            <a href="javascript:;" class="oto_btn" data-act="toast:查看 ${r.brand} 明细（示意）">查看</a>
           </div>`).join("") || '<div class="note">筛选范围内暂无订单</div>'}
-      </div>`;
+      </div>
+    </div>`;
   }
 
   function pageOrderAllSel() {
@@ -1436,19 +1507,26 @@
   }
 
   function pageOrderAppoint() {
-    return `${subTitle("预约列表")}
-      <div class="note">买手小程序预约订货会 → 同步至此，可按品牌/店铺筛选与下载</div>
+    /* 原站：预约列表 · 选择品牌 select + 店铺名 text · 表头含预约日期/时间/人数/手机/提交/签到 */
+    return `<div class="brand_goodsList-container">
+      ${subTitle("预约列表")}
       ${filterPanel([
-        ["品牌", select(RR.brands.map(b => b.name))],
-        ["店铺名", input()]
-      ], btn("下载预约记录", "btn-outline"))}
+        ["选择品牌:", select(RR.brands.map(b => b.name), "全部")],
+        ["店铺名:", input("店铺名")]
+      ], "", "筛选", "filter")}
       <table class="data-table">
-        <thead><tr><th>品牌</th><th>店铺</th><th>联系人</th><th>手机</th><th>预约时间</th><th>季节</th></tr></thead>
+        <thead><tr>
+          <th>品牌</th><th>店铺名</th><th>预约日期</th><th>预约时间</th><th>人数</th><th>手机号</th><th>提交时间</th><th>签到时间</th><th>操作</th>
+        </tr></thead>
         <tbody>${Store.db.appointments.map(a => `<tr>
-          <td>${a.brand}</td><td>${a.store}</td><td>${a.contact}</td>
-          <td>${a.phone}</td><td>${a.date}</td><td>${a.season}</td>
-        </tr>`).join("") || '<tr><td colspan="6">暂无预约</td></tr>'}</tbody>
-      </table>`;
+          <td>${a.brand}</td><td>${a.store}</td><td>${(a.date || "").split(" ")[0] || a.date}</td>
+          <td>${a.time || (a.date || "").split(" ")[1] || "—"}</td>
+          <td>${a.people || 1}</td><td>${a.phone}</td>
+          <td>${a.submitAt || a.date || "—"}</td><td>${a.checkin || "—"}</td>
+          <td class="ops"><a href="javascript:;" data-act="download:预约记录">下载</a></td>
+        </tr>`).join("") || '<tr><td colspan="9">暂无预约</td></tr>'}</tbody>
+      </table>
+    </div>`;
   }
 
   function pageOrderRecon() {
@@ -1493,8 +1571,25 @@
   }
 
   function pageShip() {
+    /* 原站发货入口先是品牌列表（edit_boduan）；原型保留发货单明细能力 */
+    const mode = Store.db.ui.shipMode || "list";
+    if (mode !== "orders") {
+      return `<div class="boduan-container ship-brand-2col">
+        ${subTitle("品牌管理")}
+        <div class="edit_boduan">
+          <div class="items head_items"><div class="item_boduan-row"><h4>品牌名称</h4><h4>设置</h4></div></div>
+          <div class="edit_boduan-list">
+            ${RR.brands.map(b => `
+              <div class="item uk-flex-nowrap">
+                <div class="g-name"><h4>${b.name}</h4></div>
+                <h4><a href="javascript:;" data-act="ship-brand:${b.name}">设置发货</a></h4>
+              </div>`).join("")}
+          </div>
+        </div>
+      </div>`;
+    }
     return `${subTitle("发货管理")}
-      <div class="note">按需求：发货单关联订单、记录发货明细、填写物流单号。差额可转买手余额。</div>
+      <div class="action-bar"><a href="javascript:;" class="oto_btn" data-act="ship-back">返回品牌列表</a></div>
       ${filterPanel([
         ["订单号", input()],
         ["品牌", select(RR.brands.map(b => b.name))],
@@ -1589,45 +1684,66 @@
   }
 
   function pageBuyerList() {
+    /* 原站：h1.title_underline 买手列表；级别 select + 手机/店/省/市/品牌 text；invite 行列表；无侧栏 */
     const tab = (Store.db.ui.buyerFilter && Store.db.ui.buyerFilter.levelTab) || "全部";
-    const kw = (Store.db.ui.buyerFilter && Store.db.ui.buyerFilter.keyword) || "";
+    const f = Store.db.ui.buyerFilter || {};
     let all = Store.db.buyers.slice();
     if (tab === "待审核") all = all.filter(b => b.status === "待审核");
     else if (tab !== "全部") all = all.filter(b => b.level === tab);
-    if (kw) all = all.filter(b => b.name.includes(kw) || (b.phone || "").includes(kw) || (b.city || "").includes(kw));
+    const phone = f.phone || "";
+    const name = f.keyword || f.name || "";
+    const province = f.province || "";
+    const city = f.city || "";
+    const brand = f.brand || "";
+    if (phone) all = all.filter(b => (b.phone || "").includes(phone));
+    if (name) all = all.filter(b => b.name.includes(name));
+    if (province) all = all.filter(b => (b.province || b.city || "").includes(province));
+    if (city) all = all.filter(b => (b.city || "").includes(city));
+    if (brand) all = all.filter(b => (b.brands || []).join(",").includes(brand) || true);
     const list = pageSlice(all, 10);
-    const tabs = ["全部", "A", "B", "C", "D", "待审核"];
-    return `${subTitle("买手审核")}
-      <div class="buyer-toolbar">
-        <div class="tabs">
-          ${tabs.map(t => `<button class="${tab === t ? "on" : ""}" data-tabsoft data-buyer-tab="${t}">${t}</button>`).join("")}
-        </div>
-        <div style="display:flex;gap:8px;align-items:center;margin:12px 0">
-          ${field("buyerKw", input("搜索店铺 / 手机号", kw))}
-          ${btn("搜索", "btn-outline", "buyer-search")}
-          ${btn("添加买手", "btn-primary")}
-          <a href="javascript:;" data-act="toast:已打开邀请买手链接">邀请买手</a>
+    return `<div class="public-main-container buyer-list-page">
+      <h1 class="title_underline">买手列表</h1>
+      <div class="ots_order-form ots_order-managegoods uk-margin-large-top">
+        <div><label>级别</label>${field("buyerLevel", select(["全部", "A", "B", "C", "D", "待审核"], null, tab))}</div>
+        <div><label>手机号</label>${field("buyerPhone", input("", phone))}</div>
+        <div><label>店铺名</label>${field("buyerName", input("", name))}</div>
+        <div><label>省</label>${field("buyerProvince", input("", province))}</div>
+        <div><label>市</label>${field("buyerCity", input("", city))}</div>
+        <div><label>在售品牌</label>${field("buyerBrand", input("", brand))}</div>
+      </div>
+      <div class="submit_area uk-margin-small-top">
+        <button type="button" class="ots_order-btn" data-act="buyer-search">搜索</button>
+      </div>
+      <div class="submit_area uk-margin-small-top">
+        <a href="javascript:;" class="ots_order-btn" data-go="buyer-add">添加买手</a>
+      </div>
+      <div class="ots_order-invite-detail">
+        <div class="items">
+          <div class="item invite_title">
+            <div>店铺名</div><div>手机号</div><div>店铺级别</div><div>巡店图</div><div>操作</div>
+          </div>
+          ${list.map(b => `
+            <div class="item">
+              <div>${b.name}<br/>${b.province || ""}<br/>${b.city || ""}</div>
+              <div>${b.phone}</div>
+              <div class="level_detail">${b.status === "待审核" ? "待审核" : b.level}</div>
+              <div><div class="thumb ph" style="width:48px;height:36px">图</div></div>
+              <div class="ops">
+                ${b.status === "待审核" ? `<a href="javascript:;" data-act="approve">通过</a><a href="javascript:;" data-act="reject">取消权限</a>` : ""}
+                <a href="javascript:;" data-go="buyer-balance">余额管理</a>
+                <a href="javascript:;" data-go="buyer-store">查看店铺资料</a>
+                <a href="javascript:;" data-go="buyer-invoice">修改发票信息</a>
+                <a href="javascript:;" data-go="buyer-address">修改地址</a>
+                <a href="javascript:;" data-go="buyer-edit">编辑资料</a>
+                <a href="javascript:;" data-go="buyer-sub">查看子店铺信息</a>
+                <a href="javascript:;" data-go="buyer-add-brand">添加品牌</a>
+                <a href="javascript:;" data-go="buyer-appoint">添加预约</a>
+              </div>
+            </div>`).join("") || '<div class="item"><div>暂无买手</div></div>'}
         </div>
       </div>
-      <table class="data-table">
-        <thead><tr><th>店铺名</th><th>地区</th><th>手机号</th><th>店铺级别</th><th>巡店图</th><th>操作</th></tr></thead>
-        <tbody>${list.map(b => `<tr>
-          <td>${b.name}</td><td>${b.city}</td><td>${b.phone}</td><td>${b.level}</td>
-          <td><div class="thumb ph" style="width:48px;height:36px">图</div></td>
-          <td class="ops">
-            <a href="javascript:;" data-go="buyer-balance">余额管理</a>
-            <a href="javascript:;" data-go="buyer-store">查看店铺资料</a>
-            <a href="javascript:;" data-go="buyer-invoice">修改发票信息</a>
-            <a href="javascript:;" data-go="buyer-address">修改地址</a>
-            <a href="javascript:;" data-go="buyer-edit">编辑资料</a>
-            <a href="javascript:;" data-go="buyer-sub">查看子店铺信息</a>
-            <a href="javascript:;" data-go="buyer-add-brand">添加品牌</a>
-            <a href="javascript:;" data-go="buyer-appoint">添加预约</a>
-            ${b.status === "待审核" ? `${link("通过", "approve")}${link("关闭权限", "reject")}` : ""}
-          </td>
-        </tr>`).join("")}</tbody>
-      </table>
-      ${pagination(all.length, 10)}`;
+      ${pagination(all.length, 10)}
+    </div>`;
   }
 
   function pageBuyerBalance() {
@@ -2284,11 +2400,36 @@
       case "buyer-search": {
         const f = readFields();
         Store.db.ui.buyerFilter = Store.db.ui.buyerFilter || {};
-        Store.db.ui.buyerFilter.keyword = f.buyerKw || "";
+        Store.db.ui.buyerFilter.levelTab = f.buyerLevel || "全部";
+        Store.db.ui.buyerFilter.phone = f.buyerPhone || "";
+        Store.db.ui.buyerFilter.keyword = f.buyerName || f.buyerKw || "";
+        Store.db.ui.buyerFilter.province = f.buyerProvince || "";
+        Store.db.ui.buyerFilter.city = f.buyerCity || "";
+        Store.db.ui.buyerFilter.brand = f.buyerBrand || "";
         Store.persist();
         state.listPage = 1;
         render();
         toast("已搜索买手");
+        break;
+      }
+      case "ship-brand": {
+        Store.db.ui.shipMode = "orders";
+        Store.db.ui.shipBrand = act.split(":")[1] || "";
+        Store.persist();
+        render();
+        toast("已进入发货单列表");
+        break;
+      }
+      case "ship-back": {
+        Store.db.ui.shipMode = "list";
+        Store.persist();
+        render();
+        break;
+      }
+      case "buyer-brand-tab": {
+        Store.db.ui.buyerBrandTab = act.split(":")[1] || "intro";
+        Store.persist();
+        render();
         break;
       }
       case "clear-filter":
@@ -2484,8 +2625,9 @@
           const row = el.closest("tr");
           toast(Store.setIntention(row.children[0].textContent, row.children[1].textContent, "已通过"));
         } else {
-          const row = el.closest("tr");
-          toast(Store.setBuyerStatus(row.children[0].textContent, "已通过"));
+          const row = el.closest("tr") || el.closest(".item");
+          const name = row ? (row.querySelector("div") || row.children[0]).textContent.split("\n")[0].trim() : "";
+          toast(Store.setBuyerStatus(name, "已通过"));
         }
         render();
         break;
@@ -2495,8 +2637,11 @@
           const row = el.closest("tr");
           toast(Store.setIntention(row.children[0].textContent, row.children[1].textContent, "已拒绝"));
         } else {
-          const row = el.closest("tr");
-          toast(Store.setBuyerStatus(row.children[0].textContent, "已关闭"));
+          const row = el.closest("tr") || el.closest(".item");
+          const name = row
+            ? String((row.querySelector("div") || row.children[0]).textContent || "").split("\n")[0].trim()
+            : "";
+          toast(Store.setBuyerStatus(name, "已关闭"));
         }
         render();
         break;
@@ -2515,7 +2660,9 @@
           brand: f.brand, title: f.title, sku: f.sku, season: f.season,
           sizes: sizes.length ? sizes : ["S", "M", "L"],
           retail: f.retail, wholesale: f.wholesale, cat: f.cat, subcat: f.subcat,
-          carry: f.carry === "是", linesheet: f.band || "", color: f.color || "",
+          carry: !!f.carry || f.carry === "是",
+          restock: f.restock !== false && f.restock !== "否",
+          linesheet: f.band || "", color: f.color || "",
           shipAt: f.shipAt || ""
         });
         toast(r.msg);
@@ -2585,22 +2732,42 @@
         const f = readFields();
         RR.seasons.forEach(season => {
           Store.setFair(season, {
-            first: f["fair-first-" + season] === "开启",
-            replenish: f["fair-rep-" + season] === "开启"
+            first: !!f["fair-first-" + season],
+            replenish: !!f["fair-rep-" + season]
           });
         });
-        toast("订货会设置已保存");
+        toast("季节开启状态已保存");
         render();
         break;
       }
       case "save-pay": {
         const f = readFields();
-        toast(Store.savePayInfo({ account: f.account, bank: f.bank, no: f.no }));
+        toast(Store.savePayInfo({
+          company: f.company, account: f.account, bank: f.bank, no: f.no,
+          branch: f.branch, addr: f.addr
+        }));
+        break;
+      }
+      case "contract-season": {
+        const s = act.split(":")[1];
+        Store.db.contractSettings = Store.db.contractSettings || {};
+        Store.db.contractSettings.season = s;
+        Store.persist();
+        render();
+        break;
+      }
+      case "contract-type": {
+        const t = act.split(":").slice(1).join(":");
+        Store.db.contractSettings = Store.db.contractSettings || {};
+        Store.db.contractSettings.type = t;
+        Store.persist();
+        render();
         break;
       }
       case "save-contract-settings": {
         const f = readFields();
         toast(Store.saveContractSettings(f));
+        render();
         break;
       }
       case "save-brand-profile": {
@@ -2846,23 +3013,39 @@
   }
 
   function pageBuyerBrandAbout() {
+    /* 原站：brand_detail-container · 品牌介绍/LOOKBOOK · brand_info 字段 */
     const b = RR.brands.find(x => x.name === state.selectedBrand) || RR.brands[0];
-    return `<div class="buyer-layout">
-      ${buyerCatSide()}
-      <div class="buyer-main">
-        <div class="sub_title"><h4>${b.name}</h4></div>
-        <div class="brand-hero" style="margin-bottom:24px">
-          <div class="brand-logo-rect lg">${b.name}</div>
-          <div class="brand-hero-text"><p>${b.about || ""}</p></div>
+    const tab = Store.db.ui.buyerBrandTab || "intro";
+    return `<div class="oto_container brand_detail-container">
+      <div class="brand_swiper-container">
+        <div class="brand-logo-rect lg" style="width:100%;max-width:400px;height:240px;margin:0 auto">${b.name}</div>
+      </div>
+      <div class="brand_detail">
+        <div class="filter_link">
+          <div class="collect_link">
+            <a href="javascript:;" class="${tab === "intro" ? "uk-active on" : ""}" data-act="buyer-brand-tab:intro">品牌介绍</a>
+            <a href="javascript:;" class="${tab === "look" ? "uk-active on" : ""}" data-act="buyer-brand-tab:look">LOOKBOOK</a>
+          </div>
+          ${tab === "intro" ? `
+            <div class="brand_info">
+              <h6 class="sub_title">品牌信息</h6>
+              <div class="uk-column-1-2 brand-info-grid">
+                <div><h5>品牌名</h5><p>${b.name}</p></div>
+                <div><h5>成立时间</h5><p>${b.year || "—"}</p></div>
+                <div><h5>官网</h5><p>${b.site || "—"}</p></div>
+                <div><h5>最小起订量</h5><p>${b.moq || Store.db.brandRules.minAmount || 50000}</p></div>
+              </div>
+              <h6 class="sub_title">品牌故事</h6>
+              <p style="color:#555;line-height:1.8">${b.about || "由平台端/品牌端在品牌信息中维护。"}</p>
+              <div class="meta" style="margin-top:16px;color:#888;font-size:13px">品类 ${b.cat || "—"} · 风格 ${b.style || "—"} · 人群 ${b.crowd || "—"}</div>
+            </div>` : `
+            <div class="lookbook-container product-grid">
+              ${(Store.db.looks || []).filter(l => !l.brand || l.brand === b.name).slice(0, 6).map(l =>
+                `<div class="product-card"><div class="cover">LOOK ${l.id}</div><div class="name">${l.title}</div></div>`
+              ).join("") || '<div class="note">暂无 LOOKBOOK</div>'}
+            </div>`}
         </div>
-        <div class="form-grid" style="max-width:720px">
-          <label>成立年份</label><div>${b.year}</div>
-          <label>品类</label><div>${b.cat}</div>
-          <label>风格</label><div>${b.style}</div>
-          <label>适用人群</label><div>${b.crowd}</div>
-          <label>品牌介绍</label><div class="span2" style="color:#666;line-height:1.8">${b.about || "由平台端/品牌端在品牌信息中维护。"}</div>
-        </div>
-        <div style="margin-top:24px">${btn("返回商品列表", "btn-outline", "go:buyer-brand")}</div>
+        <div class="submit_area"><a href="javascript:;" class="oto_btn" data-act="go:buyer-brand">返回商品列表</a></div>
       </div>
     </div>`;
   }

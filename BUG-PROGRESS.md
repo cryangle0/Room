@@ -38,22 +38,29 @@
 
 ---
 
-## HTML 布局对齐（相对现网 DOM，2026-07-31 · 全量子页）
+## HTML 布局对齐（相对现网 DOM，2026-07-31 · 全量子页 + 表单字段）
 
-对照已登录现网 HTML（非截图），覆盖平台全部子页：
+对照已登录现网 HTML（非截图），覆盖平台全部子页与关键表单：
 
 | 结构 | 现网 class / 规则 |
 |------|-------------------|
 | 壳 | `ots_order-nav` / `oto-main_container` / `public_left>ul.mine_side` / `public_right` |
-| 标题 | `sub_title>h4`；优惠规则页为 `h1.title_underline`「店铺设置」 |
+| 标题 | `sub_title>h4`；优惠/尺码/买手列表为 `h1.title_underline` |
 | 筛选 | `brand_goodsFilter>item_inner`；查询按钮 `oto_btn` |
 | 品牌列表 | `edit_boduan-list`，**无侧栏** |
-| 品牌设置子页 | rules/alias/contract/pay/season/edit：**无侧栏**（与 `body.no-sidebars` 一致） |
-| 商品/订单侧栏 | `mine_side` 有 |
-| 商品行 | `item_goods-row` + `oto_btn` |
-| 款式汇总筛 | date×2 + 品牌/季节/类型/状态 select + **款号 text**；按钮「查询」 |
-| 选款/订单筛 | 枚举 select；国家/省/城市/店/单号 text |
-| 添加商品 | 波段=text；色/尺码/季节=select（对齐 taxonomy select） |
+| 品牌设置 | discount/alias/contract/pay/edit：**无侧栏**；季节页侧栏仅「季节控制」 |
+| 尺码别名 | `title_underline` + 尺寸 select + 别名 text + `sale_info` 列表 |
+| 合同 | `contact_edit` · 类型链接（经销商/三方代收代付/返佣）· 周期 tel · date×3 |
+| 收款 | `bank_payment` · 公司/账户/行/账号/支行/地址 + 双公章 |
+| 季节 | `season_crtl` · 首单/补货 **checkbox**（非 select） |
+| 商品添加 | `ots_order-form-column`；波段 text；色/尺码/季节 select；Carry checkbox |
+| 批量商品 | `ots_order-addlist` · 商家/分类 select · 三模板下载 |
+| 补货隐藏 | `edit_boduan` 品牌行 |
+| 发货入口 | 先品牌列表再进发货单 |
+| 买手列表 | `title_underline` + 级别/手机/店/省/市/品牌筛 + `ots_order-invite-detail` |
+| 买手品牌介绍 | `brand_detail-container` · 品牌介绍/LOOKBOOK |
+| 实时汇总 | 标题「汇总」；状态枚举对齐现网 |
+| 预约列表 | 品牌 select + 店铺 text；日期/时间/人数/签到列 |
 
 ## 控件对齐（相对现网交互习惯，2026-07-31）
 
@@ -64,7 +71,7 @@
 | 添加商品 · 预计发货 | 文本 YYYY-MM-DD | `date` |
 | 添加商品 · 波段/颜色 | 文本 | 下拉 |
 | 添加商品 · 尺寸列表 | 逗号文本 | 标准尺码多选勾选 |
-| 合同 · 发货周期 | 文本 | 下拉 |
+| 合同 · 发货周期 | 文本 / 曾改下拉 | **text(tel)**（对齐现网 HTML） |
 | 合同 · 签订/授权 | 已是 date，统一 helper | `date` |
 | 品牌 · 成立年份 | 文本 | 年份下拉 |
 | 选款筛选 · 国家/省 | 文本 | 下拉 |
@@ -93,11 +100,14 @@
 | 时间 | 环境 | 结果 | 说明 |
 |------|------|------|------|
 | 2026-07-31 | 本地 `127.0.0.1:8765` | **19/19 pass** | Chrome DevTools MCP；覆盖 #1–#14 关键断言（含 #7 回列表、#8 加款、#9 双入口、#14 买手详情） |
+| 2026-07-31 | 本地表单对齐抽查 | **15/15 pass** | brand 6 表单 + goods 3 + realtime/appoint/ship/buyer-list + buyer brand_detail |
 | 2026-07-31 | Pages | 需硬刷新 | CDN/浏览器缓存可能导致短暂旧包；以本地门禁为准，推送后请 `Ctrl+F5` |
 
 ### 未纳入「通过」的项（诚实边界）
 
 - 与现网截图像素级一致：未做  
+- 金蝶对接 / LOOK 业务待定 / 「添加品牌」需求不清：未做  
+- 买手端商品目录现网需买手账号；本轮对齐了品牌介绍 DOM，目录/选款仍按 Excel #12–#14 已通结构  
 - #10 买手维列名「补货/下单」语义：待客户确认（功能双维+展开已通）
 
 ---
@@ -118,4 +128,6 @@
 |--------|------|
 | `69ea124` | P0 |
 | `a4bb7cf` / `3ea4dfb` | P1 + #9 修复 |
-| （本轮） | #6 修改、#7 回列表、选款可加款数据；Excel 全量 MCP 19/19 |
+| `e29cd7a` | #6 修改、#7 回列表、选款可加款数据；Excel 全量 MCP 19/19 |
+| `8c32e23` / `c393160` | 管理端壳/筛选/侧栏 HTML 对齐 |
+| （本轮） | 表单字段级 HTML：商品/品牌设置/合同收款/季节/买手列表/发货入口/买手品牌介绍 |

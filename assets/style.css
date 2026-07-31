@@ -781,6 +781,76 @@ a.oto_btn:hover { background: var(--rr-purple-soft); }
 input[type="date"],
 input[type="datetime-local"] { height: 36px; border: 1px solid #ccc; padding: 0 10px; width: 100%; max-width: 260px; }
 
+/* 表单页：尺码别名 / 收款 / 合同 / 季节 / 批量导入 / 买手列表 */
+.ots_order-form-column .form_item-withtext { margin: 12px 0 20px; }
+.ots_order-btn, button.ots_order-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 36px; padding: 0 20px; border: 1px solid #222; background: #222; color: #fff;
+  font-size: 13px; cursor: pointer; text-decoration: none;
+}
+a.ots_order-btn { color: #fff; }
+.sale_info-container { margin-top: 40px; max-width: 720px; }
+.sale_info-container > h1 { font-size: 18px; margin: 0 0 16px; }
+.sale_info .sale_info-head,
+.sale_info .sale_info-row {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--rr-border);
+}
+.sale_info .sale_info-head h5 { margin: 0; font-size: 13px; color: #666; }
+.bank_payment .items .item { margin-bottom: 16px; max-width: 560px; }
+.bank_payment .items h6 { margin: 0 0 8px; font-size: 14px; font-weight: 500; }
+.bank_payment .item_long input { max-width: 100%; }
+.contact_edit-container .sub_title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+.contact_edit .season_filter ul {
+  display: flex; flex-wrap: wrap; gap: 8px 14px; list-style: none; margin: 0; padding: 0;
+}
+.contact_edit .season_filter a { color: #666; font-size: 13px; }
+.contact_edit .season_filter li.uk-active a { color: var(--rr-purple); font-weight: 600; }
+.contact_edit .item { margin-bottom: 16px; max-width: 480px; }
+.contact_edit .item > label { display: block; margin-bottom: 8px; font-size: 13px; color: #666; }
+.invoice_type { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+.invoice_type a {
+  display: inline-flex; height: 32px; align-items: center; padding: 0 14px;
+  border: 1px solid #ddd; color: #444; font-size: 13px;
+}
+.invoice_type a.on { border-color: var(--rr-purple); color: var(--rr-purple); background: var(--rr-purple-soft); }
+.season_crtl .season-row {
+  display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px;
+  align-items: center; padding: 12px 0; border-bottom: 1px solid var(--rr-border);
+}
+.season_crtl .season-row h4 { margin: 0; font-size: 14px; font-weight: 500; }
+.ots_order-addlist > p { margin: 12px 0 8px; font-size: 13px; color: #666; }
+.ots_order-addlist select { max-width: 360px; display: block; margin-bottom: 8px; }
+.btn_addmore.btn_download {
+  display: inline-flex; margin-right: 12px; margin-bottom: 8px;
+  color: var(--rr-purple); font-size: 13px;
+}
+.font-red { color: #c0392b; font-size: 12px; font-weight: 400; margin-top: 12px; }
+.check-inline { display: inline-flex; align-items: center; gap: 6px; }
+.ots_order-managegoods {
+  display: grid; grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: 16px 20px; max-width: 960px;
+}
+.ots_order-managegoods label { display: block; margin-bottom: 8px; font-size: 13px; color: #666; }
+.ots_order-invite-detail .items .item {
+  display: grid; grid-template-columns: 1.4fr 1fr .6fr .8fr 2.2fr;
+  gap: 12px; padding: 16px 8px; border-bottom: 1px solid var(--rr-border); align-items: start;
+}
+.ots_order-invite-detail .invite_title { background: var(--rr-panel); font-weight: 600; font-size: 13px; }
+.ots_order-invite-detail .ops a { display: inline-block; margin: 0 8px 6px 0; color: var(--rr-purple); font-size: 12px; }
+.boduan-container .edit_boduan-list .item,
+.boduan-container .item_boduan-row { grid-template-columns: 1.6fr 1fr 1fr; }
+.ship-brand-2col .item_boduan-row,
+.ship-brand-2col .edit_boduan-list .item { grid-template-columns: 1.6fr 1fr; }
+.brand_detail-container { max-width: 960px; margin: 0 auto; }
+.collect_link { display: flex; gap: 20px; margin: 20px 0; }
+.collect_link a { color: #666; font-size: 14px; }
+.collect_link a.on, .collect_link a.uk-active { color: var(--rr-purple); font-weight: 600; border-bottom: 2px solid var(--rr-purple); padding-bottom: 4px; }
+.brand-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px; margin-bottom: 24px; }
+.brand_info h5 { margin: 0 0 6px; font-size: 13px; color: #888; font-weight: 500; }
+.brand_info p { margin: 0; font-size: 15px; }
+.brand_info .sub_title { font-size: 16px; font-weight: 700; margin: 20px 0 12px; }
+
 @media (max-width: 960px) {
   .shell { flex-direction: column; gap: 16px; }
   .sidebar { width: 100%; display: flex; overflow-x: auto; padding: 0; }
