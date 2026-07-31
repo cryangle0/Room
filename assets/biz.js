@@ -3,7 +3,7 @@
  * Implements requirement-driven stateful operations (persisted in localStorage).
  */
 (() => {
-  const KEY = "rr_biz_v3";
+  const KEY = "rr_biz_v4";
 
   const ORDER_FLOW = ["买手未确认", "买手已确认待品牌确认", "定金确认", "尾款确认", "已完成"];
 
@@ -25,31 +25,88 @@
     return JSON.parse(JSON.stringify(v));
   }
 
+  function inferGoodsType(g) {
+    if (g.goodsType) return g.goodsType;
+    if (g.cat === "配饰" || (g.brand || "").includes("KHIHO")) return "配饰";
+    if (g.cat === "生活方式" || g.brand === "ROOMROOM" || g.brand === "OUDE WAAG") return "生活方式";
+    return "服饰";
+  }
+
+  function enrichGoods(g, idx) {
+    const cat = g.cat || (g.brand === "PRIVATE POLICY" || g.brand === "XIMONLEE" ? "男装"
+      : (g.brand === "ROOMROOM" || g.brand === "OUDE WAAG" ? "生活方式"
+        : (g.brand === "KHIHO" ? "配饰" : (g.brand === "ANGEL CHEN" ? "男女装" : "女装"))));
+    return {
+      ...g,
+      cat,
+      subcat: g.subcat || "外套",
+      restock: g.restock !== false,
+      hideInFirst: !!g.hideInFirst,
+      hideAll: !!g.hideAll,
+      linesheet: g.linesheet || "",
+      color: g.color || ["藏青", "黑色", "米白", "灰色", "卡其", "酒红"][idx % 6],
+      code: g.code || String(100 + (idx % 90)).padStart(3, "0"),
+      sampleSize: g.sampleSize || (g.sizes && g.sizes[0]) || "M",
+      goodsType: inferGoodsType({ ...g, cat })
+    };
+  }
+
+  function enrichLine(l, idx) {
+    const g = (RR.goods || []).find(x => x.sku === l.sku) || {};
+    const eg = enrichGoods({ ...g, ...l }, idx || 0);
+    const sizes = l.sizes || Object.fromEntries((eg.sizes || ["S", "M", "L"]).map(sz => [sz, 0]));
+    return {
+      sku: l.sku || eg.sku,
+      title: l.title || eg.title || l.sku,
+      sizes: clone(sizes),
+      price: l.price != null ? l.price : eg.wholesale,
+      retail: l.retail != null ? l.retail : (eg.retail || money(parseMoney(eg.wholesale) / 0.45)),
+      color: l.color || eg.color,
+      sampleSize: l.sampleSize || eg.sampleSize,
+      code: l.code || eg.code,
+      goodsType: l.goodsType || eg.goodsType
+    };
+  }
+
+  function linesForBrand(brand) {
+    const gs = (RR.goods || []).filter(g => g.brand === brand && g.status !== "已删款").slice(0, 5);
+    if (!gs.length) return clone(RR.selectionLines).map((l, i) => enrichLine(l, i));
+    return gs.map((g, i) => enrichLine({
+      sku: g.sku,
+      title: g.title,
+      sizes: Object.fromEntries((g.sizes || ["S", "M"]).map((sz, j) => [sz, j < 2 ? 1 : 0])),
+      price: g.wholesale,
+      retail: g.retail
+    }, i));
+  }
+
   function defaultDb() {
     return {
-      goods: clone(RR.goods).map(g => ({
-        ...g,
-        cat: g.brand === "PRIVATE POLICY" ? "男装" : (g.brand === "ROOMROOM" ? "生活方式" : "女装"),
-        subcat: "外套",
-        restock: true,
-        hideInFirst: false,
-        linesheet: ""
+      goods: clone(RR.goods).map((g, i) => enrichGoods(g, i)),
+      selections: clone(RR.selections).map((s, i) => ({
+        ...s,
+        locked: s.status === "已生成订单",
+        lines: (s.brand === "IAN HYLTON" && i === 0
+          ? clone(RR.selectionLines)
+          : linesForBrand(s.brand)).map((l, j) => enrichLine(l, j))
       })),
-      selections: clone(RR.selections).map(s => ({ ...s, locked: s.status === "已生成订单", lines: clone(RR.selectionLines) })),
-      orders: clone(RR.orders).map(o => ({
+      orders: clone(RR.orders).map((o, oi) => ({
         ...o,
         whitelist: false,
         paidDeposit: o.status === "定金确认" || o.status === "尾款确认" || o.status === "已完成" ? o.deposit : "0.00",
         paidTotal: o.status === "尾款确认" || o.status === "已完成" ? o.amount : "0.00",
-        invoice: null,
-        voucher: null,
+        invoice: o.status === "尾款确认" || o.status === "已完成" ? { title: o.store, tax: "", amount: o.amount, type: "普通发票" } : null,
+        voucher: o.status === "定金确认" || o.status === "尾款确认" || o.status === "已完成" ? { amount: o.deposit, at: "2026-07-20", file: "付款凭证.pdf" } : null,
+        contractUploaded: o.status === "定金确认" || o.status === "尾款确认" || o.status === "已完成",
+        materialsOk: o.status !== "买手未确认",
         substores: [],
         returns: [],
-        lines: [
-          { sku: "121BZX122", title: "LUNE——双v面包西服", sizes: { S: 2, M: 1 }, price: 2745, discount: 1 },
-          { sku: "121DRX037G", title: "抹胸连衣裙", sizes: { XS: 1, S: 2 }, price: 2205, discount: 1 }
-        ],
-        createdAt: "2026-03-20 10:00"
+        discountLabel: o.brand === "KHIHO" ? "服饰:4.4折 / 配饰:4.4折" : "服饰:4.5折 / 配饰:5.0折",
+        retailAmount: money(parseMoney(o.amount) / 0.45),
+        lines: linesForBrand(o.brand).map((l, j) => ({
+          sku: l.sku, title: l.title, sizes: clone(l.sizes), price: parseMoney(l.price), discount: 1, retail: parseMoney(l.retail), goodsType: l.goodsType
+        })),
+        createdAt: o.createdAt || ["2026-03-20 10:00", "2026-07-29 12:46", "2026-07-15 10:40"][oi % 3]
       })),
       buyers: clone(RR.buyers).map(b => ({ ...b, balances: { "HAIZHEN WANG": b.name === "Liora Amour" ? 2480 : 0, JUNLI: 0 }, addresses: [{ name: "收货人", phone: b.phone, addr: b.city }], invoice: { title: b.name, tax: "" }, substores: [] })),
       intentions: clone(RR.intentions),
@@ -400,19 +457,134 @@
       const s = db.selections.find(x => x.id === selId);
       if (!s) return { ok: false, msg: "选款单不存在" };
       if (s.locked) return { ok: false, msg: "选款单已锁定，需后台驳回订单后才能修改" };
-      s.lines = lines;
-      let pieces = 0;
-      let amount = 0;
-      lines.forEach(l => {
-        const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
-        pieces += qty;
-        amount += qty * parseMoney(l.price);
-      });
-      s.pieces = pieces;
-      s.skus = lines.length;
-      s.amount = money(amount);
+      s.lines = (lines || []).map((l, i) => enrichLine(l, i));
+      const q = Store.selectionQuote(s.lines);
+      s.pieces = q.pieces;
+      s.skus = s.lines.length;
+      s.amount = money(q.wholesale);
+      s.retailAmount = money(q.retail);
       save(); syncLegacy();
-      return { ok: true, msg: "选款单已保存" };
+      return { ok: true, msg: "选款单已保存", quote: q };
+    },
+    bumpSelectionQty(selId, sku, size, d) {
+      const s = db.selections.find(x => x.id === selId);
+      if (!s) return { ok: false, msg: "选款单不存在" };
+      if (s.locked) return { ok: false, msg: "选款单已锁定" };
+      const line = (s.lines || []).find(x => x.sku === sku);
+      if (!line) return { ok: false, msg: "款式不存在" };
+      line.sizes = line.sizes || {};
+      line.sizes[size] = Math.max(0, Number(line.sizes[size] || 0) + Number(d || 0));
+      return Store.saveSelectionLines(selId, s.lines);
+    },
+    removeSelectionLine(selId, sku) {
+      const s = db.selections.find(x => x.id === selId);
+      if (!s) return { ok: false, msg: "选款单不存在" };
+      return Store.saveSelectionLines(selId, (s.lines || []).filter(l => l.sku !== sku));
+    },
+    addSelectionLine(selId, sku) {
+      const s = db.selections.find(x => x.id === selId);
+      if (!s) return { ok: false, msg: "选款单不存在" };
+      if (s.locked) return { ok: false, msg: "选款单已锁定" };
+      if ((s.lines || []).some(l => l.sku === sku)) return { ok: false, msg: "该款已在选款单中" };
+      const g = db.goods.find(x => x.sku === sku);
+      if (!g) return { ok: false, msg: "商品不存在" };
+      if (g.brand !== s.brand) return { ok: false, msg: "只能添加本品牌款式（选款单按品牌独立）" };
+      const sizes = Object.fromEntries((g.sizes || ["S", "M", "L"]).map(sz => [sz, sz === (g.sampleSize || "M") || sz === "M" ? 1 : 0]));
+      s.lines = s.lines || [];
+      s.lines.push(enrichLine({ sku: g.sku, title: g.title, sizes, price: g.wholesale, retail: g.retail }, s.lines.length));
+      return Store.saveSelectionLines(selId, s.lines);
+    },
+    selectionQuote(lines, ruleMode) {
+      const rules = db.brandRules[ruleMode || db.ui.discountMode || "first"] || db.brandRules.first;
+      const groups = {
+        服饰: { key: "cloth", pieces: 0, retail: 0 },
+        配饰: { key: "accessory", pieces: 0, retail: 0 },
+        生活方式: { key: "lifestyle", pieces: 0, retail: 0 }
+      };
+      (lines || []).forEach(l => {
+        const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
+        const type = l.goodsType || "服饰";
+        const g = groups[type] || groups["服饰"];
+        g.pieces += qty;
+        g.retail += qty * parseMoney(l.retail != null ? l.retail : (parseMoney(l.price) / 0.45));
+      });
+      const retail = Object.values(groups).reduce((a, g) => a + g.retail, 0);
+      const pieces = Object.values(groups).reduce((a, g) => a + g.pieces, 0);
+      const stairs = [...(rules.stairs || [])].sort((a, b) => a.amount - b.amount);
+      const activeStair = [...stairs].reverse().find(st => retail >= st.amount) || null;
+      const nextStair = stairs.find(st => retail < st.amount) || null;
+      const types = Object.entries(groups).map(([name, g]) => {
+        const base = Number(rules[g.key] || 0.45);
+        const disc = activeStair ? Number(activeStair.discount) : base;
+        return {
+          name,
+          pieces: g.pieces,
+          retail: g.retail,
+          discount: disc,
+          discountLabel: (disc * 10).toFixed(1).replace(/\.0$/, "") + "折",
+          nextGap: nextStair ? Math.max(0, nextStair.amount - retail) : 0,
+          nextDiscountLabel: nextStair ? (Number(nextStair.discount) * 10).toFixed(1).replace(/\.0$/, "") + "折" : ""
+        };
+      }).filter(t => t.pieces > 0 || t.retail > 0);
+      let wholesale = 0;
+      types.forEach(t => { wholesale += t.retail * t.discount; });
+      // lines with 0 type still count via fallback
+      if (!types.length) {
+        (lines || []).forEach(l => {
+          const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
+          wholesale += qty * parseMoney(l.price);
+        });
+      }
+      return {
+        pieces,
+        skus: (lines || []).length,
+        retail,
+        wholesale,
+        minAmount: Number(rules.minAmount || 0),
+        minGap: Math.max(0, Number(rules.minAmount || 0) - retail),
+        types,
+        nextStair,
+        activeStair
+      };
+    },
+    draftQuote(brand) {
+      const items = db.buyerSession.selections.filter(x => !brand || x.brand === brand);
+      const toLine = (i, idx, forceOne) => {
+        const g = db.goods.find(x => x.sku === i.sku) || i;
+        let sizes = i.sizes || Object.fromEntries((g.sizes || ["S", "M", "L"]).map(sz => [sz, 0]));
+        const hasQty = Object.values(sizes).some(v => Number(v) > 0);
+        if (forceOne && !hasQty) {
+          sizes = Object.fromEntries(Object.keys(sizes).map((sz, j) => [sz, j === 0 ? 1 : 0]));
+        }
+        return enrichLine({
+          sku: i.sku, title: i.title || g.title, sizes,
+          price: i.wholesale || g.wholesale, retail: g.retail, goodsType: g.goodsType,
+          color: g.color, sampleSize: g.sampleSize, code: g.code
+        }, idx);
+      };
+      const lines = items.map((i, idx) => toLine(i, idx, false));
+      const quoteLines = items.map((i, idx) => toLine(i, idx, true));
+      return { items, lines, quote: Store.selectionQuote(quoteLines), brand: brand || (items[0] && items[0].brand) || "" };
+    },
+    bumpDraftQty(sku, size, d) {
+      const item = db.buyerSession.selections.find(x => x.sku === sku);
+      if (!item) return { ok: false, msg: "未在选款中" };
+      const g = db.goods.find(x => x.sku === sku);
+      item.sizes = item.sizes || Object.fromEntries((g && g.sizes || ["S", "M", "L"]).map(sz => [sz, 0]));
+      item.sizes[size] = Math.max(0, Number(item.sizes[size] || 0) + Number(d || 0));
+      save();
+      return { ok: true, msg: "数量已更新" };
+    },
+    orderPendingTips(o) {
+      const tips = [];
+      if (!o) return tips;
+      if (o.status === "买手未确认" || o.status.includes("驳回")) tips.push("待买手确认订单");
+      if (o.status === "买手已确认待品牌确认") tips.push("待确认定金和合同");
+      if (!o.materialsOk && o.status !== "已完成") tips.push("待补充材料");
+      if (!o.contractUploaded && !["尾款确认", "已完成"].includes(o.status)) tips.push("待上传合同");
+      if (!o.voucher && !["尾款确认", "已完成"].includes(o.status)) tips.push("待上传付款凭证");
+      if (o.status === "定金确认") tips.push("待确认尾款");
+      return tips;
     },
 
     advanceOrder(orderId, action, payload = {}) {
@@ -606,16 +778,23 @@
       const s = db.buyerSession;
       return db.goods.filter(g => {
         if (g.status === "已删款") return false;
+        if (g.hideAll) return false;
         if (brand && g.brand !== brand) return false;
         if (s.season && s.season !== "全部" && g.season !== s.season) return false;
         if (s.carryOnly && !g.carry) return false;
         if (s.search) {
           const q = s.search.toLowerCase();
-          if (!g.sku.toLowerCase().includes(q) && !g.title.toLowerCase().includes(q)) return false;
+          const code = String(g.code || "").toLowerCase();
+          if (!g.sku.toLowerCase().includes(q) && !g.title.toLowerCase().includes(q) && !code.includes(q)) return false;
         }
-        // fair closed: still visible
         return true;
       });
+    },
+    buyerSeasons(brand) {
+      const set = new Set(db.goods.filter(g => (!brand || g.brand === brand) && g.status !== "已删款").map(g => g.season));
+      // 近→远：按 seasons 数组倒序（末尾更新）
+      const order = RR.seasons || [];
+      return order.filter(s => set.has(s)).reverse().concat([...set].filter(s => !order.includes(s)));
     },
     canOrder(brand, season, type) {
       const fair = db.fairs[season] || { first: true, replenish: true };
@@ -634,10 +813,16 @@
       if (idx >= 0) list.splice(idx, 1);
       else {
         const g = db.goods.find(x => x.sku === sku);
-        if (g) list.push({ sku, brand: g.brand, title: g.title, season: g.season, wholesale: g.wholesale });
+        if (g) {
+          const sizes = Object.fromEntries((g.sizes || ["S", "M", "L"]).map(sz => [sz, 0]));
+          list.push({
+            sku, brand: g.brand, title: g.title, season: g.season, wholesale: g.wholesale,
+            retail: g.retail, color: g.color, sampleSize: g.sampleSize, code: g.code, goodsType: g.goodsType, sizes
+          });
+        }
       }
       save();
-      return idx >= 0 ? "已取消选款" : "已加入选款单（仅款式）";
+      return idx >= 0 ? "已取消选款" : "已加入选款单（仅款式，详情内改数量）";
     },
     buyerConfirmSelection(brand) {
       const items = db.buyerSession.selections.filter(x => x.brand === brand);
@@ -646,15 +831,26 @@
       const check = Store.canOrder(brand, season, "首单");
       if (!check.ok) return check;
       const id = uid("SEL");
+      const lines = items.map((i, idx) => {
+        const g = db.goods.find(x => x.sku === i.sku) || {};
+        let sizes = i.sizes || {};
+        if (!Object.values(sizes).some(v => Number(v) > 0)) {
+          sizes = Object.fromEntries((g.sizes || ["S", "M"]).map((sz, j) => [sz, j < 2 ? 1 : 0]));
+        }
+        return enrichLine({
+          sku: i.sku, title: i.title || g.title, sizes, price: i.wholesale || g.wholesale, retail: g.retail,
+          color: g.color, sampleSize: g.sampleSize, code: g.code, goodsType: g.goodsType
+        }, idx);
+      });
+      const q = Store.selectionQuote(lines);
       db.selections.unshift({
         id, brand, season, store: db.buyerSession.store, time: new Date().toISOString().slice(0, 16).replace("T", " "),
-        amount: money(items.length * 5000), pieces: items.length, skus: items.length, status: "待确认", buyer: db.buyerSession.store,
-        locked: false,
-        lines: items.map(i => ({ sku: i.sku, title: i.title, sizes: { S: 1, M: 1 }, price: i.wholesale }))
+        amount: money(q.wholesale), retailAmount: money(q.retail), pieces: q.pieces, skus: lines.length,
+        status: "待确认", buyer: db.buyerSession.store, locked: false, lines
       });
       db.buyerSession.selections = db.buyerSession.selections.filter(x => x.brand !== brand);
       save(); syncLegacy();
-      return { ok: true, msg: `已生成选款单 ${id}`, id };
+      return { ok: true, msg: `已生成选款单 ${id}（按品牌独立）`, id };
     },
     buyerOrders(tab) {
       const store = db.buyerSession.store;

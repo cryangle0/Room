@@ -1,5 +1,7 @@
 # ROOMROOM 订货系统 · 客户确认原型
 
+修改意见处理进度见 [`BUG-PROGRESS.md`](./BUG-PROGRESS.md)。
+
 基于现网 [order.roomroom.com.cn](https://order.roomroom.com.cn/manage/goods/list) 的前端 UI 风格（黑顶栏 / 紫色强调色 `#9A37FE` / 左栏导航 / 筛选面板），对照《ROOMROOM功能清单》制作的可点击原型，供客户确认信息架构与业务流程。
 
 ## 在线访问（GitHub Pages）
