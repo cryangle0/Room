@@ -73,7 +73,10 @@
           { id: "brand-fair", label: "订货会设置" },
           { id: "brand-pay", label: "收款设置" },
           { id: "brand-contract", label: "合同设置" },
-          { id: "brand-edit", label: "品牌信息编辑" }
+          { id: "brand-edit", label: "品牌信息编辑" },
+          { id: "brand-master-style", label: "风格资料维护" },
+          { id: "brand-master-crowd", label: "适用人群维护" },
+          { id: "brand-master-size", label: "平台标准尺码" }
         ],
         goods: [
           { id: "goods-restock", label: "补货/隐藏商品" },
@@ -397,6 +400,8 @@
   }
 
   function sidebar() {
+    // #1 品牌管理首页不需要左侧导航
+    if (state.page === "brand-list") return "";
     const group = topGroup(state.page);
     let items = (routes.platform.side[group] || []);
     if (state.portal === "brand") {
@@ -570,26 +575,50 @@
   }
 
   function pageGoodsRestock() {
-    const list = Store.db.goods.slice(0, 12);
-    return `<h1 class="page-title">补货 / 隐藏商品</h1>
-      <div class="note">按季节设置：是否可补货、是否在首单中隐藏。保存后联动买手端下单校验。</div>
-      ${filterPanel([
-        ["选择品牌", select(RR.brands.map(b => b.name))],
-        ["选择季节", select(RR.seasons)],
-        ["SKU", input()],
-        ["状态", select(["可补货", "不可补货", "首单隐藏"])]
-      ])}
+    const ui = Store.db.ui;
+    const brand = ui.restockBrand;
+    const kind = ui.restockKind;
+    if (!brand || !kind) {
+      return `<h1 class="page-title">补货/隐藏管理</h1>
+        <div class="note">参照现网：每行一个品牌。进入后按季度展示商品并批量修改；隐藏=全部不可见，不区分首单/补单。</div>
+        <table class="data-table">
+          <thead><tr><th>品牌名称</th><th>补货设置</th><th>隐藏设置</th></tr></thead>
+          <tbody>
+            ${RR.brands.map(b => `<tr>
+              <td><strong>${b.name}</strong></td>
+              <td><a href="javascript:;" data-act="restock-open:${b.name}:restock">设置补货</a></td>
+              <td><a href="javascript:;" data-act="restock-open:${b.name}:hide">设置隐藏</a></td>
+            </tr>`).join("")}
+          </tbody>
+        </table>`;
+    }
+    const season = ui.restockSeason || "全部";
+    const list = Store.db.goods.filter(g => g.brand === brand && (season === "全部" || g.season === season) && g.status !== "已删款");
+    const seasons = [...new Set(Store.db.goods.filter(g => g.brand === brand).map(g => g.season))];
+    return `<h1 class="page-title">${kind === "hide" ? "设置隐藏" : "设置补货"} · ${brand}</h1>
+      <div class="note">${kind === "hide" ? "隐藏后买手端完全不可见，不区分首单/补货。" : "关闭补货后买手端该款不可下补货单。"} 可按季度批量修改。</div>
+      <div class="action-bar">
+        <button type="button" class="btn btn-outline" data-act="restock-back">返回品牌列表</button>
+        ${seasons.map(s => `<button type="button" class="btn btn-sm ${season === s ? "btn-primary" : "btn-outline"}" data-act="restock-season:${s}">${s}</button>`).join("")}
+        <button type="button" class="btn btn-sm ${season === "全部" ? "btn-primary" : "btn-outline"}" data-act="restock-season:全部">全部季度</button>
+      </div>
+      <div class="action-bar">
+        ${kind === "restock"
+          ? `${btn("本季全部可补货", "btn-outline", "restock-batch:1")}${btn("本季全部不可补货", "btn-outline", "restock-batch:0")}`
+          : `${btn("本季全部隐藏", "btn-outline", "restock-batch:1")}${btn("本季全部取消隐藏", "btn-outline", "restock-batch:0")}`}
+        ${btn("保存勾选", "btn-primary", "save-restock")}
+      </div>
       <table class="data-table" id="restock-table">
-        <thead><tr><th>SKU</th><th>商品</th><th>季节</th><th>可补货</th><th>首单隐藏</th></tr></thead>
+        <thead><tr><th>SKU</th><th>商品</th><th>季节</th><th>${kind === "hide" ? "隐藏（全不可见）" : "可补货"}</th></tr></thead>
         <tbody>
           ${list.map(g => `<tr data-sku="${g.sku}">
             <td>${g.sku}</td><td>${g.title}</td><td>${g.season}</td>
-            <td>${field("restock-" + g.sku, select(["是", "否"], null, g.restock !== false ? "是" : "否"))}</td>
-            <td>${field("hide-" + g.sku, select(["否", "是"], null, g.hideInFirst ? "是" : "否"))}</td>
-          </tr>`).join("")}
+            <td>${kind === "hide"
+              ? field("hide-" + g.sku, select(["否", "是"], null, g.hideAll ? "是" : "否"))
+              : field("restock-" + g.sku, select(["是", "否"], null, g.restock !== false ? "是" : "否"))}</td>
+          </tr>`).join("") || '<tr><td colspan="4">该季度暂无商品</td></tr>'}
         </tbody>
-      </table>
-      <div class="action-bar">${btn("保存", "btn-primary", "save-restock")}</div>`;
+      </table>`;
   }
 
   function pageGoodsLook() {
@@ -645,27 +674,22 @@
   }
 
   function pageBrandDiscount() {
-    const mode = Store.db.ui.discountMode || "first";
-    const rules = Store.db.brandRules[mode] || Store.db.brandRules.first;
-    const tabs = [["first", "首单规则"], ["replenish", "补货单规则"], ["fair", "订货会单独规则"]];
-    if (mode === "fair") {
-      return `<h1 class="page-title">设置优惠规则</h1>
-        <div class="note">订货会单独规则：可按场次覆盖首单/补货折扣；此处先切换场次开关，细则沿用对应首单/补货规则。</div>
-        <div class="tabs">${tabs.map(([id, lab]) => `<button class="${mode === id ? "on" : ""}" data-tabsoft data-mode="${id}">${lab}</button>`).join("")}</div>
-        <table class="data-table">
-          <thead><tr><th>季节</th><th>首单开放</th><th>补货开放</th><th>操作</th></tr></thead>
-          <tbody>${Object.keys(Store.db.fairs).map(s => {
-            const f = Store.db.fairs[s];
-            return `<tr><td>${s}</td><td>${f.first ? "开启" : "关闭"}</td><td>${f.replenish ? "开启" : "关闭"}</td>
-              <td>${link("去订货会设置", "go:brand-fair")}</td></tr>`;
-          }).join("")}</tbody>
-        </table>`;
-    }
+    const seasons = Object.keys(Store.db.brandRules.bySeason || {}).length
+      ? Object.keys(Store.db.brandRules.bySeason)
+      : RR.seasons.slice(-8);
+    const season = Store.db.ui.discountSeason || Store.db.brandRules.season || seasons[0];
+    Store.ensureSeasonRules(season);
+    const mode = (Store.db.ui.discountMode || "first") === "replenish" ? "replenish" : "first";
+    const rules = Store.getDiscountRules(season, mode);
+    const tabs = [["first", "首单规则"], ["replenish", "补货单规则"]];
     return `<h1 class="page-title">设置优惠规则</h1>
-      <div class="note">对齐现网：最小起订金额（吊牌价）+ 服饰/配饰/生活方式统一折扣 + 金额阶梯；首单/补货分别配置。</div>
+      <div class="note">每个已有季度单独配置、单独生效；已去掉「订货会单独规则」。订货会开关请到「订货会设置」。</div>
+      <div class="season-tabs" style="margin-bottom:12px">
+        ${seasons.map(s => `<button type="button" class="${season === s ? "on" : ""}" data-act="discount-season:${s}">${s}</button>`).join("")}
+      </div>
       <div class="tabs">${tabs.map(([id, lab]) => `<button class="${mode === id ? "on" : ""}" data-tabsoft data-mode="${id}">${lab}</button>`).join("")}</div>
       <div class="form-section">
-        <h3>最小起订金额（吊牌价）</h3>
+        <h3>最小起订金额（吊牌价）· ${season}</h3>
         <div class="form-grid">
           <label>最小起订金额</label><div>${field("minAmount", input("例如 30000", String(rules.minAmount || 30000)))}</div>
         </div>
@@ -693,23 +717,30 @@
             </tr>`).join("")}
           </tbody>
         </table>
-        <div class="action-bar">${btn("添加阶梯", "btn-outline")}${btn("保存规则")}</div>
+        <div class="action-bar">${btn("添加阶梯", "btn-outline", "add-stair")}${btn("保存规则", "btn-primary", "save-discount")}</div>
       </div>`;
   }
 
   function pageBrandSize() {
-    const alias = Store.db.sizeAlias;
+    const list = Store.db.sizeAliasList || [];
+    const standards = Store.db.standardSizes || [];
     return `<h1 class="page-title">设置尺寸别名</h1>
-      <div class="note">平台标准尺寸下，品牌可配置别名（例：标准 XS → 别名 2）</div>
+      <div class="note">下拉选择平台标准尺码 → 填写别名 → 确认提交；下方列表可删除后重新提交。</div>
+      <div class="form-grid" style="max-width:640px">
+        <label>标准尺码</label><div>${field("aliasStd", select(standards, "请选择", standards[0] || ""))}</div>
+        <label>别名</label><div>${field("aliasName", input("请输入别名"))}</div>
+      </div>
+      <div class="action-bar">${btn("确认提交", "btn-primary", "add-size-alias")}</div>
+      <h3 style="font-size:15px">当前别名</h3>
       <table class="data-table">
-        <thead><tr><th>标准尺寸</th><th>品牌别名</th></tr></thead>
+        <thead><tr><th>标准尺码</th><th>别名</th><th>操作</th></tr></thead>
         <tbody>
-          ${["XS", "S", "M", "L", "XL"].map(s =>
-            `<tr><td>${s}</td><td>${field("alias-" + s, input("", alias[s] || ""))}</td></tr>`
-          ).join("")}
+          ${list.map((x, i) => `<tr>
+            <td>${x.standard}</td><td>${x.alias}</td>
+            <td><a href="javascript:;" data-act="del-size-alias:${i}">删除</a></td>
+          </tr>`).join("") || '<tr><td colspan="3">暂无别名</td></tr>'}
         </tbody>
-      </table>
-      <div style="margin-top:16px">${btn("保存", "btn-primary", "save-size")}</div>`;
+      </table>`;
   }
 
   function pageBrandFair() {
@@ -757,28 +788,66 @@
         <label>合同联系人</label><div>${field("contact", input("", c.contact))}</div>
         <label>手机</label><div>${field("phone", input("", c.phone))}</div>
         <label>邮箱</label><div>${field("email", input("", c.email))}</div>
-        <label>签订时间</label><div>${field("signDate", input("YYYY-MM-DD", c.signDate))}</div>
-        <label>授权起始</label><div>${field("authStart", input("YYYY-MM-DD", c.authStart))}</div>
-        <label>授权结束</label><div>${field("authEnd", input("YYYY-MM-DD", c.authEnd))}</div>
+        <label>签订时间</label><div>${field("signDate", `<input type="date" data-field="signDate" value="${c.signDate || ""}" />`)}</div>
+        <label>授权起始</label><div>${field("authStart", `<input type="date" data-field="authStart" value="${c.authStart || ""}" />`)}</div>
+        <label>授权结束</label><div>${field("authEnd", `<input type="date" data-field="authEnd" value="${c.authEnd || ""}" />`)}</div>
       </div>
       <div style="margin-top:20px">${btn("保存", "btn-primary", "save-contract-settings")}</div>`;
   }
 
+  function checkGroup(name, options, selected) {
+    const sel = selected || [];
+    return `<div class="check-group" data-checkgroup="${name}">
+      ${options.map(o => {
+        const val = typeof o === "string" ? o : o.name;
+        const on = sel.includes(val);
+        return `<label class="check-pill"><input type="checkbox" data-check="${name}" value="${val}" ${on ? "checked" : ""} style="width:auto;height:auto" /> ${val}</label>`;
+      }).join("")}
+    </div>`;
+  }
+
   function pageBrandEdit() {
     const b = Store.db.brandProfile || RR.brands[0];
+    const cats = Store.db.catsMaster || ["女装", "男装", "男女装", "配饰", "生活方式"];
     return `<h1 class="page-title">品牌信息编辑</h1>
+      <div class="note">品类 / 风格 / 适用人群从主数据勾选，支持多选。</div>
       <div class="form-grid">
         <label>品牌名</label><div>${field("name", input(b.name, b.name))}</div>
         <label>成立年份</label><div>${field("year", input(String(b.year), String(b.year)))}</div>
-        <label>品类</label><div>${field("cat", input(b.cat, b.cat))}</div>
-        <label>风格</label><div>${field("style", input(b.style, b.style))}</div>
-        <label>适用人群</label><div class="span2">${field("crowd", input(b.crowd, b.crowd))}</div>
+        <label>品类（多选）</label><div class="span2">${checkGroup("cats", cats, b.cats || [b.cat].filter(Boolean))}</div>
+        <label>风格（多选）</label><div class="span2">${checkGroup("styles", Store.db.stylesMaster || [], b.styles || [])}</div>
+        <label>适用人群（多选）</label><div class="span2">${checkGroup("crowds", Store.db.crowdsMaster || [], b.crowds || [])}</div>
         <label>设计师介绍</label><div class="span2"><textarea data-field="designer">${b.designer || ""}</textarea></div>
         <label>品牌介绍</label><div class="span2"><textarea data-field="about">${b.about || ""}</textarea></div>
         <label>Logo</label><div class="upload-box"><div class="plus">+</div>Logo</div>
         <label>宣传图</label><div class="upload-box"><div class="plus">+</div>品牌宣传图</div>
       </div>
-      <div style="margin-top:20px">${btn("保存品牌资料")}</div>`;
+      <div style="margin-top:20px">${btn("保存品牌资料", "btn-primary", "save-brand-profile")}</div>`;
+  }
+
+  function pageMaster(kind) {
+    const title = kind === "styles" ? "风格资料维护" : kind === "crowds" ? "适用人群维护" : "平台标准尺码维护";
+    const note = kind === "sizes"
+      ? "作为品牌尺码别名下拉的选项来源，可增删改。"
+      : "作为品牌信息编辑时的勾选基础数据，可增删改。";
+    const rows = kind === "sizes"
+      ? (Store.db.standardSizes || []).map(n => ({ id: n, name: n }))
+      : (kind === "styles" ? Store.db.stylesMaster : Store.db.crowdsMaster) || [];
+    return `<h1 class="page-title">${title}</h1>
+      <div class="note">${note}（意见 #6，现网无参考页，按主体 UI 自设计）</div>
+      <div class="form-grid" style="max-width:560px">
+        <label>新增</label><div>${field("masterName", input("输入名称"))}</div>
+      </div>
+      <div class="action-bar">${btn("添加", "btn-primary", "add-master:" + kind)}</div>
+      <table class="data-table">
+        <thead><tr><th>名称</th><th>操作</th></tr></thead>
+        <tbody>
+          ${rows.map(r => `<tr>
+            <td>${r.name}</td>
+            <td><a href="javascript:;" data-act="del-master:${kind}:${r.id}">删除</a></td>
+          </tr>`).join("") || '<tr><td colspan="2">暂无数据</td></tr>'}
+        </tbody>
+      </table>`;
   }
 
   function orderTable(rows, actions = "查看 / 下载 / 生成订单") {
@@ -1020,7 +1089,7 @@
   function pageOrderDetail() {
     const o = state.selectedOrder || Store.db.orders[0];
     const action = state.orderAction;
-    const rules = Store.db.brandRules.first;
+    const rules = Store.getDiscountRules();
     const lines = o.lines || [];
     const skuCount = lines.length;
     const panels = {
@@ -1167,48 +1236,99 @@
 
   function pageOrderStyle() {
     const dim = Store.db.ui.styleDim || "sku";
-    const rows = Store.styleSummary(dim);
-    return `<h1 class="page-title">款式汇总</h1>
-      ${filterPanel([
-        ["时间区间", input("起")],
-        ["", input("止")],
-        ["品牌", select(RR.brands.map(b => b.name))],
-        ["季节", select(RR.seasons)],
-        ["订单状态", select(["全部", "已确认"])],
-        ["订单类型", select(["首单", "补货单"])]
-      ])}
-      <div class="tabs">
-        <button type="button" class="${dim === "sku" ? "on" : ""}" data-tabsoft data-style-dim="sku">SKU 维度</button>
-        <button type="button" class="${dim === "buyer" ? "on" : ""}" data-tabsoft data-style-dim="buyer">买手维度</button>
-      </div>
-      <table class="data-table">
-        <thead><tr><th>SKU</th><th>款式</th>${dim === "buyer" ? "<th>买手</th>" : "<th>下单买手数</th>"}<th>总件数</th><th>总金额</th></tr></thead>
+    const f = Store.db.ui.styleFilter || {};
+    const rows = Store.styleSummary(dim, f);
+    const expand = Store.db.ui.styleExpand || "";
+    const totalPieces = rows.reduce((a, r) => a + (r.pieces || 0), 0);
+    const totalAmt = rows.reduce((a, r) => a + Store.parseMoney(r.amount), 0);
+    let body = "";
+    if (dim === "buyer") {
+      body = `<table class="data-table">
+        <thead><tr><th>店铺名称</th><th>补货/下单总金额(RMB)</th><th>总件数</th><th>总次数</th></tr></thead>
         <tbody>
           ${rows.map(r => `<tr>
-            <td>${r.sku}</td><td>${r.title}</td>
-            <td>${dim === "buyer" ? r.store : r.buyers}</td>
-            <td>${r.pieces}</td><td>${r.amount}</td>
-          </tr>`).join("") || '<tr><td colspan="5">暂无汇总数据</td></tr>'}
+            <td>${r.store}</td><td>${r.amount}</td><td>${r.pieces}</td><td>${r.times}</td>
+          </tr>`).join("") || '<tr><td colspan="4">暂无汇总数据</td></tr>'}
         </tbody>
       </table>`;
+    } else {
+      body = `<div class="style-sum-list">
+        <div class="note">总数：${totalPieces}；总金额：${Store.money(totalAmt)}</div>
+        ${rows.map(r => `
+          <div class="style-sum-card">
+            <div class="style-sum-head">
+              <div class="thumb ph" style="width:64px;height:80px">IMG</div>
+              <div>
+                <div><strong>款号</strong> ${r.sku}</div>
+                <div><strong>款名</strong> ${r.title}</div>
+                <div class="muted">颜色：${r.color || "—"}</div>
+              </div>
+              <div class="style-sum-tot">
+                <div>总数: ${r.pieces}</div>
+                <div class="purple">总计: ¥${r.amount}</div>
+                <button type="button" class="btn btn-outline btn-sm" data-act="style-expand:${r.sku}">${expand === r.sku ? "收起" : "展开"}</button>
+              </div>
+            </div>
+            <div class="style-sum-row muted">码数：${r.sizeText || "—"} · 合计 ${r.pieces} · 单价 ¥${r.unit} · 金额 ¥${r.amount} · 渠道名：总计</div>
+            ${expand === r.sku ? `<table class="data-table" style="margin-top:10px">
+              <thead><tr><th>码数</th><th>合计</th><th>单价(RMB)</th><th>金额(RMB)</th><th>渠道名</th></tr></thead>
+              <tbody>
+                <tr><td>${r.sizeText}</td><td>${r.pieces}</td><td>${r.unit}</td><td>${r.amount}</td><td>总计</td></tr>
+                ${(r.buyerRows || []).map(b => `<tr>
+                  <td>${b.sizeText}</td><td>${b.pieces}</td><td>${r.unit}</td><td>${b.amount}</td><td>${b.store}</td>
+                </tr>`).join("")}
+              </tbody>
+            </table>` : ""}
+          </div>`).join("") || '<div class="note">暂无汇总数据</div>'}
+      </div>`;
+    }
+    return `<h1 class="page-title">款式汇总</h1>
+      <div class="filter-panel">
+        <div class="filter-grid">
+          <div class="filter-label">开始时间</div><div>${field("styleStart", `<input type="date" data-field="styleStart" value="${f.start || ""}" />`)}</div>
+          <div class="filter-label">结束时间</div><div>${field("styleEnd", `<input type="date" data-field="styleEnd" value="${f.end || ""}" />`)}</div>
+          <div class="filter-label">品牌</div><div>${field("styleBrand", select(RR.brands.map(b => b.name), "全部", f.brand || "全部"))}</div>
+          <div class="filter-label">季节</div><div>${field("styleSeason", select(RR.seasons, "全部", f.season || "全部"))}</div>
+          <div class="filter-label">订单状态</div><div>${field("styleStatus", select(["全部", "已确认", "买手未确认", "定金确认", "尾款确认", "已完成"], null, f.status || "全部"))}</div>
+          <div class="filter-label">订单类型</div><div>${field("styleType", select(["全部", "首单", "补货单"], null, f.type || "全部"))}</div>
+        </div>
+        <div class="filter-actions">${btn("查询", "btn-primary", "style-filter")}</div>
+      </div>
+      <div class="tabs">
+        <button type="button" class="${dim === "sku" ? "on" : ""}" data-tabsoft data-style-dim="sku">SKU维度</button>
+        <button type="button" class="${dim === "buyer" ? "on" : ""}" data-tabsoft data-style-dim="buyer">买手维度</button>
+      </div>
+      ${body}`;
   }
 
   function pageOrderRealtime() {
-    const rows = Store.realtimeSummary();
+    const f = Store.db.ui.realtimeFilter || {};
+    const rows = Store.realtimeSummary(f);
     return `<h1 class="page-title">实时订单汇总</h1>
-      ${filterPanel([
-        ["品牌", select(RR.brands.map(b => b.name))],
-        ["季节", select(RR.seasons)]
-      ])}
-      <table class="data-table">
-        <thead><tr><th>品牌</th><th>订单数</th><th>订单总金额</th><th>应收定金</th><th>实收定金</th><th>实收总额</th></tr></thead>
-        <tbody>
-          ${rows.map(r => `<tr>
-            <td>${r.brand}</td><td>${r.count}</td><td>${r.amount}</td>
-            <td>${r.deposit}</td><td>${r.paidDeposit}</td><td>${r.paidTotal}</td>
-          </tr>`).join("")}
-        </tbody>
-      </table>`;
+      <div class="filter-panel">
+        <div class="filter-grid">
+          <div class="filter-label">开始时间</div><div>${field("rtStart", `<input type="date" data-field="rtStart" value="${f.start || ""}" />`)}</div>
+          <div class="filter-label">结束时间</div><div>${field("rtEnd", `<input type="date" data-field="rtEnd" value="${f.end || ""}" />`)}</div>
+          <div class="filter-label">季节</div><div>${field("rtSeason", select(RR.seasons, "全部", f.season || "全部"))}</div>
+          <div class="filter-label">订单类型</div><div>${field("rtType", select(["全部", "首单", "补货单"], null, f.type || "全部"))}</div>
+          <div class="filter-label">订单状态</div><div>${field("rtStatus", select(["全部", "买手未确认", "买手已确认待品牌确认", "定金确认", "尾款确认", "已完成", "已驳回"], null, f.status || "全部"))}</div>
+        </div>
+        <div class="filter-actions">${btn("查询", "btn-primary", "realtime-filter")}</div>
+      </div>
+      <div class="rt-sum-list">
+        ${rows.map(r => `
+          <div class="rt-sum-row">
+            <strong>${r.brand}</strong>
+            <span>订单数：${r.count}</span>
+            <span>总件数：${r.pieces}</span>
+            <span>零售总额：${r.retail}</span>
+            <span>总金额：${r.amount}</span>
+            <span>应收定金：${r.deposit}</span>
+            <span>实收定金：${r.paidDeposit}</span>
+            <span>实收总额：${r.paidTotal}</span>
+            <button type="button" class="btn btn-outline btn-sm" data-act="toast:查看 ${r.brand} 明细（示意）">查看</button>
+          </div>`).join("") || '<div class="note">筛选范围内暂无订单</div>'}
+      </div>`;
   }
 
   function pageOrderAllSel() {
@@ -1702,8 +1822,8 @@
       <div class="detail-sticky">
         <strong>${o.brand}</strong>
         <div class="brand-logo" style="width:36px;height:36px;font-size:8px">LG</div>
-        <span>最小起订额 ¥${Store.money(Store.db.brandRules.first.minAmount)}</span>
-        <span>品类折扣 服饰 ${Store.db.brandRules.first.cloth}</span>
+        <span>最小起订额 ¥${Store.money(Store.getDiscountRules().minAmount)}</span>
+        <span>品类折扣 服饰 ${Store.getDiscountRules().cloth}</span>
         <span class="badge">${o.status}</span>
       </div>
       <h3 style="font-size:15px">订单进度</h3>
@@ -1902,12 +2022,72 @@
     }
 
     if (act.startsWith("delete-stair:")) {
-      const mode = Store.db.ui.discountMode || "first";
       const i = Number(act.split(":")[1]);
-      const rules = Store.db.brandRules[mode] || { stairs: [] };
+      const rules = JSON.parse(JSON.stringify(Store.getDiscountRules()));
+      rules.stairs = rules.stairs || [];
       rules.stairs.splice(i, 1);
       Store.saveDiscountRules(rules);
       toast("已删除阶梯");
+      render();
+      return;
+    }
+    if (act.startsWith("discount-season:")) {
+      Store.setDiscountSeason(act.slice("discount-season:".length));
+      toast("已切换季度：" + Store.db.ui.discountSeason);
+      render();
+      return;
+    }
+    if (act.startsWith("restock-open:")) {
+      const parts = act.split(":");
+      Store.db.ui.restockBrand = parts[1];
+      Store.db.ui.restockKind = parts[2];
+      Store.db.ui.restockSeason = "全部";
+      Store.persist();
+      render();
+      return;
+    }
+    if (act === "restock-back") {
+      Store.db.ui.restockBrand = "";
+      Store.db.ui.restockKind = "";
+      Store.persist();
+      render();
+      return;
+    }
+    if (act.startsWith("restock-season:")) {
+      Store.db.ui.restockSeason = act.slice("restock-season:".length);
+      Store.persist();
+      render();
+      return;
+    }
+    if (act.startsWith("restock-batch:")) {
+      const val = act.split(":")[1] === "1";
+      toast(Store.batchSetRestock(Store.db.ui.restockBrand, Store.db.ui.restockSeason, Store.db.ui.restockKind, val));
+      render();
+      return;
+    }
+    if (act.startsWith("del-size-alias:")) {
+      toast(Store.removeSizeAlias(Number(act.split(":")[1])));
+      render();
+      return;
+    }
+    if (act.startsWith("add-master:")) {
+      const kind = act.split(":")[1];
+      const f = readFields();
+      const r = Store.addMasterItem(kind, f.masterName);
+      toast(r.msg);
+      render();
+      return;
+    }
+    if (act.startsWith("del-master:")) {
+      const [, kind, id] = act.split(":");
+      toast(Store.removeMasterItem(kind, id));
+      render();
+      return;
+    }
+    if (act.startsWith("style-expand:")) {
+      const sku = act.slice("style-expand:".length);
+      Store.db.ui.styleExpand = Store.db.ui.styleExpand === sku ? "" : sku;
+      Store.persist();
       render();
       return;
     }
@@ -2278,8 +2458,7 @@
         break;
       }
       case "add-stair": {
-        const mode = Store.db.ui.discountMode || "first";
-        const rules = Store.db.brandRules[mode] || Store.db.brandRules.first;
+        const rules = JSON.parse(JSON.stringify(Store.getDiscountRules()));
         rules.stairs = rules.stairs || [];
         rules.stairs.push({ amount: 0, discount: 0.4 });
         Store.saveDiscountRules(rules);
@@ -2287,11 +2466,35 @@
         render();
         break;
       }
-      case "save-size": {
+      case "save-size":
+      case "add-size-alias": {
         const f = readFields();
-        const alias = {};
-        ["XS", "S", "M", "L", "XL"].forEach(sz => { alias[sz] = f["alias-" + sz] || ""; });
-        toast(Store.saveSizeAlias(alias));
+        const r = Store.addSizeAlias(f.aliasStd, f.aliasName);
+        toast(r.msg);
+        render();
+        break;
+      }
+      case "style-filter": {
+        const f = readFields();
+        Store.db.ui.styleFilter = {
+          start: f.styleStart || "", end: f.styleEnd || "",
+          brand: f.styleBrand || "全部", season: f.styleSeason || "全部",
+          status: f.styleStatus || "全部", type: f.styleType || "全部"
+        };
+        Store.persist();
+        render();
+        toast(`已筛选，共 ${Store.styleSummary(Store.db.ui.styleDim, Store.db.ui.styleFilter).length} 条`);
+        break;
+      }
+      case "realtime-filter": {
+        const f = readFields();
+        Store.db.ui.realtimeFilter = {
+          start: f.rtStart || "", end: f.rtEnd || "",
+          season: f.rtSeason || "全部", type: f.rtType || "全部", status: f.rtStatus || "全部"
+        };
+        Store.persist();
+        render();
+        toast(`已筛选，共 ${Store.realtimeSummary().length} 个品牌有数据`);
         break;
       }
       case "save-fair": {
@@ -2318,16 +2521,25 @@
       }
       case "save-brand-profile": {
         const f = readFields();
-        toast(Store.saveBrandProfile(f));
+        const cats = [...app.querySelectorAll('[data-check="cats"]:checked')].map(x => x.value);
+        const styles = [...app.querySelectorAll('[data-check="styles"]:checked')].map(x => x.value);
+        const crowds = [...app.querySelectorAll('[data-check="crowds"]:checked')].map(x => x.value);
+        toast(Store.saveBrandProfile({
+          name: f.name, year: Number(f.year || 0), designer: f.designer || "", about: f.about || "",
+          cats, styles, crowds
+        }));
+        render();
         break;
       }
       case "save-restock": {
         const f = readFields();
-        const rows = Store.db.goods.slice(0, 12).map(g => ({
-          sku: g.sku,
-          restock: (f["restock-" + g.sku] || "是") === "是",
-          hideInFirst: (f["hide-" + g.sku] || "否") === "是"
-        }));
+        const brand = Store.db.ui.restockBrand;
+        const kind = Store.db.ui.restockKind;
+        const season = Store.db.ui.restockSeason || "全部";
+        const list = Store.db.goods.filter(g => g.brand === brand && (season === "全部" || g.season === season));
+        const rows = list.map(g => kind === "hide"
+          ? { sku: g.sku, hideAll: (f["hide-" + g.sku] || "否") === "是" }
+          : { sku: g.sku, restock: (f["restock-" + g.sku] || "是") === "是" });
         toast(Store.saveRestock(rows));
         render();
         break;
@@ -2579,7 +2791,7 @@
     return `<div class="detail-sticky">
         <strong>${g.brand}</strong>
         <div class="brand-logo" style="width:36px;height:36px;font-size:8px">HW</div>
-        <span>最小起订 ¥${Store.money(Store.db.brandRules.first.minAmount)}</span>
+        <span>最小起订 ¥${Store.money(Store.getDiscountRules().minAmount)}</span>
         <span>已选订量 ¥${Store.money(totalAmt)}</span>
       </div>
       <div class="detail-layout">
@@ -2693,6 +2905,9 @@
     "brand-pay": pageBrandPay,
     "brand-contract": pageBrandContract,
     "brand-edit": pageBrandEdit,
+    "brand-master-style": () => pageMaster("styles"),
+    "brand-master-crowd": () => pageMaster("crowds"),
+    "brand-master-size": () => pageMaster("sizes"),
     "order-selection": pageOrderSelection,
     "selection-detail": pageSelectionDetail,
     "order-list": pageOrderList,
@@ -2779,8 +2994,10 @@
       app.innerHTML = toastHtml() + protoBar() + topnav("buyer") +
         `<div class="shell full-main"><div class="main">${body}</div></div>` + footer() + drawer;
     } else {
+      const side = sidebar();
+      const shellClass = side ? "shell" : "shell full-main";
       app.innerHTML = toastHtml() + protoBar() + topnav(state.portal) +
-        `<div class="shell">${sidebar()}<div class="main">${body}</div></div>` + footer();
+        `<div class="${shellClass}">${side}<div class="main">${body}</div></div>` + footer();
     }
     bind();
   }

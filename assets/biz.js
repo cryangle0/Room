@@ -3,7 +3,16 @@
  * Implements requirement-driven stateful operations (persisted in localStorage).
  */
 (() => {
-  const KEY = "rr_biz_v4";
+  const KEY = "rr_biz_v5";
+
+  const DEFAULT_RULE = () => ({
+    minAmount: 30000, cloth: 0.45, accessory: 0.5, lifestyle: 0.55,
+    stairs: [{ amount: 50000, discount: 0.43 }, { amount: 100000, discount: 0.4 }]
+  });
+  const DEFAULT_REP_RULE = () => ({
+    minAmount: 10000, cloth: 0.48, accessory: 0.52, lifestyle: 0.58,
+    stairs: [{ amount: 30000, discount: 0.45 }]
+  });
 
   const ORDER_FLOW = ["买手未确认", "买手已确认待品牌确认", "定金确认", "尾款确认", "已完成"];
 
@@ -188,16 +197,55 @@
         }
       })),
       brandRules: {
-        mode: "first", // first | replenish | fair
-        first: { minAmount: 30000, cloth: 0.45, accessory: 0.5, lifestyle: 0.55, stairs: [{ amount: 50000, discount: 0.43 }, { amount: 100000, discount: 0.4 }] },
-        replenish: { minAmount: 10000, cloth: 0.48, accessory: 0.52, lifestyle: 0.58, stairs: [{ amount: 30000, discount: 0.45 }] },
-        fair: {}
+        season: "2026SS",
+        mode: "first", // first | replenish（已去掉订货会单独规则）
+        bySeason: Object.fromEntries((RR.seasons || []).slice(-8).map(s => [s, {
+          first: DEFAULT_RULE(),
+          replenish: DEFAULT_REP_RULE()
+        }]))
       },
-      sizeAlias: { XS: "2", S: "4", M: "6", L: "8", XL: "10" },
+      standardSizes: ["XS", "S", "M", "L", "XL", "XXL", "2", "4", "6", "8", "10", "34", "36", "38", "40", "均码"],
+      sizeAliasList: [
+        { standard: "XS", alias: "2" },
+        { standard: "S", alias: "4" },
+        { standard: "M", alias: "6" },
+        { standard: "L", alias: "8" },
+        { standard: "XL", alias: "10" }
+      ],
+      stylesMaster: [
+        { id: "st1", name: "解构 / 先锋" },
+        { id: "st2", name: "都市极简" },
+        { id: "st3", name: "东方当代" },
+        { id: "st4", name: "优雅实用" },
+        { id: "st5", name: "梦幻材质" },
+        { id: "st6", name: "英伦结构" },
+        { id: "st7", name: "法式" },
+        { id: "st8", name: "街头高级" }
+      ],
+      crowdsMaster: [
+        { id: "cr1", name: "独立买手店" },
+        { id: "cr2", name: "年轻买手" },
+        { id: "cr3", name: "概念店" },
+        { id: "cr4", name: "精品百货" },
+        { id: "cr5", name: "集合店" },
+        { id: "cr6", name: "潮流买手" },
+        { id: "cr7", name: "生活馆" }
+      ],
+      catsMaster: ["女装", "男装", "男女装", "配饰", "生活方式"],
       fairs: Object.fromEntries((RR.seasons || []).map(s => [s, { first: true, replenish: true }])),
       payInfo: { account: "ROOMROOM 贸易有限公司", bank: "招商银行上海分行", no: "1219 **** **** 8899", sealContract: true, sealOc: true },
       contractSettings: { season: "2026SS", type: "经销", cycle: "45-60天", contact: "张经理", phone: "13800001111", email: "contract@roomroom.com", signDate: "2026-03-01", authStart: "2026-03-01", authEnd: "2026-09-30" },
-      brandProfile: clone(RR.brands[0]),
+      brandProfile: (() => {
+        const b = clone(RR.brands[0]);
+        return {
+          ...b,
+          cats: [b.cat].filter(Boolean),
+          styles: String(b.style || "").split(/[/／、,，]/).map(x => x.trim()).filter(Boolean),
+          crowds: String(b.crowd || "").split(/[/／、,，]/).map(x => x.trim()).filter(Boolean),
+          designer: b.designer || "",
+          about: b.about || ""
+        };
+      })(),
       recon: {
         rate: { brand: "JUNLI", season: "2026SS", base: "5%", stair: "满100万→4%" },
         bills: [
@@ -242,7 +290,14 @@
         selectionFilter: { brand: "全部", season: "全部", store: "" },
         buyerFilter: { keyword: "", levelTab: "全部" },
         styleDim: "sku",
+        styleExpand: "",
+        styleFilter: { start: "", end: "", brand: "全部", season: "全部", status: "全部", type: "全部" },
+        realtimeFilter: { start: "2026-07-01", end: "2026-07-30", season: "全部", type: "全部", status: "全部" },
         discountMode: "first",
+        discountSeason: "2026SS",
+        restockBrand: "",
+        restockKind: "", // restock | hide
+        restockSeason: "全部",
         listPage: 1
       }
     };
@@ -254,7 +309,26 @@
       if (!raw) return defaultDb();
       const db = JSON.parse(raw);
       const base = defaultDb();
-      return { ...base, ...db, ui: { ...base.ui, ...(db.ui || {}) }, buyerSession: { ...base.buyerSession, ...(db.buyerSession || {}) } };
+      const merged = { ...base, ...db, ui: { ...base.ui, ...(db.ui || {}) }, buyerSession: { ...base.buyerSession, ...(db.buyerSession || {}) } };
+      // 兼容旧 brandRules（无 bySeason）
+      if (!merged.brandRules || !merged.brandRules.bySeason) {
+        merged.brandRules = base.brandRules;
+      }
+      if (!merged.sizeAliasList) merged.sizeAliasList = base.sizeAliasList;
+      if (!merged.standardSizes) merged.standardSizes = base.standardSizes;
+      if (!merged.stylesMaster) merged.stylesMaster = base.stylesMaster;
+      if (!merged.crowdsMaster) merged.crowdsMaster = base.crowdsMaster;
+      if (!merged.catsMaster) merged.catsMaster = base.catsMaster;
+      if (merged.brandProfile && !Array.isArray(merged.brandProfile.cats)) {
+        const b = merged.brandProfile;
+        merged.brandProfile = {
+          ...b,
+          cats: b.cats || [b.cat].filter(Boolean),
+          styles: b.styles || String(b.style || "").split(/[/／、,，]/).map(x => x.trim()).filter(Boolean),
+          crowds: b.crowds || String(b.crowd || "").split(/[/／、,，]/).map(x => x.trim()).filter(Boolean)
+        };
+      }
+      return merged;
     } catch (e) {
       return defaultDb();
     }
@@ -345,11 +419,28 @@
       rows.forEach(r => {
         const g = db.goods.find(x => x.sku === r.sku);
         if (!g) return;
-        g.restock = r.restock;
-        g.hideInFirst = r.hideInFirst;
+        if (r.restock != null) g.restock = r.restock;
+        if (r.hideAll != null) g.hideAll = r.hideAll;
+        // 兼容旧字段：隐藏不区分首单补单
+        if (r.hideAll) g.hideInFirst = true;
       });
       save(); syncLegacy();
       return "补货/隐藏设置已保存";
+    },
+    batchSetRestock(brand, season, kind, value) {
+      let n = 0;
+      db.goods.forEach(g => {
+        if (g.brand !== brand) return;
+        if (season && season !== "全部" && g.season !== season) return;
+        if (kind === "restock") g.restock = !!value;
+        if (kind === "hide") {
+          g.hideAll = !!value;
+          g.hideInFirst = !!value;
+        }
+        n += 1;
+      });
+      save(); syncLegacy();
+      return `已批量更新 ${n} 款（${brand}${season && season !== "全部" ? " · " + season : ""}）`;
     },
     addGoods(payload) {
       if (!payload.sku || !payload.title || !payload.brand) return { ok: false, msg: "请填写品牌、款式名称、SKU" };
@@ -387,14 +478,90 @@
     },
 
     // ----- brand settings -----
-    setDiscountMode(mode) { db.ui.discountMode = mode; db.brandRules.mode = mode; save(); },
-    saveDiscountRules(rules) {
-      const mode = db.ui.discountMode || "first";
-      db.brandRules[mode] = rules;
-      save();
-      return `${mode === "first" ? "首单" : mode === "replenish" ? "补货单" : "订货会"}规则已保存`;
+    ensureSeasonRules(season) {
+      const s = season || db.ui.discountSeason || db.brandRules.season || "2026SS";
+      db.brandRules.bySeason = db.brandRules.bySeason || {};
+      if (!db.brandRules.bySeason[s]) {
+        db.brandRules.bySeason[s] = { first: DEFAULT_RULE(), replenish: DEFAULT_REP_RULE() };
+      }
+      return s;
     },
-    saveSizeAlias(alias) { db.sizeAlias = alias; save(); return "尺寸别名已保存"; },
+    getDiscountRules(season, mode) {
+      const s = Store.ensureSeasonRules(season || db.ui.discountSeason || db.brandRules.season);
+      const m = mode || db.ui.discountMode || db.brandRules.mode || "first";
+      const pack = db.brandRules.bySeason[s];
+      return pack[m === "replenish" ? "replenish" : "first"] || DEFAULT_RULE();
+    },
+    setDiscountMode(mode) {
+      if (mode === "fair") mode = "first";
+      db.ui.discountMode = mode;
+      db.brandRules.mode = mode;
+      save();
+    },
+    setDiscountSeason(season) {
+      db.ui.discountSeason = season;
+      db.brandRules.season = season;
+      Store.ensureSeasonRules(season);
+      save();
+    },
+    saveDiscountRules(rules) {
+      const season = Store.ensureSeasonRules(db.ui.discountSeason || db.brandRules.season);
+      const mode = (db.ui.discountMode || "first") === "replenish" ? "replenish" : "first";
+      db.brandRules.bySeason[season][mode] = rules;
+      save();
+      return `${season} · ${mode === "first" ? "首单" : "补货单"}规则已保存`;
+    },
+    saveSizeAliasList(list) {
+      db.sizeAliasList = list || [];
+      // 兼容旧 map 读取
+      db.sizeAlias = Object.fromEntries(db.sizeAliasList.map(x => [x.standard, x.alias]));
+      save();
+      return "尺寸别名已保存";
+    },
+    addSizeAlias(standard, alias) {
+      if (!standard || !alias) return { ok: false, msg: "请选择标准尺码并填写别名" };
+      db.sizeAliasList = db.sizeAliasList || [];
+      if (db.sizeAliasList.some(x => x.standard === standard && x.alias === alias)) {
+        return { ok: false, msg: "该别名已存在" };
+      }
+      db.sizeAliasList.push({ standard, alias: String(alias).trim() });
+      return { ok: true, msg: Store.saveSizeAliasList(db.sizeAliasList) };
+    },
+    removeSizeAlias(idx) {
+      db.sizeAliasList.splice(idx, 1);
+      Store.saveSizeAliasList(db.sizeAliasList);
+      return "已删除别名，可重新提交";
+    },
+    saveMasterList(kind, list) {
+      if (kind === "styles") db.stylesMaster = list;
+      if (kind === "crowds") db.crowdsMaster = list;
+      if (kind === "sizes") db.standardSizes = list;
+      save();
+      return "主数据已保存";
+    },
+    addMasterItem(kind, name) {
+      const n = String(name || "").trim();
+      if (!n) return { ok: false, msg: "请输入名称" };
+      if (kind === "styles") {
+        if (db.stylesMaster.some(x => x.name === n)) return { ok: false, msg: "风格已存在" };
+        db.stylesMaster.push({ id: "st" + Date.now(), name: n });
+      } else if (kind === "crowds") {
+        if (db.crowdsMaster.some(x => x.name === n)) return { ok: false, msg: "人群已存在" };
+        db.crowdsMaster.push({ id: "cr" + Date.now(), name: n });
+      } else if (kind === "sizes") {
+        if (db.standardSizes.includes(n)) return { ok: false, msg: "尺码已存在" };
+        db.standardSizes.push(n);
+      } else return { ok: false, msg: "未知主数据类型" };
+      save();
+      return { ok: true, msg: "已新增" };
+    },
+    removeMasterItem(kind, idOrName) {
+      if (kind === "styles") db.stylesMaster = db.stylesMaster.filter(x => x.id !== idOrName && x.name !== idOrName);
+      else if (kind === "crowds") db.crowdsMaster = db.crowdsMaster.filter(x => x.id !== idOrName && x.name !== idOrName);
+      else if (kind === "sizes") db.standardSizes = db.standardSizes.filter(x => x !== idOrName);
+      save();
+      return "已删除";
+    },
     setFair(season, patch) {
       db.fairs[season] = { ...(db.fairs[season] || { first: true, replenish: true }), ...patch };
       save();
@@ -402,7 +569,22 @@
     },
     savePayInfo(info) { Object.assign(db.payInfo, info); save(); return "收款设置已保存"; },
     saveContractSettings(info) { Object.assign(db.contractSettings, info); save(); return "合同设置已保存"; },
-    saveBrandProfile(info) { Object.assign(db.brandProfile, info); save(); return "品牌资料已保存"; },
+    saveBrandProfile(info) {
+      const cats = info.cats || db.brandProfile.cats || [];
+      const styles = info.styles || db.brandProfile.styles || [];
+      const crowds = info.crowds || db.brandProfile.crowds || [];
+      Object.assign(db.brandProfile, info, {
+        cats, styles, crowds,
+        cat: cats[0] || info.cat || db.brandProfile.cat,
+        style: styles.join(" / "),
+        crowd: crowds.join(" / ")
+      });
+      // sync into RR.brands for buyer about
+      const rb = RR.brands.find(x => x.name === db.brandProfile.name);
+      if (rb) Object.assign(rb, { about: db.brandProfile.about, cat: db.brandProfile.cat, style: db.brandProfile.style, crowd: db.brandProfile.crowd });
+      save();
+      return "品牌资料已保存";
+    },
 
     // ----- selections / orders -----
     genOrderFromSelection(selId) {
@@ -494,8 +676,8 @@
       s.lines.push(enrichLine({ sku: g.sku, title: g.title, sizes, price: g.wholesale, retail: g.retail }, s.lines.length));
       return Store.saveSelectionLines(selId, s.lines);
     },
-    selectionQuote(lines, ruleMode) {
-      const rules = db.brandRules[ruleMode || db.ui.discountMode || "first"] || db.brandRules.first;
+    selectionQuote(lines, ruleMode, season) {
+      const rules = Store.getDiscountRules(season || db.ui.discountSeason, ruleMode);
       const groups = {
         服饰: { key: "cloth", pieces: 0, retail: 0 },
         配饰: { key: "accessory", pieces: 0, retail: 0 },
@@ -872,29 +1054,106 @@
       URL.revokeObjectURL(a.href);
     },
 
-    styleSummary(dim) {
+    styleSummary(dim, filter) {
+      const f = filter || db.ui.styleFilter || {};
+      const orders = db.orders.filter(o => {
+        if (f.brand && f.brand !== "全部" && o.brand !== f.brand) return false;
+        if (f.season && f.season !== "全部" && o.season !== f.season) return false;
+        if (f.type && f.type !== "全部" && o.type !== f.type) return false;
+        if (f.status && f.status !== "全部") {
+          if (f.status === "已确认") {
+            if (["买手未确认", "已驳回"].includes(o.status)) return false;
+          } else if (o.status !== f.status) return false;
+        }
+        if (f.start && (o.createdAt || "") < f.start) return false;
+        if (f.end && (o.createdAt || "").slice(0, 10) > f.end) return false;
+        return true;
+      });
+
+      if (dim === "buyer") {
+        const map = {};
+        orders.forEach(o => {
+          const key = o.store;
+          if (!map[key]) map[key] = { store: o.store, amount: 0, pieces: 0, times: 0 };
+          map[key].times += 1;
+          map[key].amount += parseMoney(o.amount);
+          (o.lines || []).forEach(l => {
+            map[key].pieces += Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
+          });
+        });
+        return Object.values(map).map(r => ({
+          ...r, amount: money(r.amount), amountNum: r.amount
+        })).sort((a, b) => b.amountNum - a.amountNum);
+      }
+
+      // SKU 维度：按款汇总 + 买手明细
       const map = {};
-      db.orders.forEach(o => {
+      orders.forEach(o => {
         (o.lines || []).forEach(l => {
           const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
-          const key = dim === "buyer" ? `${o.store}|${l.sku}` : l.sku;
-          if (!map[key]) map[key] = { sku: l.sku, title: l.title, buyers: new Set(), pieces: 0, amount: 0, store: o.store };
-          map[key].buyers.add(o.store);
-          map[key].pieces += qty;
-          map[key].amount += qty * Number(l.price || 0) * Number(l.discount || 1);
+          const price = Number(l.price || 0) * Number(l.discount || 1);
+          if (!map[l.sku]) {
+            const g = db.goods.find(x => x.sku === l.sku) || {};
+            map[l.sku] = {
+              sku: l.sku, title: l.title || g.title, color: g.color || "—",
+              sizes: {}, pieces: 0, amount: 0, unit: price,
+              buyers: {}, buyerCount: 0
+            };
+          }
+          const row = map[l.sku];
+          Object.entries(l.sizes || {}).forEach(([sz, n]) => {
+            row.sizes[sz] = (row.sizes[sz] || 0) + Number(n || 0);
+          });
+          row.pieces += qty;
+          row.amount += qty * price;
+          if (!row.buyers[o.store]) row.buyers[o.store] = { store: o.store, sizes: {}, pieces: 0, amount: 0 };
+          const br = row.buyers[o.store];
+          Object.entries(l.sizes || {}).forEach(([sz, n]) => {
+            br.sizes[sz] = (br.sizes[sz] || 0) + Number(n || 0);
+          });
+          br.pieces += qty;
+          br.amount += qty * price;
         });
       });
-      return Object.values(map).map(r => ({ ...r, buyers: r.buyers.size, amount: money(r.amount) }));
+      return Object.values(map).map(r => ({
+        ...r,
+        buyerCount: Object.keys(r.buyers).length,
+        buyerRows: Object.values(r.buyers).map(b => ({
+          ...b,
+          sizeText: Object.entries(b.sizes).map(([k, v]) => `${k}:${v}`).join(", "),
+          amount: money(b.amount)
+        })),
+        sizeText: Object.entries(r.sizes).map(([k, v]) => `${k}:${v}`).join(", "),
+        amount: money(r.amount),
+        unit: money(r.unit)
+      }));
     },
-    realtimeSummary() {
+    realtimeSummary(filter) {
+      const f = filter || db.ui.realtimeFilter || {};
+      const osAll = db.orders.filter(o => {
+        if (f.season && f.season !== "全部" && o.season !== f.season) return false;
+        if (f.type && f.type !== "全部" && o.type !== f.type) return false;
+        if (f.status && f.status !== "全部" && o.status !== f.status) return false;
+        if (f.start && (o.createdAt || "") < f.start) return false;
+        if (f.end && (o.createdAt || "").slice(0, 10) > f.end) return false;
+        return true;
+      });
       return RR.brands.map(b => {
-        const os = db.orders.filter(o => o.brand === b.name);
+        const os = osAll.filter(o => o.brand === b.name);
+        if (!os.length) return null;
         const amount = os.reduce((a, o) => a + parseMoney(o.amount), 0);
+        const retail = os.reduce((a, o) => a + parseMoney(o.retailAmount || 0), 0);
         const deposit = os.reduce((a, o) => a + parseMoney(o.deposit), 0);
         const paidDep = os.reduce((a, o) => a + parseMoney(o.paidDeposit), 0);
         const paidTot = os.reduce((a, o) => a + parseMoney(o.paidTotal), 0);
-        return { brand: b.name, count: os.length, amount: money(amount), deposit: money(deposit), paidDeposit: money(paidDep), paidTotal: money(paidTot) };
-      });
+        const pieces = os.reduce((a, o) => a + (o.lines || []).reduce((x, l) => x + Object.values(l.sizes || {}).reduce((p, q) => p + Number(q || 0), 0), 0), 0);
+        return {
+          brand: b.name, count: os.length, pieces,
+          retail: money(retail || amount / 0.45),
+          amount: money(amount), deposit: money(deposit),
+          paidDeposit: money(paidDep), paidTotal: money(paidTot)
+        };
+      }).filter(Boolean);
     },
     analysisStats(brand, season) {
       let os = db.orders.slice();
