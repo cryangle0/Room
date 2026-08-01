@@ -94,6 +94,7 @@
       goods: clone(RR.goods).map((g, i) => enrichGoods(g, i)),
       selections: clone(RR.selections).map((s, i) => ({
         ...s,
+        createdAt: s.createdAt || s.date || s.time || "",
         locked: s.status === "已生成订单",
         lines: (s.brand === "IAN HYLTON" && i === 0
           ? clone(RR.selectionLines)

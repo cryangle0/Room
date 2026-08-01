@@ -2033,7 +2033,7 @@
                 ${list.map(s => `
                   <div class="item">
                     <div class="selection_info">
-                      <h6>${s.createdAt || s.date || "—"}</h6>
+                      <h6>${s.createdAt || s.date || s.time || "—"}</h6>
                       <h6>${s.season}</h6>
                       <div class="selection_brand">
                         <div class="brand-logo-rect" style="width:40px;height:40px">${(s.brand || "").slice(0, 4)}</div>
