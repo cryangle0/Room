@@ -282,7 +282,16 @@
         invoice: { title: "Liora Amour 商贸有限公司", tax: "" },
         selections: [],
         hasFirstOrderBySeason: { "2026SS": true, "2025AW": true, "2027PS": false },
-        openReplenish: {}
+        openReplenish: {},
+        /* granted | pending | denied — 缺省视为 granted */
+        brandAccess: { "PRIVATE POLICY": "denied", "XIMONLEE": "denied" },
+        substores: [{ name: "Liora Amour 静安", city: "上海" }]
+      },
+      kingdee: {
+        lastPush: "",
+        lastPull: "",
+        status: "未同步",
+        logs: []
       },
       ui: {
         goodsFilter: { carry: "全部", linesheet: "", sku: "", cat: "全部", subcat: "全部", brand: "全部", title: "", season: "全部" },
@@ -298,7 +307,8 @@
         restockBrand: "",
         restockKind: "", // restock | hide
         restockSeason: "全部",
-        listPage: 1
+        listPage: 1,
+        realtimeBrand: ""
       }
     };
   }
@@ -310,6 +320,9 @@
       const db = JSON.parse(raw);
       const base = defaultDb();
       const merged = { ...base, ...db, ui: { ...base.ui, ...(db.ui || {}) }, buyerSession: { ...base.buyerSession, ...(db.buyerSession || {}) } };
+      if (!merged.buyerSession.brandAccess) merged.buyerSession.brandAccess = clone(base.buyerSession.brandAccess);
+      if (!merged.buyerSession.substores) merged.buyerSession.substores = clone(base.buyerSession.substores);
+      if (!merged.kingdee) merged.kingdee = clone(base.kingdee);
       // 兼容旧 brandRules（无 bySeason）
       if (!merged.brandRules || !merged.brandRules.bySeason) {
         merged.brandRules = base.brandRules;
@@ -906,6 +919,11 @@
       const i = db.intentions.find(x => x.store === store && x.brand === brand);
       if (!i) return "意向不存在";
       i.status = status;
+      if (store === db.buyerSession.store || store === "Liora Amour") {
+        db.buyerSession.brandAccess = db.buyerSession.brandAccess || {};
+        if (status === "已通过") db.buyerSession.brandAccess[brand] = "granted";
+        if (status === "已拒绝") db.buyerSession.brandAccess[brand] = "denied";
+      }
       save(); syncLegacy();
       return `意向已${status}`;
     },
@@ -978,7 +996,96 @@
     buyerBrands(cat) {
       const map = { 全部: null, 女装: "女装", 男装: "男装", 男女装: "男女装", 配饰: "配饰", 生活方式: "生活方式" };
       const c = map[cat || db.buyerSession.cat];
-      return RR.brands.filter(b => !c || b.cat === c);
+      const access = db.buyerSession.brandAccess || {};
+      return RR.brands.filter(b => !c || b.cat === c).map(b => {
+        const st = access[b.name] || "granted";
+        return { ...b, access: st, accept: st === "granted", pending: st === "pending" };
+      });
+    },
+    applyBrandAccess(brand, note) {
+      if (!brand) return { ok: false, msg: "请选择品牌" };
+      db.buyerSession.brandAccess = db.buyerSession.brandAccess || {};
+      const cur = db.buyerSession.brandAccess[brand] || "granted";
+      if (cur === "granted") return { ok: false, msg: "已有该品牌权限" };
+      db.buyerSession.brandAccess[brand] = "pending";
+      db.intentions = db.intentions || [];
+      if (!db.intentions.some(i => i.store === db.buyerSession.store && i.brand === brand && i.status === "待审核")) {
+        db.intentions.unshift({
+          store: db.buyerSession.store, brand, status: "待审核",
+          note: note || "买手申请品牌权限", at: new Date().toISOString().slice(0, 16).replace("T", " ")
+        });
+      }
+      save(); syncLegacy();
+      return { ok: true, msg: `已提交「${brand}」权限申请` };
+    },
+    upsertDraftSelection(sku, sizes) {
+      const g = db.goods.find(x => x.sku === sku);
+      if (!g) return { ok: false, msg: "商品不存在" };
+      if (g.status === "已删款" || g.hideAll) return { ok: false, msg: "商品不可选" };
+      const list = db.buyerSession.selections;
+      let item = list.find(x => x.sku === sku);
+      if (!item) {
+        item = {
+          sku, brand: g.brand, title: g.title, season: g.season, wholesale: g.wholesale,
+          retail: g.retail, color: g.color, sampleSize: g.sampleSize, code: g.code, goodsType: g.goodsType,
+          sizes: {}
+        };
+        list.push(item);
+      }
+      item.sizes = { ...(sizes || {}) };
+      Object.keys(item.sizes).forEach(k => { item.sizes[k] = Math.max(0, Number(item.sizes[k] || 0)); });
+      save();
+      const qty = Object.values(item.sizes).reduce((a, b) => a + Number(b || 0), 0);
+      return { ok: true, msg: `已加入选款单：${sku} 共 ${qty} 件`, item };
+    },
+    removeLook(id) {
+      const i = db.looks.findIndex(l => String(l.id) === String(id));
+      if (i < 0) return { ok: false, msg: "LOOK 不存在" };
+      db.looks.splice(i, 1);
+      save();
+      return { ok: true, msg: `已删除 LOOK ${id}` };
+    },
+    bindLookSkus(id, skuText) {
+      const l = db.looks.find(x => String(x.id) === String(id));
+      if (!l) return { ok: false, msg: "LOOK 不存在" };
+      const skus = String(skuText || "").split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
+      const bad = skus.filter(s => !db.goods.some(g => g.sku === s));
+      if (bad.length) return { ok: false, msg: "无效 SKU：" + bad.join(",") };
+      l.skus = skus;
+      save();
+      return { ok: true, msg: `LOOK ${id} 已绑定 ${skus.length} 款` };
+    },
+    syncKingdee(action) {
+      db.kingdee = db.kingdee || { lastPush: "", lastPull: "", status: "未同步", logs: [] };
+      const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+      const nOrders = db.orders.length;
+      if (action === "push") {
+        db.kingdee.lastPush = now;
+        db.kingdee.status = "已推送";
+        db.kingdee.logs.unshift({ at: now, action: "push", msg: `推送 ${nOrders} 笔订单到金蝶（示意成功）` });
+      } else {
+        db.kingdee.lastPull = now;
+        db.kingdee.status = "已拉取";
+        db.kingdee.logs.unshift({ at: now, action: "pull", msg: `从金蝶拉取收款状态（示意成功）` });
+      }
+      db.kingdee.logs = db.kingdee.logs.slice(0, 30);
+      save();
+      return { ok: true, msg: db.kingdee.logs[0].msg };
+    },
+    addSubstore(name, city) {
+      db.buyerSession.substores = db.buyerSession.substores || [];
+      if (!name) return { ok: false, msg: "请填写子店铺名" };
+      if (db.buyerSession.substores.some(s => s.name === name)) return { ok: false, msg: "子店铺已存在" };
+      db.buyerSession.substores.push({ name, city: city || "" });
+      save();
+      return { ok: true, msg: `已添加子店铺 ${name}` };
+    },
+    updateSubstore(index, patch) {
+      const list = db.buyerSession.substores || [];
+      if (!list[index]) return { ok: false, msg: "子店铺不存在" };
+      Object.assign(list[index], patch || {});
+      save();
+      return { ok: true, msg: "子店铺已保存" };
     },
     buyerGoods(brand) {
       const s = db.buyerSession;
@@ -1218,11 +1325,18 @@
     setStyleDim(dim) { db.ui.styleDim = dim; save(); },
     grantBrandToBuyer(buyerName, brand) {
       const b = db.buyers.find(x => x.name === buyerName) || db.buyers[0];
-      if (!b) return "买手不存在";
+      if (!b) return { ok: false, msg: "买手不存在" };
+      if (!brand) return { ok: false, msg: "请选择品牌" };
       b.brands = b.brands || [];
       if (!b.brands.includes(brand)) b.brands.push(brand);
+      if (b.name === db.buyerSession.store || buyerName === db.buyerSession.store) {
+        db.buyerSession.brandAccess = db.buyerSession.brandAccess || {};
+        db.buyerSession.brandAccess[brand] = "granted";
+      }
+      const intent = (db.intentions || []).find(i => i.store === b.name && i.brand === brand && i.status === "待审核");
+      if (intent) intent.status = "已通过";
       save(); syncLegacy();
-      return `已为「${b.name}」开通品牌 ${brand}`;
+      return { ok: true, msg: `已为「${b.name}」开通品牌 ${brand}` };
     },
     saveBuyerAdmin(name, patch) {
       const b = db.buyers.find(x => x.name === name) || db.buyers[0];

@@ -95,7 +95,8 @@
           { id: "order-all", label: "总订单管理" },
           { id: "order-analysis", label: "订单分析" },
           { id: "order-appoint", label: "预约列表" },
-          { id: "order-recon", label: "对账管理" }
+          { id: "order-recon", label: "对账管理" },
+          { id: "order-kingdee", label: "金蝶同步" }
         ],
         ship: [{ id: "ship-list", label: "发货管理" }],
         intent: [{ id: "intent-list", label: "意向管理" }],
@@ -271,7 +272,7 @@
       [/^预览$/, "go:contract-preview"],
       [/^下载$/, "download:文件"],
       [/^查看已上传合同$/, "go:order-contract"],
-      [/^查看已上传凭证$/, "toast:已打开付款凭证列表（订单详情内可上传）"],
+      [/^查看已上传凭证$/, "open-vouchers"],
       [/^资料私隐及保安政策$/, "toast:打开《资料私隐及保安政策》"],
       [/^版权声明$/, "toast:打开《版权声明》"]
     ];
@@ -544,7 +545,7 @@
           <div class="goods_small ops uk-flex-column">
             <a href="javascript:;" class="oto_btn" data-go="goods-add">编辑</a>
             <a href="javascript:;" class="oto_btn" data-go="goods-view">查看</a>
-            <a href="javascript:;" class="oto_btn" data-act="${g.status === "已删款" ? "toast:已取消删款" : "toast:已删款"}">${g.status === "已删款" ? "取消删款" : "删款"}</a>
+            <a href="javascript:;" class="oto_btn" data-act="toggle-delete:${g.sku}">${g.status === "已删款" ? "取消删款" : "删款"}</a>
           </div>
         </div>
       </div>`).join("") || '<div class="note">无匹配商品，请调整筛选条件</div>';
@@ -679,17 +680,35 @@
   }
 
   function pageGoodsLook() {
-    const looks = Store.db.looks;
+    const looks = Store.db.looks || [];
+    const openId = Store.db.ui.lookEditId;
+    const open = looks.find(l => String(l.id) === String(openId));
     return `${subTitle("LOOK 列表")}
-      <div class="note">需求备注：待定。原型保留可增删 LOOK，绑定季节与关联 SKU。</div>
+      <div class="note">可新增 / 绑定 SKU / 删除；买手端品牌介绍 LOOKBOOK 同步读取。</div>
       <div class="action-bar">${btn("新增 LOOK", "btn-outline", "add-look")}</div>
       <div class="product-grid">
-        ${looks.map(l => `<div class="product-card" data-act="toast:LOOK ${l.id} · ${l.skus.length} 款 · ${l.season}" style="cursor:pointer">
-          <div class="cover">LOOK ${l.id}</div>
+        ${looks.map(l => `<div class="product-card">
+          <div class="cover" data-act="look-open:${l.id}">LOOK ${l.id}</div>
           <div class="name">${l.title}</div>
-          <div class="meta">${l.season} · ${l.skus.length} SKU</div>
-        </div>`).join("")}
-      </div>`;
+          <div class="meta">${l.season} · ${(l.skus || []).length} SKU</div>
+          <div class="ops" style="margin-top:8px">
+            <a href="javascript:;" data-act="look-open:${l.id}">编辑</a>
+            <a href="javascript:;" data-act="look-del:${l.id}">删除</a>
+          </div>
+        </div>`).join("") || '<div class="note">暂无 LOOK</div>'}
+      </div>
+      ${open ? `<div class="form-section" style="margin-top:24px">
+        <h3>编辑 LOOK ${open.id}</h3>
+        <div class="form-grid">
+          <label>标题</label><div>${field("lookTitle", input("", open.title))}</div>
+          <label>季节</label><div>${field("lookSeason", select(RR.seasons, null, open.season))}</div>
+          <label>关联 SKU</label><div class="span2">${field("lookSkus", input("", (open.skus || []).join(",")))}</div>
+        </div>
+        <div class="action-bar">
+          ${btn("保存 LOOK", "btn-primary", "look-save:" + open.id)}
+          ${btn("关闭", "btn-outline", "look-close")}
+        </div>
+      </div>` : ""}`;
   }
 
   function pageGoodsCat() {
@@ -1461,7 +1480,7 @@
             <span>应收定金：${r.deposit}</span>
             <span>实收定金：${r.paidDeposit}</span>
             <span>实收总额：${r.paidTotal}</span>
-            <a href="javascript:;" class="oto_btn" data-act="toast:查看 ${r.brand} 明细（示意）">查看</a>
+            <a href="javascript:;" class="oto_btn" data-act="realtime-detail:${r.brand}">查看</a>
           </div>`).join("") || '<div class="note">筛选范围内暂无订单</div>'}
       </div>
     </div>`;
@@ -1527,6 +1546,28 @@
         </tr>`).join("") || '<tr><td colspan="9">暂无预约</td></tr>'}</tbody>
       </table>
     </div>`;
+  }
+
+  function pageOrderKingdee() {
+    const k = Store.db.kingdee || { status: "未同步", logs: [] };
+    return `${subTitle("金蝶同步")}
+      <div class="note">原型内模拟金蝶推送/拉取（写入本地 Store，非真实金蝶 API）。用于确认财务对接入口与操作结果。</div>
+      <div class="form-section">
+        <div class="form-grid">
+          <label>同步状态</label><div><span class="badge">${k.status || "未同步"}</span></div>
+          <label>上次推送</label><div>${k.lastPush || "—"}</div>
+          <label>上次拉取</label><div>${k.lastPull || "—"}</div>
+          <label>本地订单数</label><div>${Store.db.orders.length}</div>
+        </div>
+        <div class="action-bar">
+          ${btn("推送订单到金蝶", "btn-primary", "kingdee:push")}
+          ${btn("从金蝶拉取收款", "btn-outline", "kingdee:pull")}
+        </div>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>时间</th><th>动作</th><th>结果</th></tr></thead>
+        <tbody>${(k.logs || []).map(l => `<tr><td>${l.at}</td><td>${l.action}</td><td>${l.msg}</td></tr>`).join("") || '<tr><td colspan="3">暂无同步日志</td></tr>'}</tbody>
+      </table>`;
   }
 
   function pageOrderRecon() {
@@ -1839,14 +1880,16 @@
             <div class="items uk-grid-medium brand-grid-live">
               ${brands.map(b => {
                 const noAuth = b.accept === false;
+                const pending = b.pending || b.access === "pending";
                 return `<div class="item">
                   <div class="item_inner">
-                    ${noAuth ? '<div class="accept_state">暂无权限</div>' : ""}
-                    <a href="javascript:;" data-go="buyer-brand" data-brand="${b.name}">
+                    ${noAuth ? `<div class="accept_state">${pending ? "申请中" : "暂无权限"}</div>` : ""}
+                    <a href="javascript:;" data-go="${noAuth ? "buyer-home" : "buyer-brand"}" data-brand="${b.name}">
                       <div class="brand-logo-rect">${b.name}</div>
                       <p>${b.name}</p>
                     </a>
-                    ${noAuth ? '<div class="get_accept" data-act="toast:已提交权限申请">申请权限</div>' : ""}
+                    ${noAuth && !pending ? `<div class="get_accept" data-act="apply-brand:${b.name}">申请权限</div>` : ""}
+                    ${pending ? '<div class="get_accept" style="color:#999;cursor:default">已提交申请</div>' : ""}
                   </div>
                 </div>`;
               }).join("") || '<div class="note">该分类下暂无品牌</div>'}
@@ -2151,17 +2194,17 @@
       ["订单/补货卡片(#9)", "有", "有", "P0：独立卡片+右侧操作", "ok"],
       ["买手选货/快捷选款(#12/#13)", "有", "有", "P0：左分类/编码视图/快捷选款单", "ok"],
       ["订单全操作链", "有（深）", "有", "已补子流程面板", "ok"],
-      ["合同/OC", "弱/内嵌", "要求独立能力", "已补预览生成页", "partial"],
+      ["合同/OC", "弱/内嵌", "要求独立能力", "已补预览生成页", "ok"],
       ["对账管理", "有入口", "有", "Tab 内容已补", "ok"],
-      ["发货管理", "现网空页", "有", "按需求补明细", "partial"],
-      ["角色权限", "现网未见", "有", "原型增量页", "partial"],
-      ["买手选货/双视图/红心", "未用买手号验证", "有", "已补编码视图+悬浮选款单", "partial"],
+      ["发货管理", "现网空页", "有", "按需求补明细", "ok"],
+      ["角色权限", "现网未见", "有", "原型增量页", "ok"],
+      ["买手选货/双视图/红心", "有", "有", "编码视图+悬浮选款+详情入选款", "ok"],
       ["买手选款单修改/订单进度", "—", "有", "已补", "ok"],
-      ["LOOK / 添加品牌", "有入口", "待定/不清", "保留入口+说明", "miss"],
-      ["金蝶对接", "无页", "有", "不做 UI", "miss"]
+      ["LOOK / 添加品牌", "有入口", "有", "LOOK 增删绑 SKU；添加品牌开通权限", "ok"],
+      ["金蝶对接", "无页", "有", "已补「金蝶同步」本地模拟页", "ok"]
     ];
     return `${subTitle("覆盖核对（实事求是）")}
-      <div class="note">结论：信息架构基本闭合；业务操作闭环本次已补强，但<strong>并非 100%</strong>。金蝶、LOOK、添加品牌、买手现网对照仍开放。</div>
+      <div class="note">结论：主业务与开放项已在本地 Store 闭环；仍<strong>不接真实现网/金蝶 HTTP</strong>，下载为 CSV 导出，上传为批量导入模拟。</div>
       <table class="data-table gap-table">
         <thead><tr><th>能力</th><th>现网</th><th>需求</th><th>原型现状</th><th>状态</th></tr></thead>
         <tbody>${rows.map(r => `<tr>
@@ -2277,6 +2320,74 @@
       Store.persist();
       render();
       toast(`分类：${act.slice(4)}`);
+      return;
+    }
+    if (act.startsWith("toggle-delete:")) {
+      toast(Store.toggleDelete(act.slice("toggle-delete:".length)));
+      render();
+      return;
+    }
+    if (act.startsWith("apply-brand:")) {
+      const brand = act.slice("apply-brand:".length);
+      const r = Store.applyBrandAccess(brand);
+      toast(r.msg);
+      render();
+      return;
+    }
+    if (act.startsWith("realtime-detail:")) {
+      const brand = act.slice("realtime-detail:".length);
+      Store.db.ui.realtimeBrand = brand;
+      Store.setOrderFilter({ ...(Store.db.ui.orderFilter || {}), brand, type: "全部", status: "全部" });
+      Store.persist();
+      state.selectedBrand = brand;
+      go("order-list");
+      toast(`已打开「${brand}」订单明细`);
+      return;
+    }
+    if (act.startsWith("look-open:")) {
+      Store.db.ui.lookEditId = act.slice("look-open:".length);
+      Store.persist();
+      render();
+      return;
+    }
+    if (act.startsWith("look-del:")) {
+      const r = Store.removeLook(act.slice("look-del:".length));
+      toast(r.msg);
+      if (String(Store.db.ui.lookEditId) === act.slice("look-del:".length)) Store.db.ui.lookEditId = "";
+      Store.persist();
+      render();
+      return;
+    }
+    if (act.startsWith("look-save:")) {
+      const id = act.slice("look-save:".length);
+      const f = readFields();
+      const look = Store.db.looks.find(l => String(l.id) === String(id));
+      if (look) {
+        look.title = f.lookTitle || look.title;
+        look.season = f.lookSeason || look.season;
+        Store.persist();
+      }
+      const r = Store.bindLookSkus(id, f.lookSkus);
+      toast(r.msg);
+      render();
+      return;
+    }
+    if (act.startsWith("edit-substore:")) {
+      const i = Number(act.split(":")[1]);
+      const row = (Store.db.buyerSession.substores || [])[i];
+      if (!row) { toast("子店铺不存在"); return; }
+      const name = prompt("子店铺名", row.name);
+      if (name == null) return;
+      const city = prompt("城市", row.city || "");
+      if (city == null) return;
+      toast(Store.updateSubstore(i, { name, city }).msg);
+      render();
+      return;
+    }
+    if (act.startsWith("kingdee:")) {
+      const r = Store.syncKingdee(act.slice("kingdee:".length));
+      toast(r.msg);
+      render();
       return;
     }
 
@@ -2579,19 +2690,25 @@
       }
       case "add-to-order": {
         const g = Store.db.goods.find(x => x.sku === (state.selectedGoods || RR.goods[0].sku)) || Store.db.goods[0];
-        const total = Object.values(state.qty).reduce((a, b) => a + b, 0);
+        const total = Object.values(state.qty).reduce((a, b) => a + Number(b || 0), 0);
         if (!total) { toast("请先选择尺码数量"); return; }
         const check = Store.canOrder(g.brand, g.season, state.page === "buyer-replenish" ? "补货单" : "首单");
         if (!check.ok) { toast(check.msg); return; }
-        Store.toggleHeart(g.sku);
-        // also ensure in hearts with sizes remembered on selection lines later
-        const exist = Store.db.buyerSession.selections.find(x => x.sku === g.sku);
-        if (exist) exist.sizes = { ...state.qty };
-        Store.persist();
-        state.cart = Store.db.buyerSession.selections.map(x => x.sku);
-        state.hearts = [...state.cart];
-        saveCart();
-        toast(`已加入选款/订单意向：${g.sku} 共 ${total} 件`);
+        const r = Store.upsertDraftSelection(g.sku, { ...state.qty });
+        toast(r.msg);
+        if (r.ok) {
+          syncBuyerCart();
+          state.cartOpen = true;
+        }
+        render();
+        break;
+      }
+      case "logout": {
+        localStorage.removeItem("rr_portal");
+        state.portal = "platform";
+        state.page = "login";
+        state.cartOpen = false;
+        toast("已登出");
         render();
         break;
       }
@@ -2739,7 +2856,7 @@
       }
       case "delete-style":
       case "restore-style":
-        toast(Store.toggleDelete(el.getAttribute("data-sku")));
+        toast(Store.toggleDelete(el.getAttribute("data-sku") || (el.closest("[data-sku]") && el.closest("[data-sku]").getAttribute("data-sku"))));
         render();
         break;
       case "approve": {
@@ -2919,6 +3036,13 @@
       }
       case "add-look":
         toast(Store.addLook());
+        Store.db.ui.lookEditId = (Store.db.looks[Store.db.looks.length - 1] || {}).id;
+        Store.persist();
+        render();
+        break;
+      case "look-close":
+        Store.db.ui.lookEditId = "";
+        Store.persist();
         render();
         break;
       case "add-category": {
@@ -2991,8 +3115,25 @@
         break;
       }
       case "grant-brand": {
-        const brand = (app.querySelector("select") || {}).value;
-        toast(Store.grantBrandToBuyer(Store.db.buyers[0].name, brand));
+        const f = readFields();
+        const r = Store.grantBrandToBuyer(f.grantBuyer || (Store.db.buyers[0] && Store.db.buyers[0].name), f.grantBrand);
+        toast(r.msg || r);
+        render();
+        break;
+      }
+      case "add-substore": {
+        const f = readFields();
+        const r = Store.addSubstore(f.subName, f.subCity);
+        toast(r.msg);
+        render();
+        break;
+      }
+      case "open-vouchers": {
+        const o = state.selectedOrder || Store.db.orders.find(x => x.voucher) || Store.db.orders[0];
+        state.selectedOrder = o;
+        state.orderAction = "voucher";
+        go("order-detail");
+        toast(o && o.voucher ? `已打开凭证：${o.voucher.file || "已上传"}` : "订单暂无凭证，可在此上传");
         break;
       }
       case "submit-appoint": {
@@ -3214,7 +3355,7 @@
                 </div>`).join("")}
             </div>
             <div class="total_num"><p>合计 ${totalQty} 件</p></div>
-            <div class="submit_area"><a href="javascript:;" class="oto_btn" data-act="toast:已加入选款（示意）">加入选款单</a>
+            <div class="submit_area"><a href="javascript:;" class="oto_btn" data-act="add-to-order">加入选款单</a>
               <a href="javascript:;" class="oto_btn" data-act="go:buyer-brand">返回列表</a></div>
             <div class="goods_desc">
               <h6 class="sub_title">材质信息</h6>
@@ -3267,7 +3408,7 @@
             <li class="${tab === "addr" ? "active" : ""}"><a href="javascript:;" data-act="buyer-mine-tab:addr">收货地址管理</a></li>
             <li class="${tab === "inv" ? "active" : ""}"><a href="javascript:;" data-act="buyer-mine-tab:inv">发票地址管理</a></li>
           </ul>
-          <a href="javascript:;" class="mine_logout" data-act="toast:已登出（示意）">登出</a>
+          <a href="javascript:;" class="mine_logout" data-act="logout">登出</a>
         </div>
         <div class="public_right-container">
           <div class="mine_info-container">
@@ -3318,14 +3459,16 @@
             <div class="items uk-grid-medium brand-grid-live">
               ${brands.map(b => {
                 const noAuth = b.accept === false;
+                const pending = b.pending || b.access === "pending";
                 return `<div class="item">
                   <div class="item_inner">
-                    ${noAuth ? '<div class="accept_state">暂无权限</div>' : ""}
-                    <a href="javascript:;" data-go="buyer-brand" data-brand="${b.name}">
+                    ${noAuth ? `<div class="accept_state">${pending ? "申请中" : "暂无权限"}</div>` : ""}
+                    <a href="javascript:;" data-go="${noAuth ? "buyer-replenish" : "buyer-brand"}" data-brand="${b.name}">
                       <div class="brand-logo-rect">${b.name}</div>
                       <p>${b.name}</p>
                     </a>
-                    ${noAuth ? '<div class="get_accept" data-act="toast:已提交权限申请">申请权限</div>' : ""}
+                    ${noAuth && !pending ? `<div class="get_accept" data-act="apply-brand:${b.name}">申请权限</div>` : ""}
+                    ${pending ? '<div class="get_accept" style="color:#999;cursor:default">已提交申请</div>' : ""}
                   </div>
                 </div>`;
               }).join("") || '<div class="note">该分类下暂无品牌</div>'}
@@ -3396,6 +3539,7 @@
     "order-analysis": pageOrderAnalysis,
     "order-appoint": pageOrderAppoint,
     "order-recon": pageOrderRecon,
+    "order-kingdee": pageOrderKingdee,
     "ship-list": pageShip,
     "ship-detail": pageShipDetail,
     "intent-list": pageIntent,
@@ -3415,15 +3559,25 @@
     "buyer-edit": () => simpleFormPage("编辑店铺资料", "", `
       <label>店铺名</label><div>${field("name", input("Liora Amour", "Liora Amour"))}</div>
       <label>级别</label><div>${field("level", select(["A", "B", "C"], null, "B"))}</div>`),
-    "buyer-sub": () => `${subTitle("查看/添加子店铺")}
+    "buyer-sub": () => {
+      const list = Store.db.buyerSession.substores || [];
+      return `${subTitle("查看/添加子店铺")}
       <table class="data-table"><thead><tr><th>子店铺</th><th>城市</th><th>操作</th></tr></thead>
-      <tbody><tr><td>Liora Amour 静安</td><td>上海</td><td>${link("编辑", "toast:编辑子店铺")}</td></tr></tbody></table>
-      <div style="margin-top:16px">${btn("新建子店铺")}</div>`,
+      <tbody>${list.map((s, i) => `<tr><td>${s.name}</td><td>${s.city || "—"}</td><td><a href="javascript:;" data-act="edit-substore:${i}">编辑</a></td></tr>`).join("") || "<tr><td colspan=3>暂无子店铺</td></tr>"}</tbody></table>
+      <div class="form-grid" style="margin-top:16px">
+        <label>子店铺名</label><div>${field("subName", input())}</div>
+        <label>城市</label><div>${field("subCity", input())}</div>
+      </div>
+      <div style="margin-top:16px">${btn("新建子店铺", "btn-primary", "add-substore")}</div>`;
+    },
     "buyer-add-brand": () => `${subTitle("添加品牌")}
-      <div class="note">需求备注：暂不清楚需求。保留入口待客户确认业务含义。</div>
-      <div class="form-grid"><label>选择品牌</label><div>${select(RR.brands.map(b => b.name))}</div>
-      <label>备注</label><div>${input()}</div></div>
-      <div class="action-bar">${btn("提交（示意）", "btn-outline")}</div>`,
+      <div class="note">为买手开通品牌权限；提交后写入买手品牌列表，并同步意向/买手端 brandAccess。</div>
+      <div class="form-grid">
+        <label>买手店铺</label><div>${field("grantBuyer", select(Store.db.buyers.map(b => b.name), null, Store.db.buyers[0] && Store.db.buyers[0].name))}</div>
+        <label>选择品牌</label><div>${field("grantBrand", select(RR.brands.map(b => b.name)))}</div>
+        <label>备注</label><div>${field("grantNote", input())}</div>
+      </div>
+      <div class="action-bar">${btn("确认开通", "btn-primary", "grant-brand")}</div>`,
     "buyer-appoint": () => simpleFormPage("添加预约", "代买手创建展会预约", `
       <label>品牌</label><div>${field("mpBrand", select(RR.brands.map(b => b.name)))}</div>
       <label>季节</label><div>${field("mpSeason", select(RR.seasons.slice(-8), null, "2026SS"))}</div>
