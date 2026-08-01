@@ -1,5 +1,3 @@
-/* Prototype patches on top of assets/vendor/ontime (live Ontime skin).
-   Prefer vendor for shell/chrome; keep tokens + form/list helpers here. */
 /* RoomRoom / OntimeOrder UI tokens — sampled from order.roomroom.com.cn */
 :root {
   --rr-black: #000000;
@@ -32,11 +30,6 @@ body {
 }
 a { color: var(--rr-purple); text-decoration: none; cursor: pointer; }
 a:hover { color: var(--rr-purple-hover); }
-/* Do not override Ontime black topnav link colors */
-.ots_order-nav a,
-.ots_order-nav a:hover,
-header.oto-nav a,
-header.oto-nav a:hover { color: inherit; }
 button { font-family: inherit; cursor: pointer; }
 img { max-width: 100%; display: block; }
 input, select, textarea {
@@ -395,6 +388,16 @@ h1.title_underline {
   border-color: var(--rr-purple); color: var(--rr-purple); background: var(--rr-purple-soft);
 }
 
+/* Portal switcher strip */
+.proto-bar {
+  background: #111; color: #999; font-size: 12px;
+  padding: 6px 24px; display: flex; gap: 16px; align-items: center; justify-content: center;
+  border-bottom: 1px solid #222;
+}
+.proto-bar strong { color: #fff; font-weight: 500; }
+.proto-bar a { color: #bbb; }
+.proto-bar a.on { color: var(--rr-purple); }
+
 /* Detail layout */
 .detail-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
 .detail-sticky {
@@ -452,18 +455,15 @@ h1.title_underline {
 .site-footer a { color: var(--rr-muted); margin-right: 16px; }
 
 /* Mini program mock */
-/* W5：窄屏预约壳（现网无同构 H5 时按 Ontime 主色自洽） */
-.mp-shell { width: 100%; }
 .mp-frame {
-  width: 375px; max-width: 100%; margin: 40px auto; background: #fff;
-  border: 1px solid #ddd; border-radius: 0; overflow: hidden;
+  width: 375px; margin: 40px auto; background: #fff;
+  border: 1px solid #ddd; border-radius: 24px; overflow: hidden;
   box-shadow: 0 12px 40px rgba(0,0,0,0.08);
 }
 .mp-status { height: 44px; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; }
 .mp-body { padding: 24px 20px 40px; }
 .mp-body h2 { font-size: 18px; margin: 0 0 8px; }
 .mp-body p { color: var(--rr-muted); font-size: 13px; margin: 0 0 24px; }
-.mp-body .oto_btn { margin-top: 16px; background: var(--rr-purple); color: #fff !important; border: none; padding: 10px 16px; }
 
 /* Empty / note */
 .note {

@@ -1182,7 +1182,7 @@
         ];
     return `<div class="brand_goodsList-container">
       ${subTitle(title)}
-      <div class="note">${forceType ? "订单与补货单独立管理；本页仅展示本类单据，无类型筛选。" : "总订单视图可按类型筛选；日常请用左侧「订单管理 / 补货单管理」。"}</div>
+      <div class="note">${forceType ? "订单与补货单独立管理，本页不展示订单类型字段。" : "总订单视图可按类型筛选；日常请用左侧「订单管理 / 补货单管理」。"}</div>
       ${filterPanel(filters)}
       <div class="order-live-list">
         ${list.map(o => {
@@ -3483,8 +3483,8 @@
 
   function pageMP() {
     return `${protoBar()}
-      <div class="mp-shell" style="background:#f0f0f0;min-height:100vh;padding:20px 0 60px">
-        <div class="mp-frame mp-page">
+      <div style="background:#f0f0f0;min-height:100vh;padding:20px 0 60px">
+        <div class="mp-frame">
           <div class="mp-status">ROOMROOM 订货会预约</div>
           <div class="mp-body">
             <h2>在线预约参展</h2>
@@ -3495,7 +3495,7 @@
             <div class="login-field"><label>手机号</label>${field("mpPhone", input())}</div>
             <div class="login-field"><label>预约场次</label>${field("mpSeason", select(RR.seasons.slice(-8), null, "2026SS"))}</div>
             <div class="login-field"><label>预约时间</label>${field("mpDate", datetimeInput("2026-04-08T14:00"))}</div>
-            <a href="javascript:;" class="oto_btn" style="display:block;text-align:center" data-act="submit-appoint">提交预约</a>
+            <button class="btn btn-primary btn-block" data-act="submit-appoint">提交预约</button>
           </div>
         </div>
       </div>`;
