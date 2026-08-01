@@ -1,3 +1,5 @@
+/* Prototype patches on top of assets/vendor/ontime (live Ontime skin).
+   Prefer vendor for shell/chrome; keep tokens + form/list helpers here. */
 /* RoomRoom / OntimeOrder UI tokens — sampled from order.roomroom.com.cn */
 :root {
   --rr-black: #000000;
@@ -30,6 +32,11 @@ body {
 }
 a { color: var(--rr-purple); text-decoration: none; cursor: pointer; }
 a:hover { color: var(--rr-purple-hover); }
+/* Do not override Ontime black topnav link colors */
+.ots_order-nav a,
+.ots_order-nav a:hover,
+header.oto-nav a,
+header.oto-nav a:hover { color: inherit; }
 button { font-family: inherit; cursor: pointer; }
 img { max-width: 100%; display: block; }
 input, select, textarea {
