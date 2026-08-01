@@ -54,11 +54,54 @@ async () => {
   await sleep(180);
   checks.push({ name: "brand-list-no-side", ok: !q(".public_left-container") });
 
+  // buyer C-end shell
+  await click(qa("[data-portal]").find((e) => e.getAttribute("data-portal") === "buyer"));
+  if (q("#do-login")) {
+    await click(qa("[data-role]").find((e) => e.getAttribute("data-role") === "buyer"));
+    await click(q("#do-login"));
+  }
+  await click(q('[data-go="buyer-home"]'));
+  await sleep(200);
+  const buyerNav = q("header.oto-nav");
+  const bNav = buyerNav ? getComputedStyle(buyerNav) : null;
+  const bH = buyerNav ? buyerNav.getBoundingClientRect().height : 0;
+  checks.push(
+    { name: "buyer-nav", ok: !!buyerNav },
+    { name: "buyer-nav-dark", ok: !!bNav && /rgb\(\s*0,\s*0,\s*0\s*\)/.test(bNav.backgroundColor) },
+    { name: "buyer-nav-height", ok: bH >= 50 && bH <= 72 },
+    { name: "buyer-filter-or-list", ok: !!q(".filter_type, .brand_list-container") }
+  );
+  const brand = qa('[data-go="buyer-brand"]').find((e) => (e.getAttribute("data-brand") || "").includes("JUNLI")) || q('[data-go="buyer-brand"]');
+  if (brand) {
+    await click(brand);
+    await sleep(180);
+    const bIcon = q(".iconfont");
+    checks.push(
+      { name: "buyer-brand-info", ok: !!q(".brand_info") },
+      { name: "buyer-code-view", ok: !!q('[data-view="code"]') },
+      { name: "buyer-iconfont", ok: !!bIcon && /iconfont/i.test(getComputedStyle(bIcon).fontFamily) }
+    );
+  }
+
+  // brand portal smoke
+  await click(qa("[data-portal]").find((e) => e.getAttribute("data-portal") === "brand"));
+  if (q("#do-login")) {
+    await click(qa("[data-role]").find((e) => e.getAttribute("data-role") === "brand"));
+    await click(q("#do-login"));
+  }
+  await sleep(180);
+  checks.push({ name: "brand-portal-nav", ok: !!q("#ots_order-nav, .ots_order-nav") });
+
+  // mini-program
+  await click(qa("[data-portal]").find((e) => e.getAttribute("data-portal") === "mp"));
+  await sleep(180);
+  checks.push({ name: "mp-page", ok: /预约|小程序|参展/.test(document.body.innerText || "") || !!q(".mp-shell, .mp-page, [data-go^='mp-']") });
+
   const miss = checks.filter((c) => !c.ok).map((c) => c.name);
   return {
     pass: miss.length === 0,
     miss,
     checks,
-    meta: { vendorCount, hotlinkIcon, navBg, navH, btnBg, iconFf }
+    meta: { vendorCount, hotlinkIcon, navBg, navH, btnBg, iconFf, buyerNavH: bH }
   };
 }

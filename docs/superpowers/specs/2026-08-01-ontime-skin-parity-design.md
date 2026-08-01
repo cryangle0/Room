@@ -3,7 +3,7 @@
 > 日期：2026-08-01  
 > 原型：`prototype/` · 发布：`https://cryangle0.github.io/Room/`  
 > 现网：`https://order.roomroom.com.cn/`  
-> 状态：设计已确认，待实现计划
+> 状态：实现完成（分支 `feat/ontime-skin-parity`；皮肤门禁 17/17 + Excel 22/22）
 
 ## 1. 背景与决策
 
