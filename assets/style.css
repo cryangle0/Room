@@ -1032,6 +1032,20 @@ header.oto-nav.buyer-oto-nav .login_area a:hover { color: var(--rr-purple); }
 .balck_bg.rr-drawer-mask {
   position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 110;
 }
+.buyer-fe .goods_detail-container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.buyer-fe .goods_info h1 { font-size: 22px; margin: 0 0 8px; }
+.buyer-fe .goods_info .meta { color: #666; margin-bottom: 16px; }
+.buyer-fe .goods_info .price_wholesale strong { color: var(--rr-purple); }
+.buyer-fe .goods_info .size_list { margin: 16px 0; }
+.buyer-fe .message-container { max-width: 960px; margin: 0 auto; padding: 24px; }
+.buyer-fe .message_list .item {
+  border-bottom: 1px solid var(--rr-border); padding: 16px 0;
+}
+.buyer-fe .message_info h6 { margin: 0 0 6px; font-size: 15px; }
+.buyer-fe .message_info p { margin: 0 0 6px; color: #555; font-size: 13px; }
+.buyer-fe .message_info span { color: #999; font-size: 12px; }
+.buyer-fe .order_detail-container .order_progress { margin: 24px 0; }
+.buyer-fe .order_detail-container .timeline { margin-top: 12px; }
 
 @media (max-width: 960px) {
   .shell { flex-direction: column; gap: 16px; }

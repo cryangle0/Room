@@ -400,7 +400,7 @@
             ${items.map(([id, lab, on]) => `<li class="${on ? "active" : ""}"><a href="javascript:;" data-go="${id}">${lab}</a></li>`).join("")}
           </ul>
           <div class="login_area">
-            <a class="bell_tip" href="javascript:;" data-act="toast:消息中心（示意）"><span class="iconfont ots_icon-tongzhi">🔔</span></a>
+            <a class="bell_tip" href="javascript:;" data-go="buyer-message"><span class="iconfont ots_icon-tongzhi">🔔</span></a>
             <a class="nav_person" href="javascript:;" data-go="buyer-profile"><span class="iconfont ots_icon-person">👤</span></a>
           </div>
         </div>
@@ -1864,12 +1864,19 @@
     const brand = state.selectedBrand;
     const bmeta = RR.brands.find(b => b.name === brand) || { about: "", style: "" };
     const s = Store.db.buyerSession;
-    if (!s.season || s.season === "全部") {
-      const seasons = Store.buyerSeasons(brand);
+    const seasons = Store.buyerSeasons(brand);
+    /* 切品牌后若当前季节无货，落到该品牌最近有货季（避免空列表缺 brand_like/item_inner） */
+    if (!s.season || s.season === "全部" || (seasons.length && !seasons.includes(s.season))) {
       if (seasons[0]) { s.season = seasons[0]; Store.persist(); }
     }
-    const list = Store.buyerGoods(brand);
-    const seasons = Store.buyerSeasons(brand);
+    let list = Store.buyerGoods(brand);
+    if (!list.length && seasons.length) {
+      for (const sea of seasons) {
+        s.season = sea;
+        list = Store.buyerGoods(brand);
+        if (list.length) { Store.persist(); break; }
+      }
+    }
     syncBuyerCart();
     state.cartBrandFilter = brand;
     const imageView = `<div class="items uk-grid-medium product-grid">
@@ -2073,40 +2080,66 @@
   }
 
   function pageBuyerOrderDetail() {
+    /* 原站订单详情沿用 order-container 壳 + order_info / order_action / 进度 */
     const o = state.selectedOrder || Store.db.orders[0];
     const steps = Store.ORDER_FLOW.filter(s => s !== "已完成");
     const idx = Math.max(0, steps.findIndex(s => o.status === s || o.status.includes(s.slice(0, 4))));
     const lines = o.lines || [];
-    return `${subTitle("订单查看")}
-      <div class="detail-sticky">
-        <strong>${o.brand}</strong>
-        <div class="brand-logo" style="width:36px;height:36px;font-size:8px">LG</div>
-        <span>最小起订额 ¥${Store.money(Store.getDiscountRules().minAmount)}</span>
-        <span>品类折扣 服饰 ${Store.getDiscountRules().cloth}</span>
-        <span class="badge">${o.status}</span>
+    return `<div class="oto-main_container buyer-fe">
+      <div class="oto_container order-container order_detail-container">
+        <div class="public_left-container">
+          <div class="filter_list filter_type">
+            <div class="sub_title line_circle">我的订单</div>
+            <ul class="uk-tab-right items">
+              <li><a href="javascript:;" data-go="buyer-orders">返回列表</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="public_right-container">
+          <div class="order_list-container">
+            <div class="sub_title"><h4>订单详情</h4></div>
+            <div class="order_list">
+              <div class="item">
+                <div class="order_info">
+                  ${o.type === "补货单" ? '<div class="order_type-add"><p>补货单</p></div>' : ""}
+                  <h6>订单编号:${o.id} <span></span> 下单时间:${o.createdAt || "—"} <span></span> 订货季:${o.season}</h6>
+                  <div class="order_brand">
+                    <div class="brand-logo-rect" style="width:40px;height:40px">${(o.brand || "").slice(0, 4)}</div>
+                    <h6>${o.brand}&nbsp;</h6>
+                  </div>
+                  <div class="order_state"><p>${o.status}</p><p>¥${o.amount}</p></div>
+                  <div class="order_action ops">
+                    <a href="javascript:;" data-act="download:订单Excel">下载订单</a>
+                    ${o.status.includes("未确认") || o.status.includes("驳回")
+                      ? `<a href="javascript:;" data-go="buyer-selection-edit" data-sel="${o.fromSelection || ""}">修改</a>` : ""}
+                    <a href="javascript:;" class="oto_btn" data-act="buyer-confirm-order" data-oid="${o.id}">确认提交</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="order_progress">
+              <div class="sub_title">订单进度</div>
+              <div class="timeline">
+                ${steps.map((s, i) => `
+                  <div class="timeline-item ${i < idx ? "done" : ""} ${i === idx ? "on" : ""}">
+                    <div class="timeline-dot"></div>
+                    <div><strong>${s}</strong><div style="color:#999;font-size:12px">${i <= idx ? "已到达" : "未到达"}</div></div>
+                  </div>`).join("")}
+              </div>
+            </div>
+            <table class="data-table">
+              <thead><tr><th>SKU</th><th>款式</th><th>数量</th><th>金额</th></tr></thead>
+              <tbody>
+                ${lines.map(l => {
+                  const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
+                  return `<tr><td>${l.sku}</td><td>${l.title}</td><td>${qty}</td><td>${Store.money(qty * Number(l.price || 0) * Number(l.discount || 1))}</td></tr>`;
+                }).join("") || "<tr><td colspan=4>无明细</td></tr>"}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
-      <h3 style="font-size:15px">订单进度</h3>
-      <div class="timeline">
-        ${steps.map((s, i) => `
-          <div class="timeline-item ${i < idx ? "done" : ""} ${i === idx ? "on" : ""}">
-            <div class="timeline-dot"></div>
-            <div><strong>${s}</strong><div style="color:#999;font-size:12px">${i <= idx ? "已到达" : "未到达"}</div></div>
-          </div>`).join("")}
-      </div>
-      <div class="action-bar">
-        ${btn("下载 Excel", "btn-outline")}
-        ${o.status.includes("未确认") || o.status.includes("驳回") ? btn("修改订单", "btn-outline") : ""}
-        ${btn("确认提交", "btn-primary", "buyer-confirm-order")}
-      </div>
-      <table class="data-table">
-        <thead><tr><th>SKU</th><th>款式</th><th>数量</th><th>金额</th></tr></thead>
-        <tbody>
-          ${lines.map(l => {
-            const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
-            return `<tr><td>${l.sku}</td><td>${l.title}</td><td>${qty}</td><td>${Store.money(qty * Number(l.price || 0) * Number(l.discount || 1))}</td></tr>`;
-          }).join("") || "<tr><td colspan=4>无明细</td></tr>"}
-        </tbody>
-      </table>`;
+    </div>`;
   }
 
   function pageCoverage() {
@@ -3142,48 +3175,84 @@
   }
 
   function pageBuyerDetail() {
+    /* 原站商品详情：goods_detail-container / goods_info / size 加减 / 加入选款 */
     const g = Store.db.goods.find(x => x.sku === state.selectedGoods) || Store.db.goods[0];
     const sizes = g.sizes && g.sizes.length ? g.sizes : ["XS", "S", "M", "L"];
     const price = Store.parseMoney(g.wholesale);
     const totalQty = sizes.reduce((a, sz) => a + (state.qty[sz] || 0), 0);
     const totalAmt = sizes.reduce((a, sz) => a + (state.qty[sz] || 0) * price, 0);
-    return `<div class="detail-sticky">
-        <strong>${g.brand}</strong>
-        <div class="brand-logo" style="width:36px;height:36px;font-size:8px">HW</div>
-        <span>最小起订 ¥${Store.money(Store.getDiscountRules().minAmount)}</span>
-        <span>已选订量 ¥${Store.money(totalAmt)}</span>
+    return `<div class="oto-main_container buyer-fe">
+      <div class="oto_container goods_detail-container">
+        <div class="detail-sticky">
+          <strong>${g.brand}</strong>
+          <div class="brand-logo-rect" style="width:36px;height:36px;font-size:8px">${(g.brand || "").slice(0, 2)}</div>
+          <span>最小起订 ¥${Store.money(Store.getDiscountRules().minAmount)}</span>
+          <span>已选订量 ¥${Store.money(totalAmt)}</span>
+        </div>
+        <div class="goods_detail detail-layout">
+          <div class="goods_gallery">
+            <div class="cover" style="aspect-ratio:3/4;background:#eee;display:flex;align-items:center;justify-content:center;color:#aaa;margin-bottom:12px">商品大图</div>
+            <div class="thumbs" style="display:flex;gap:8px">
+              ${[1, 2, 3, 4].map(i => `<div class="thumb ph" style="width:64px;height:80px">${i}</div>`).join("")}
+            </div>
+          </div>
+          <div class="goods_info">
+            <h1>${g.title}</h1>
+            <div class="meta">SKU ${g.sku}</div>
+            <div class="price_retail">建议零售价 <strong>¥${g.retail}</strong></div>
+            <div class="price_wholesale">订货价 <strong>¥${g.wholesale}</strong></div>
+            <div class="size_list">
+              ${sizes.map(sz => `
+                <div class="size-row item">
+                  <div class="size_name">${sz}</div>
+                  <div class="qty">
+                    <button data-qty="${sz}" data-d="-1">−</button>
+                    <input value="${state.qty[sz] || 0}" readonly />
+                    <button data-qty="${sz}" data-d="1">+</button>
+                  </div>
+                  <div class="line_amt">¥${Store.money((state.qty[sz] || 0) * price)}</div>
+                </div>`).join("")}
+            </div>
+            <div class="total_num"><p>合计 ${totalQty} 件</p></div>
+            <div class="submit_area"><a href="javascript:;" class="oto_btn" data-act="toast:已加入选款（示意）">加入选款单</a>
+              <a href="javascript:;" class="oto_btn" data-act="go:buyer-brand">返回列表</a></div>
+            <div class="goods_desc">
+              <h6 class="sub_title">材质信息</h6>
+              <p>主面料 100% Wool · 里料 100% Cupro</p>
+              <p>富文本商品详情区域…</p>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="detail-layout">
-        <div>
-          <div class="cover" style="aspect-ratio:3/4;background:#eee;display:flex;align-items:center;justify-content:center;color:#aaa;margin-bottom:12px">商品大图</div>
-          <div style="display:flex;gap:8px">
-            ${[1, 2, 3, 4].map(i => `<div class="thumb ph" style="width:64px;height:80px">${i}</div>`).join("")}
+      ${floatSelTab()}
+    </div>`;
+  }
+
+  function pageBuyerMessage() {
+    /* 原站 /buyer/message：message_list */
+    const msgs = Store.db.ui.buyerMessages || [
+      { title: "订单状态更新", time: "2026-07-28 10:20", body: "您的选款单已生成订单，请及时确认。" },
+      { title: "品牌权限通过", time: "2026-07-20 15:01", body: "您申请的品牌权限已通过。" }
+    ];
+    return `<div class="oto-main_container buyer-fe">
+      <div class="oto_container message-container">
+        <div class="public_right-container" style="width:100%">
+          <div class="sub_title">消息</div>
+          <div class="message_list">
+            <div class="items">
+              ${msgs.map(m => `
+                <div class="item">
+                  <div class="message_info">
+                    <h6>${m.title}</h6>
+                    <p>${m.body}</p>
+                    <span>${m.time}</span>
+                  </div>
+                </div>`).join("")}
+            </div>
           </div>
         </div>
-        <div>
-          <h1 style="font-size:22px;margin:0 0 8px">${g.title}</h1>
-          <div style="color:#666;margin-bottom:16px">SKU ${g.sku}</div>
-          <div style="margin-bottom:8px">建议零售价 <strong>¥${g.retail}</strong></div>
-          <div style="margin-bottom:20px">订货价 <strong style="color:var(--rr-purple)">¥${g.wholesale}</strong></div>
-          ${sizes.map(sz => `
-            <div class="size-row">
-              <div style="width:40px">${sz}</div>
-              <div class="qty">
-                <button data-qty="${sz}" data-d="-1">−</button>
-                <input value="${state.qty[sz] || 0}" readonly />
-                <button data-qty="${sz}" data-d="1">+</button>
-              </div>
-              <div style="color:#666;font-size:13px">¥${Store.money((state.qty[sz] || 0) * price)}</div>
-            </div>`).join("")}
-          <div style="margin:20px 0;font-weight:600">合计 ${totalQty} 件</div>
-          ${btn("加入订单")}
-          <div style="margin-top:28px;color:#666;font-size:13px;line-height:1.8">
-            <strong style="color:#222">材质信息</strong><br/>
-            主面料 100% Wool · 里料 100% Cupro<br/><br/>
-            富文本商品详情区域…
-          </div>
-        </div>
-      </div>`;
+      </div>
+    </div>`;
   }
 
   function pageBuyerProfile() {
@@ -3370,6 +3439,7 @@
     "buyer-orders": pageBuyerOrders,
     "buyer-order-detail": pageBuyerOrderDetail,
     "buyer-profile": pageBuyerProfile,
+    "buyer-message": pageBuyerMessage,
     "buyer-replenish": pageBuyerReplenish,
     "mp-home": pageMP
   };
@@ -3425,10 +3495,21 @@
       el.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        const page = el.getAttribute("data-go");
         const brand = el.getAttribute("data-brand");
         const sel = el.getAttribute("data-sel");
         const oid = el.getAttribute("data-oid");
-        if (brand) { state.selectedBrand = brand; state.cartBrandFilter = brand; }
+        if (brand) {
+          state.selectedBrand = brand;
+          state.cartBrandFilter = brand;
+          /* 从品牌卡进入商品列表时复位分类，避免上一筛选导致空列表 */
+          if (page === "buyer-brand") {
+            Store.db.buyerSession.cat = "全部";
+            Store.db.buyerSession.carryOnly = false;
+            Store.db.buyerSession.search = "";
+            Store.persist();
+          }
+        }
         if (sel) state.selectedSel = Store.db.selections.find(s => s.id === sel) || state.selectedSel;
         if (oid) state.selectedOrder = Store.db.orders.find(o => o.id === oid) || state.selectedOrder;
         const ship = el.getAttribute("data-ship");
@@ -3436,7 +3517,6 @@
         if (ship) state.selectedShip = Store.db.shipments.find(x => x.id === ship) || state.selectedShip;
         if (sku) state.selectedGoods = sku;
         if (el.getAttribute("data-role-name")) state.selectedRole = el.getAttribute("data-role-name");
-        const page = el.getAttribute("data-go");
         const oa = el.getAttribute("data-order-action");
         if (oa) state.orderAction = oa;
         if (page === "order-detail" && (el.textContent || "").includes("白名单")) state.orderAction = "whitelist";
