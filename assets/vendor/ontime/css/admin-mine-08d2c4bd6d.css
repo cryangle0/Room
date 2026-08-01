@@ -1,0 +1,152 @@
+.ots_order-manage-container .ots_order-width {
+  width: 1400px;
+}
+
+.admin_mine-container {
+  width: 100%;
+}
+
+.admin_mine-container .items {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.admin_mine-container .items .item {
+  width: 49%;
+  background-color: white;
+  margin-bottom: 30px;
+}
+
+.admin_mine-container .items .item.item_ranking {
+  width: 50%;
+}
+
+.admin_mine-container .uk-subnav li a {
+  font-size: 18px;
+}
+
+.admin_mine-container .uk-subnav li.uk-active a {
+  font-size: 18px;
+  background-color: black;
+}
+
+.sell_chart-container {
+  width: 100%;
+  height: 500px;
+}
+
+.ranking_detail {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ranking_detail .single_item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  transition: all ease-in-out 0.3s;
+}
+
+.ranking_detail .single_item:hover, .ranking_detail .single_item:focus {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.ranking_detail .single_item.item_title {
+  margin-bottom: 30px;
+}
+
+.ranking_detail .single_item.item_title:hover, .ranking_detail .single_item.item_title:focus {
+  background-color: transparent;
+}
+
+.ranking_detail .single_item.item_title > div {
+  text-align: center;
+}
+
+.ranking_detail .single_item > div {
+  width: 15%;
+  padding: 0 5px;
+}
+
+.ranking_detail .single_item > div:first-of-type {
+  width: 5%;
+  text-align: center;
+  padding: 0;
+}
+
+.ranking_detail .single_item > div:last-of-type {
+  flex-grow: 1;
+}
+
+.ranking_detail .single_item > div:nth-last-of-type(2) {
+  text-align: center;
+}
+
+.ranking_detail .single_item img {
+  width: 100px;
+  height: 100px;
+  display: block;
+  margin: auto;
+}
+
+.ranking_detail .single_item progress {
+  margin: 0;
+}
+
+.ranking_detail .single_item progress::-webkit-progress-value {
+  background-color: black;
+}
+
+.ranking_detail .single_buyer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  transition: all ease-in-out 0.3s;
+  padding: 10px 0;
+}
+
+.ranking_detail .single_buyer:hover, .ranking_detail .single_buyer:focus {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.ranking_detail .single_buyer.item_title {
+  margin-bottom: 30px;
+}
+
+.ranking_detail .single_buyer.item_title:hover, .ranking_detail .single_buyer.item_title:focus {
+  background-color: transparent;
+}
+
+.ranking_detail .single_buyer > div {
+  width: 20%;
+  padding: 0 5px;
+  text-align: center;
+}
+
+.ranking_detail .single_buyer > div:first-of-type {
+  width: 5%;
+  text-align: center;
+  padding: 0;
+}
+
+.ranking_detail .single_buyer > div:last-of-type {
+  flex-grow: 1;
+}
+
+.ranking_detail .single_buyer > div:nth-last-of-type(2) {
+  text-align: center;
+}
+
+.ranking_detail .single_buyer > div progress {
+  margin: 0;
+}
+
+.ranking_detail .single_buyer > div progress::-webkit-progress-value {
+  background-color: black;
+}

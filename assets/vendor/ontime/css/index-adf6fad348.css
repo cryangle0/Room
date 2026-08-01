@@ -1,0 +1,501 @@
+.top_brand .index_topbrand {
+  margin-top: 40px;
+}
+
+.top_brand .uk-grid > .uk-grid-margin {
+  margin-top: 50px;
+}
+
+.top_brand .card_item h3 {
+  margin-top: 20px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.ots_order-branddetail-container {
+  padding-top: 30px;
+}
+
+.ots_order-branddetail-container .ots_order-branddetail {
+  margin-top: 140px;
+  padding: 0 85px;
+  display: flex;
+  align-items: center;
+  height: 235px;
+}
+
+.ots_order-branddetail-container .ots_order-branddetail > img {
+  width: 235px;
+  height: 235px;
+  padding: 20px;
+}
+
+.ots_order-branddetail-container .ots_order-branddetail .brand_info {
+  margin: 0;
+  width: 50%;
+  flex-grow: 1;
+  margin-left: 20px;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  border-top: 1px solid black;
+}
+
+.ots_order-branddetail-container .ots_order-branddetail .brand_info > div {
+  border-bottom: 1px solid black;
+}
+
+.ots_order-branddetail-container .ots_order-branddetail .brand_info > div h5,
+.ots_order-branddetail-container .ots_order-branddetail .brand_info > div p {
+  border: 0;
+  padding: 20px 0 20px 10px;
+}
+
+.ots_order-branddetail-container .ots_order-branddetail .brand_info > div h5 {
+  color: #999;
+}
+
+.ots_order-branddetail-container .ots_order-branddetail .brand_info > div p {
+  color: balck;
+}
+
+.ots_order-goodsdetail-container .goods_swiper-container {
+  margin-top: 0;
+  position: relative;
+}
+
+.ots_order-goodsdetail-container .goods_swiper-container:after {
+  content: "+";
+  font-size: 18px;
+  width: 24px;
+  height: 24px;
+  text-align: center;
+  line-height: 24px;
+  border-right: 100%;
+  color: black;
+  background-color: whtie;
+  opacity: 0;
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  transition: all ease-in-out 0.3s;
+}
+
+.ots_order-goodsdetail-container .goods_swiper-container:hover::after {
+  opacity: 0.8;
+}
+
+.ots_order-goodsdetail-container .goods_swiper-container a {
+  width: 100%;
+}
+
+.ots_order-goodsdetail-container .goods_swiper-container img {
+  display: block;
+  margin: auto;
+  transition: all ease-in-out 0.3s;
+}
+
+.ots_order-goodsdetail-container .goods_swiper-container img:hover {
+  opacity: 0.9;
+}
+
+.ots_order-goodsdetail-container .goods_swiper-container .swiper-button-prev,
+.ots_order-goodsdetail-container .goods_swiper-container .swiper-button-next {
+  top: 50% !important;
+  pointer-events: all;
+}
+
+.ots_order-goodsdetail-container .goodsThumbs-swiper {
+  width: 310px;
+}
+
+.ots_order-goodsdetail-container .goodsThumbs-swiper .swiper-slide {
+  width: 52px !important;
+  height: 52px !important;
+  padding: 0;
+  margin: 0 5px !important;
+}
+
+.ots_order-goodsdetail-container .goodsThumbs-swiper .swiper-slide img {
+  width: 50px;
+  height: 50px;
+}
+
+.ots_order-goodsdetail-container .ots_order-goodsdetail {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headimg {
+  width: 490px;
+}
+
+.ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headtext {
+  padding-left: 20px;
+  text-align: center;
+  line-height: 1.35;
+  color: black;
+  flex-grow: 1;
+  width: 40%;
+}
+
+.ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headtext .goods_season {
+  font-size: 18px;
+  color: #999;
+  margin-bottom: 10px;
+}
+
+.ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headtext .goods_brand {
+  font-size: 24px;
+  margin-bottom: 5px;
+}
+
+.ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headtext .goods_name {
+  font-size: 18px;
+}
+
+.ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headtext hr {
+  border-color: #000;
+}
+
+.ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headtext .goods_price p {
+  font-size: 14px;
+  line-height: 2;
+}
+
+.ots_order-goodsdetail-container .ots_order-goodsdetail .goods_action-contain {
+  flex-direction: column;
+  margin: 50px 0;
+}
+
+.ots_order-goodsdetail-container .ots_order-goodsdetail .goods_action-contain > * {
+  margin-bottom: 20px;
+}
+
+.uk-lightbox {
+  background-color: white;
+}
+
+.uk-lightbox .uk-lightbox-toolbar {
+  background-color: transparent;
+  padding: 0;
+}
+
+.uk-lightbox .uk-lightbox-toolbar-icon {
+  height: 50px;
+  width: 50px;
+  color: white;
+  background-color: black;
+}
+
+.uk-lightbox .uk-lightbox-button {
+  border-radius: 100%;
+  color: black;
+  background-color: white;
+}
+
+.ots_order-brandlist .items h1 {
+  padding: 0;
+  margin: 0;
+  background-color: black;
+  width: 40px;
+  height: 40px;
+  border-radius: 100%;
+  color: white;
+  font-size: 24px;
+  line-height: 40px;
+  text-align: center;
+}
+
+.ots_order-brandlist .items h1 + div {
+  width: 50%;
+  flex-grow: 1;
+}
+
+.ots_order-brandlist .items .item {
+  padding-left: 20px;
+}
+
+.ots_order-brandlist .items .item p {
+  text-align: left;
+}
+
+.ots_order-brandlist .brand_items {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+@media (max-width: 767px) {
+  .ots_order-goodsdetail-container {
+    padding-top: 0;
+  }
+  .ots_order-goodsdetail-container .goods_swiper-container {
+    margin-top: 0;
+    position: relative;
+  }
+  .ots_order-goodsdetail-container .goods_swiper-container:after {
+    content: "+";
+    font-size: 18px;
+    width: 24px;
+    height: 24px;
+    text-align: center;
+    line-height: 24px;
+    border-right: 100%;
+    color: black;
+    background-color: whtie;
+    opacity: 0;
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    transition: all ease-in-out 0.3s;
+  }
+  .ots_order-goodsdetail-container .goods_swiper-container:hover::after {
+    opacity: 0.8;
+  }
+  .ots_order-goodsdetail-container .goods_swiper-container a {
+    width: 100%;
+  }
+  .ots_order-goodsdetail-container .goods_swiper-container img {
+    display: block;
+    margin: auto;
+    transition: all ease-in-out 0.3s;
+  }
+  .ots_order-goodsdetail-container .goods_swiper-container img:hover {
+    opacity: 0.9;
+  }
+  .ots_order-goodsdetail-container .goods_swiper-container .swiper-button-prev,
+  .ots_order-goodsdetail-container .goods_swiper-container .swiper-button-next {
+    top: 50% !important;
+  }
+  .ots_order-goodsdetail-container .goodsThumbs-swiper {
+    width: 310px;
+  }
+  .ots_order-goodsdetail-container .goodsThumbs-swiper .swiper-slide {
+    width: 52px !important;
+    height: 52px !important;
+    padding: 0;
+    margin: 0 5px !important;
+  }
+  .ots_order-goodsdetail-container .goodsThumbs-swiper .swiper-slide img {
+    width: 50px;
+    height: 50px;
+  }
+  .ots_order-goodsdetail-container .ots_order-goodsdetail {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headimg {
+    width: 100%;
+  }
+  .ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headtext {
+    padding: 0 20px;
+    margin-top: 20px;
+    text-align: center;
+    line-height: 1.35;
+    color: black;
+    flex-grow: 1;
+    width: 100%;
+  }
+  .ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headtext .goods_season {
+    font-size: 18px;
+    color: #999;
+    margin-bottom: 10px;
+  }
+  .ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headtext .goods_brand {
+    font-size: 24px;
+    margin-bottom: 5px;
+  }
+  .ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headtext .goods_name {
+    font-size: 18px;
+  }
+  .ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headtext hr {
+    border-color: #000;
+  }
+  .ots_order-goodsdetail-container .ots_order-goodsdetail .goods_headtext .goods_price p {
+    font-size: 14px;
+    line-height: 2;
+  }
+  .ots_order-goodsdetail-container .ots_order-goodsdetail .goods_action-contain {
+    flex-direction: column;
+    margin: 50px 0;
+  }
+  .ots_order-goodsdetail-container .ots_order-goodsdetail .goods_action-contain a {
+    margin-bottom: 20px;
+  }
+  .uk-lightbox {
+    background-color: white;
+  }
+  .uk-lightbox .uk-lightbox-toolbar {
+    background-color: transparent;
+    padding: 0;
+  }
+  .uk-lightbox .uk-lightbox-toolbar-icon {
+    height: 50px;
+    width: 50px;
+    color: white;
+    background-color: black;
+  }
+  .uk-lightbox .uk-lightbox-button {
+    border-radius: 100%;
+    color: black;
+    background-color: white;
+    width: 30px;
+    height: 30px;
+    opacity: 0.6;
+  }
+  .uk-lightbox.uk-active .uk-lightbox-button {
+    opacity: 0.6;
+  }
+}
+
+.index_swiper-container img {
+  width: 100%;
+}
+
+.index_kv {
+  text-align: center;
+  line-height: 2;
+  margin: 150px auto 100px;
+}
+
+.index_kv h2 {
+  line-height: 2;
+  font-size: 36px;
+}
+
+.index_kv p {
+  line-height: 2;
+  font-size: 18px;
+}
+
+@media (max-width: 767px) {
+  .index_kv {
+    padding: 0 30px;
+    text-align: center;
+    line-height: 2;
+    margin: 90px auto 60px;
+  }
+  .index_kv h2 {
+    line-height: 2;
+    font-size: 24px;
+  }
+  .index_kv p {
+    line-height: 2;
+    font-size: 14px;
+  }
+  .ots_order-branddetail-container .ots_order-branddetail {
+    padding: 0 10px;
+    margin-top: 50px;
+    height: auto;
+    flex-wrap: wrap;
+  }
+  .ots_order-branddetail-container .ots_order-branddetail > img {
+    margin: auto;
+  }
+  .ots_order-branddetail-container .ots_order-branddetail .brand_info {
+    width: 100%;
+    margin: auto;
+    height: auto;
+  }
+}
+
+.page-user.not-logged-in #user-login {
+  width: 600px;
+  margin: auto;
+  margin-top: 100px;
+}
+
+.page-user.not-logged-in #user-login .form-item {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+.page-user.not-logged-in #user-login label {
+  font-size: 16px;
+  color: balck;
+}
+
+.page-user.not-logged-in #user-login label + input {
+  max-width: 100%;
+  width: 100%;
+  padding: 0 10px;
+  background: #fff;
+  color: #666;
+  border: 1px solid #e5e5e5;
+  transition: .2s ease-in-out;
+  transition-property: color, background-color, border;
+  height: 40px;
+  vertical-align: middle;
+  display: inline-block;
+  margin-top: 10px;
+}
+
+.page-user.not-logged-in #user-login .description {
+  font-size: 12px;
+  margin-top: 5px;
+  color: #999;
+}
+
+.page-user.not-logged-in #user-login .form-actions input {
+  margin-top: 20px;
+  width: 100%;
+  height: 40px;
+  font-size: 16px;
+  color: white;
+  background-color: black;
+  border: 0;
+  box-shadow: none;
+}
+
+@media (max-width: 767px) {
+  .page-user.not-logged-in #user-login {
+    width: 90%;
+    margin: auto;
+    margin-top: 100px;
+  }
+  .page-user.not-logged-in #user-login .form-item {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 20px;
+  }
+  .page-user.not-logged-in #user-login label {
+    font-size: 16px;
+    color: balck;
+  }
+  .page-user.not-logged-in #user-login label + input {
+    max-width: 100%;
+    width: 100%;
+    padding: 0 10px;
+    background: #fff;
+    color: #666;
+    border: 1px solid #e5e5e5;
+    transition: .2s ease-in-out;
+    transition-property: color, background-color, border;
+    height: 40px;
+    vertical-align: middle;
+    display: inline-block;
+    margin-top: 10px;
+  }
+  .page-user.not-logged-in #user-login .description {
+    font-size: 12px;
+    margin-top: 5px;
+    color: #999;
+  }
+  .page-user.not-logged-in #user-login .form-actions input {
+    margin-top: 20px;
+    width: 100%;
+    height: 40px;
+    font-size: 16px;
+    color: white;
+    background-color: black;
+    border: 0;
+    box-shadow: none;
+  }
+}

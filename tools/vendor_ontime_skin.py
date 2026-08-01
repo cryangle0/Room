@@ -23,9 +23,15 @@ IMAGES_DIR = VENDOR_ROOT / "img"
 SOURCES_PATH = VENDOR_ROOT / "SOURCES.md"
 
 URL_RE = re.compile(r"url\(\s*[\"']?([^\"')]+)[\"']?\s*\)", re.IGNORECASE)
+IMPORT_RE = re.compile(
+    r"@import\s+(?:url\(\s*)?[\"']?([^\"'\s)]+)[\"']?\s*\)?[^;]*;",
+    re.IGNORECASE,
+)
 FONT_EXTENSIONS = {".eot", ".otf", ".svg", ".ttf", ".woff", ".woff2"}
 IMAGE_EXTENSIONS = {".avif", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".webp"}
 PRODUCT_PATH_PARTS = ("/goods/", "/product/", "/products/", "/uploads/goods/")
+THEME_HOST = "order.roomroom.com.cn"
+THEME_PREFIX = "/sites/all/themes/ontimeorder_theme/"
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0 Safari/537.36"
@@ -70,6 +76,39 @@ def rewrite_css(text: str, css_path: pathlib.Path, asset_map: dict[str, pathlib.
     return URL_RE.sub(repl, text)
 
 
+def rewrite_imports(
+    text: str, css_url: str, css_path: pathlib.Path, css_map: dict[str, pathlib.Path]
+) -> str:
+    """Rewrite collected theme stylesheet imports to relative local CSS paths."""
+
+    def repl(match: re.Match[str]) -> str:
+        raw = match.group(1).strip()
+        absolute_url = urljoin(css_url, raw)
+        local = css_map.get(absolute_url) or css_map.get(absolute_url.split("?", 1)[0])
+        if local is None:
+            return match.group(0)
+        relative = os.path.relpath(local, css_path.parent).replace("\\", "/")
+        return match.group(0).replace(raw, relative, 1)
+
+    return IMPORT_RE.sub(repl, text)
+
+
+def is_theme_stylesheet(url: str) -> bool:
+    parsed = urlparse(url)
+    return (
+        parsed.netloc == THEME_HOST
+        and parsed.path.startswith(THEME_PREFIX)
+        and parsed.path.lower().endswith(".css")
+    )
+
+
+def stylesheet_path(url: str) -> pathlib.Path:
+    is_iconfont = "iconfont" in url.lower()
+    destination_dir = ICONFONT_DIR if is_iconfont else CSS_DIR
+    name = "iconfont.css" if is_iconfont else safe_filename(url, "stylesheet")
+    return destination_dir / name
+
+
 def destination_for(url: str, css_url: str | None = None) -> pathlib.Path | None:
     """Choose an allowed local dependency directory from the asset extension."""
     path = urlparse(url).path.lower()
@@ -106,16 +145,27 @@ def main() -> None:
 
     source_records: list[tuple[str, pathlib.Path]] = []
     css_files: list[tuple[str, pathlib.Path, str]] = []
-    for css_url in urls:
-        if not css_url.lower().split("?", 1)[0].endswith(".css"):
+    pending = list(dict.fromkeys(urls))
+    seen: set[str] = set()
+    while pending:
+        css_url = pending.pop(0)
+        canonical_url = css_url.split("#", 1)[0]
+        if canonical_url in seen:
+            continue
+        if not canonical_url.lower().split("?", 1)[0].endswith(".css"):
             raise ValueError(f"Not a CSS URL: {css_url}")
-        is_iconfont = "iconfont" in css_url.lower()
-        destination_dir = ICONFONT_DIR if is_iconfont else CSS_DIR
-        name = "iconfont.css" if is_iconfont else safe_filename(css_url, "stylesheet")
-        css_path = destination_dir / name
-        text = fetch(session, css_url).decode("utf-8-sig", errors="replace")
-        css_files.append((css_url, css_path, text))
-        source_records.append((css_url, css_path))
+        seen.add(canonical_url)
+        css_path = stylesheet_path(canonical_url)
+        text = fetch(session, canonical_url).decode("utf-8-sig", errors="replace")
+        css_files.append((canonical_url, css_path, text))
+        source_records.append((canonical_url, css_path))
+        for match in IMPORT_RE.finditer(text):
+            imported_url = urljoin(canonical_url, match.group(1).strip())
+            if is_theme_stylesheet(imported_url):
+                pending.append(imported_url)
+
+    css_map = {css_url: css_path for css_url, css_path, _ in css_files}
+    css_map.update({css_url.split("?", 1)[0]: css_path for css_url, css_path, _ in css_files})
 
     for css_url, css_path, text in css_files:
         asset_map: dict[str, pathlib.Path] = {}
@@ -135,7 +185,8 @@ def main() -> None:
             asset_map[raw] = destination
             asset_map[raw.split("?", 1)[0]] = destination
             source_records.append((absolute_url, destination))
-        localized_css = rewrite_css(text, css_path, asset_map)
+        localized_css = rewrite_imports(text, css_url, css_path, css_map)
+        localized_css = rewrite_css(localized_css, css_path, asset_map)
         if asset_map:
             localized_css = localized_css.rstrip() + "\n"
         css_path.write_text(localized_css, encoding="utf-8")
