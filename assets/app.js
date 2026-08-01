@@ -386,25 +386,25 @@
 
   function topnav(portal) {
     if (portal === "buyer") {
-      const top = routes.buyer.top;
-      const map = {
-        home: "buyer-home",
-        replenish: "buyer-replenish",
-        selection: "buyer-selection",
-        orders: "buyer-orders",
-        profile: "buyer-profile"
-      };
-      return `<nav class="topnav buyer-top"><div class="topnav-inner">
-        <a class="logo" href="javascript:;" data-go="buyer-home">ROOMROOM</a>
-        <ul class="nav-links">${top.map(t =>
-          `<li><a href="javascript:;" class="${state.page.startsWith("buyer-" + (t.id === "home" ? "home" : t.id)) || (t.id === "home" && state.page === "buyer-home") || (t.id === "home" && state.page.startsWith("buyer-brand")) || (t.id === "home" && state.page === "buyer-detail") ? "active" : ""}" data-go="${map[t.id]}">${t.label}</a></li>`
-        ).join("")}</ul>
-        <div class="nav-right">
-          <span class="role-chip">买手 · Liora Amour</span>
-          <span class="avatar">店</span>
-          <a href="javascript:;" data-go="buyer-profile">账户中心</a>
+      /* 原站：header.oto-nav > nav-container > logo_area + ul.nav_menu + login_area(铃铛/人) */
+      const items = [
+        ["buyer-home", "品牌", state.page === "buyer-home" || state.page.startsWith("buyer-brand") || state.page === "buyer-detail"],
+        ["buyer-replenish", "补货", state.page === "buyer-replenish"],
+        ["buyer-selection", "我的选款单", state.page.startsWith("buyer-selection")],
+        ["buyer-orders", "我的订单", state.page.startsWith("buyer-order")]
+      ];
+      return `<header class="oto-nav buyer-oto-nav" id="navTop">
+        <div class="oto_container nav-container">
+          <div class="logo_area"><a href="javascript:;" data-go="buyer-home">ROOMROOM</a></div>
+          <ul class="nav_menu">
+            ${items.map(([id, lab, on]) => `<li class="${on ? "active" : ""}"><a href="javascript:;" data-go="${id}">${lab}</a></li>`).join("")}
+          </ul>
+          <div class="login_area">
+            <a class="bell_tip" href="javascript:;" data-act="toast:消息中心（示意）"><span class="iconfont ots_icon-tongzhi">🔔</span></a>
+            <a class="nav_person" href="javascript:;" data-go="buyer-profile"><span class="iconfont ots_icon-person">👤</span></a>
+          </div>
         </div>
-      </div></nav>`;
+      </header>`;
     }
 
     const cfg = portal === "brand" ? routes.brand : routes.platform;
@@ -1803,40 +1803,64 @@
   }
 
   function buyerCatSide(extra = "") {
+    /* 原站：public_left > filter_list.filter_type > sub_title.line_circle 分类筛选 > ul.uk-tab-right */
     const cat = Store.db.buyerSession.cat || "全部";
     const cats = ["全部", "女装", "男装", "男女装", "配饰"];
-    return `<aside class="buyer-cat-side">
-      <div class="buyer-cat-title">分类筛选 <span class="ico">⚙</span></div>
-      ${cats.map(c => `<a class="${cat === c ? "active" : ""}" href="javascript:;" data-act="cat:${c}">${c}</a>`).join("")}
-      ${extra}
-    </aside>`;
+    return `<div class="public_left-container buyer-cat-side">
+      <div class="filter_list filter_type">
+        <div class="sub_title line_circle">分类筛选</div>
+        <ul class="uk-tab-right items">
+          ${cats.map(c => `<li class="${cat === c ? "uk-active" : ""}"><a href="javascript:;" data-act="cat:${c}">${c}</a></li>`).join("")}
+        </ul>
+        ${extra}
+      </div>
+    </div>`;
   }
 
-  function floatSelTab() {
+  function floatSelTab(label) {
+    /* 原站：side_action > 我的选款单 / 我的补货单 */
     syncBuyerCart();
-    return `<div class="float-sel-tab" data-toggle-cart title="我的选款单">我的选款单<span class="dot">${state.cart.length}</span></div>`;
+    const lab = label || (state.page === "buyer-replenish" ? "我的补货单" : "我的选款单");
+    return `<div class="side_action float-sel-tab">
+      <ul><li><div data-toggle-cart>${lab}${state.cart.length ? `<span class="dot">${state.cart.length}</span>` : ""}</div></li></ul>
+    </div>`;
   }
 
   function pageBuyerHome() {
     const brands = Store.buyerBrands(Store.db.buyerSession.cat || "全部");
     syncBuyerCart();
-    return `<div class="buyer-layout">
-      ${buyerCatSide()}
-      <div class="buyer-main">
-        ${subTitle("品牌列表")}
-        <div class="brand-grid brand-grid-live">
-          ${brands.map(b => `
-            <div class="brand-card brand-card-live" data-go="buyer-brand" data-brand="${b.name}">
-              <div class="brand-logo-rect">${b.name}</div>
-              <div class="brand-card-name">${b.name}</div>
-            </div>`).join("") || '<div class="note">该分类下暂无品牌</div>'}
+    /* 原站：brand_list-container > left 分类 + right brand_list grid item_inner */
+    return `<div class="oto-main_container buyer-fe">
+      <div class="oto_container brand_list-container">
+        ${buyerCatSide()}
+        <div class="public_right-container">
+          <div class="mob-sub_title"><h5>品牌列表</h5></div>
+          <div class="brand_list">
+            <div class="items uk-grid-medium brand-grid-live">
+              ${brands.map(b => {
+                const noAuth = b.accept === false;
+                return `<div class="item">
+                  <div class="item_inner">
+                    ${noAuth ? '<div class="accept_state">暂无权限</div>' : ""}
+                    <a href="javascript:;" data-go="buyer-brand" data-brand="${b.name}">
+                      <div class="brand-logo-rect">${b.name}</div>
+                      <p>${b.name}</p>
+                    </a>
+                    ${noAuth ? '<div class="get_accept" data-act="toast:已提交权限申请">申请权限</div>' : ""}
+                  </div>
+                </div>`;
+              }).join("") || '<div class="note">该分类下暂无品牌</div>'}
+            </div>
+          </div>
         </div>
       </div>
+      <div class="public_side_bg"></div>
       ${floatSelTab()}
     </div>`;
   }
 
   function pageBuyerBrand() {
+    /* 原站 /goods/list/{nid}：left 分类筛选 + brand_info + sku_box + season_filter + goods_list item_inner */
     const brand = state.selectedBrand;
     const bmeta = RR.brands.find(b => b.name === brand) || { about: "", style: "" };
     const s = Store.db.buyerSession;
@@ -1848,46 +1872,62 @@
     const seasons = Store.buyerSeasons(brand);
     syncBuyerCart();
     state.cartBrandFilter = brand;
-    const imageView = `<div class="product-grid">
+    const imageView = `<div class="items uk-grid-medium product-grid">
         ${list.map(g => `
-          <div class="product-card">
-            <button class="heart ${state.hearts.includes(g.sku) ? "on" : ""}" data-heart="${g.sku}" title="加入选款单">♥</button>
-            <div class="cover" data-go="buyer-detail" data-sku="${g.sku}">LOOK</div>
-            <div class="name" data-go="buyer-detail" data-sku="${g.sku}">${g.title}</div>
-            <div class="meta">${g.sku}</div>
-            <div class="meta">${g.code || ""} · <span class="purple">¥${g.wholesale}</span>${g.carry ? " · Carry Over" : ""}</div>
+          <div class="item">
+            <div class="item_inner">
+              <div class="brand_like goods_check ${state.hearts.includes(g.sku) ? "has_checked heart_stay" : "no_checked"}" data-heart="${g.sku}">♥</div>
+              <a href="javascript:;" data-go="buyer-detail" data-sku="${g.sku}">
+                <div class="cover">LOOK</div>
+                <p>${g.title}</p>
+                <p>${g.sku}</p>
+                <p>${g.code || ""}</p>
+                <h2>¥<span>${g.wholesale}</span></h2>
+              </a>
+            </div>
           </div>`).join("") || '<div class="note">无匹配商品</div>'}
       </div>`;
-    const codeView = `<div class="code-grid code-grid-live">
+    const codeView = `<div class="items uk-grid-small code-grid-live">
         ${list.map(g => `
-          <div class="code-cell ${state.hearts.includes(g.sku) ? "on" : ""}">
-            <button class="heart ${state.hearts.includes(g.sku) ? "on" : ""}" data-heart="${g.sku}">♥</button>
-            <span data-go="buyer-detail" data-sku="${g.sku}">${g.code || g.sku.slice(-3)}</span>
+          <div class="item item_small">
+            <div class="item_inner item_sku">
+              <div class="brand_like goods_check ${state.hearts.includes(g.sku) ? "has_checked" : "no_checked"}" data-heart="${g.sku}">♥</div>
+              <div class="sku_item" data-go="buyer-detail" data-sku="${g.sku}"><p></p><p>${g.code || g.sku.slice(-3)}</p></div>
+            </div>
           </div>`).join("") || '<div class="note">无匹配商品</div>'}
       </div>`;
-    return `<div class="buyer-layout">
-      ${buyerCatSide(`<a href="javascript:;" data-act="go:buyer-home" style="margin-top:16px;color:#999">← 返回品牌列表</a>`)}
-      <div class="buyer-main">
-        <div class="brand-hero">
-          <div class="brand-logo-rect lg">${brand}</div>
-          <div class="brand-hero-text">
-            <p>${(bmeta.about || (bmeta.style + " · " + (bmeta.crowd || ""))).slice(0, 180)}${(bmeta.about || "").length > 180 ? "…" : ""}</p>
-            <a href="javascript:;" data-go="buyer-brand-about">查看全部</a>
+    return `<div class="oto-main_container buyer-fe">
+      <div class="oto_container brand_list-container">
+        ${buyerCatSide(`<div style="margin-top:16px"><a href="javascript:;" data-act="go:buyer-home">← 返回品牌列表</a></div>`)}
+        <div class="public_right-container">
+          <div class="mob-sub_title"><h5>商品列表</h5></div>
+          <div class="brand_info">
+            <div class="brand-logo-rect lg">${brand}</div>
+            <div class="brand_brief">
+              <p>${(bmeta.about || (bmeta.style + " · " + (bmeta.crowd || ""))).slice(0, 180)}${(bmeta.about || "").length > 180 ? "…" : ""}</p>
+              <a href="javascript:;" data-go="buyer-brand-about">查看全部</a>
+            </div>
+          </div>
+          <div class="sku_box">
+            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "code" ? "on" : ""}" data-view="code" title="编码视图">☰</button>
+            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "image" ? "on" : ""}" data-view="image" title="图片视图">▦</button>
+          </div>
+          <div class="brand_list goods_list">
+            <div class="season_filter uk-margin-medium-bottom">
+              <ul>${seasons.map(sea => `<li class="${s.season === sea ? "uk-active" : ""}"><a href="javascript:;" data-act="season:${sea}">${sea}</a></li>`).join("")}</ul>
+            </div>
+            <div class="searchCarry">
+              <div class="search_box">
+                ${field("buyerSearch", input("search", s.search || ""))}
+                <button type="button" data-act="buyer-filter"><span>🔍</span></button>
+              </div>
+              <div class="carry_filter">
+                <div><input class="uk-checkbox" type="checkbox" id="carry" data-field="buyerCarry" ${s.carryOnly ? "checked" : ""} /><label for="carry">Carry Over</label></div>
+              </div>
+            </div>
+            ${state.viewMode === "code" ? codeView : imageView}
           </div>
         </div>
-        <div class="buyer-toolbar">
-          <div class="season-tabs">
-            ${seasons.map(sea => `<button type="button" class="${s.season === sea ? "on" : ""}" data-act="season:${sea}">${sea}</button>`).join("") || "<span class=muted>暂无季度</span>"}
-          </div>
-          <div class="buyer-tools">
-            <button type="button" class="icon-btn ${state.viewMode === "image" ? "on" : ""}" data-view="image" title="图片视图">▦</button>
-            <button type="button" class="icon-btn ${state.viewMode === "code" ? "on" : ""}" data-view="code" title="编码视图">☰</button>
-            ${field("buyerSearch", input("search 名称/SKU/编号", s.search || ""))}
-            <button type="button" class="btn btn-outline btn-sm" data-act="buyer-filter">搜索</button>
-            <label class="carry-lab"><input type="checkbox" data-field="buyerCarry" ${s.carryOnly ? "checked" : ""} style="width:auto;height:auto" /> Carry Over</label>
-          </div>
-        </div>
-        ${state.viewMode === "code" ? codeView : imageView}
       </div>
       ${floatSelTab()}
     </div>`;
@@ -1900,26 +1940,29 @@
     const draft = Store.draftQuote(brand);
     const q = draft.quote;
     const lines = draft.lines;
+    /* 原站：balck_bg + selection_side-container */
     return `<div class="rr-drawer-root">
-      <div class="rr-drawer-mask" data-toggle-cart></div>
-      <aside class="rr-drawer rr-drawer-wide" role="dialog" aria-label="快捷选款单">
-        <div class="rr-drawer-head">
-          <h3>我的选款单（件数: ${q.pieces}, SKU数: ${draft.items.length}）</h3>
-          <div class="drawer-quote">
-            <div><strong>${brand || "未选品牌"}</strong></div>
-            <div>总吊牌价: ¥ ${Store.money(q.retail)}</div>
-            <div>总批发价 ¥ ${Store.money(q.wholesale)}</div>
+      <div class="balck_bg rr-drawer-mask" data-toggle-cart></div>
+      <div class="selection_side-container active rr-drawer rr-drawer-wide" role="dialog" aria-label="快捷选款单">
+        <div class="side_cancel" data-toggle-cart>×</div>
+        <div class="selection_detail-list selection_side">
+          <div class="sub_title">${state.page === "buyer-replenish" ? "我的补货单" : "我的选款单"}(件数：${q.pieces},SKU数：${draft.items.length})</div>
+          <div class="selection_brand">
+            <div class="brand-logo-rect" style="width:48px;height:48px">${brand || "—"}</div>
+            <h6>${brand || "未选品牌"}</h6>
+            <div>总吊牌价:¥<h4>${Store.money(q.retail)}</h4></div>
+            <div>总批发价 <span>¥${Store.money(q.wholesale)}</span></div>
           </div>
           ${(q.types || []).map(t => `<p class="drawer-disc">${t.name} 已选${t.pieces} · 已享受${t.discountLabel}${t.nextGap > 0 ? ` · 距离${t.nextDiscountLabel}还差${Store.money(t.nextGap)}元(吊牌价)` : ""}</p>`).join("")}
+          <div class="rr-drawer-body">
+            ${renderSelectionLines(lines, { draft: true }) || '<p style="color:#999;padding:24px 0;text-align:center">暂无选款，请先点红心</p>'}
+          </div>
+          <div class="rr-drawer-foot">
+            <a href="javascript:;" class="oto_btn" data-act="go:buyer-selection">查看选款单</a>
+            ${brand ? `<a href="javascript:;" class="oto_btn" data-act="buyer-confirm-one-brand" data-brand="${brand}">确认本品牌</a>` : ""}
+          </div>
         </div>
-        <div class="rr-drawer-body">
-          ${renderSelectionLines(lines, { draft: true }) || '<p style="color:#999;padding:24px 0;text-align:center">暂无选款，请先点红心</p>'}
-        </div>
-        <div class="rr-drawer-foot">
-          <button type="button" class="btn btn-primary" data-act="go:buyer-selection">查看选款单</button>
-          ${brand ? `<button type="button" class="btn btn-outline" data-act="buyer-confirm-one-brand" data-brand="${brand}">确认本品牌</button>` : ""}
-        </div>
-      </aside>
+      </div>
     </div>`;
   }
 
@@ -1927,27 +1970,48 @@
     const store = Store.db.buyerSession.store;
     const list = Store.db.selections.filter(s => s.store === store || true);
     const hearts = Store.db.buyerSession.selections;
-    return `${subTitle("我的选款单")}
-      <div class="note">按品牌独立生成。快捷选款单与详情页展示对齐现网；待确认红心款：${hearts.length}</div>
-      ${hearts.length ? `<div class="action-bar">${btn("按品牌确认选款单", "btn-primary", "buyer-confirm-hearts")}</div>` : ""}
-      <div class="order-cards">
-        ${list.map(s => `
-          <div class="order-card">
-            <div>
-              <div class="title">${s.brand} · ${s.season}</div>
-              <div class="meta">
-                <span>${s.id}</span><span>${s.skus} SKU / ${s.pieces} 件</span><span>¥${s.amount}</span>
-                <span class="badge">${s.status}</span>
+    /* 原站：selection-container > selection_list > item > selection_info */
+    return `<div class="oto-main_container buyer-fe">
+      <div class="oto_container selection-container">
+        <div class="public_left-container"><div class="filter_list filter_type"></div></div>
+        <div class="public_right-container">
+          <div class="addr-container selection_list-container">
+            <div class="sub_title">选款单</div>
+            ${hearts.length ? `<div class="action-bar">${btn("按品牌确认选款单", "btn-primary", "buyer-confirm-hearts")}</div>` : ""}
+            <div class="addr_list selection_list">
+              <div class="items">
+                ${list.map(s => `
+                  <div class="item">
+                    <div class="selection_info">
+                      <h6>${s.createdAt || s.date || "—"}</h6>
+                      <h6>${s.season}</h6>
+                      <div class="selection_brand">
+                        <div class="brand-logo-rect" style="width:40px;height:40px">${(s.brand || "").slice(0, 4)}</div>
+                        <h6>${s.brand}&nbsp;</h6>
+                      </div>
+                      <div class="selection_price">
+                        <h2 style="font-size:14px">吊牌价:¥${s.retail || s.amount}</h2>
+                        <p>¥${s.amount}</p>
+                        <p>${s.skus} SKU</p>
+                      </div>
+                      <div class="total_num"><p>总数:${s.pieces}</p></div>
+                      <div class="selection_action">
+                        ${s.locked ? "已取消" : `
+                          <a href="javascript:;" data-go="buyer-selection-edit" data-sel="${s.id}">修改</a>
+                          <span>|</span>
+                          <a href="javascript:;" data-act="download:选款单">下载</a>
+                          <span>|</span>
+                          <a href="javascript:;" data-act="buyer-confirm-sel" data-sel="${s.id}">确认订单</a>`}
+                      </div>
+                    </div>
+                  </div>`).join("") || '<div class="note">暂无选款单</div>'}
               </div>
             </div>
-            <div class="ops" style="flex-direction:column">
-              <button class="btn btn-outline btn-sm" data-go="buyer-selection-edit" data-sel="${s.id}">查看/修改详情</button>
-              <button class="btn btn-outline btn-sm" data-act="download:选款单">下载</button>
-              <button class="btn btn-primary btn-sm" data-act="buyer-confirm-sel" data-sel="${s.id}" ${s.locked ? "disabled" : ""}>确认生成订单</button>
-            </div>
-          </div>`).join("")}
+          </div>
+        </div>
       </div>
-      ${floatSelTab()}`;
+      ${floatSelTab()}
+    </div>`;
   }
 
   function pageBuyerSelectionEdit() {
@@ -1963,30 +2027,49 @@
   function pageBuyerOrders() {
     const tab = Store.db.buyerSession.orderTab || "全部";
     const list = Store.buyerOrders(tab);
-    return `${subTitle("我的订单")}
-      <div class="tabs">
-        ${["全部", "未完成", "已完成"].map(t => `<button class="${tab === t ? "on" : ""}" data-tabsoft data-order-tab="${t}">${t}</button>`).join("")}
-      </div>
-      <div class="order-cards">
-        ${list.map(o => `
-          <div class="order-card">
-            <div>
-              <div class="title">${o.brand}</div>
-              <div class="meta">
-                <span>${o.id}</span><span>下单时间 ${o.createdAt || ""}</span>
-                <span>${o.season}</span><span>${o.type}</span>
-                <span>¥${o.amount}</span><span class="badge">${o.status}</span>
+    /* 原站：order-container > left 我的订单 tabs + order_list item */
+    return `<div class="oto-main_container buyer-fe">
+      <div class="oto_container order-container">
+        <div class="public_left-container">
+          <div class="filter_list filter_type">
+            <div class="sub_title line_circle">我的订单</div>
+            <ul class="uk-tab-right items">
+              ${["全部", "已完成", "未完成"].map(t =>
+                `<li class="${tab === t ? "uk-active" : ""}"><a href="javascript:;" data-tabsoft data-order-tab="${t}">${t}</a></li>`
+              ).join("")}
+            </ul>
+          </div>
+        </div>
+        <div class="public_right-container">
+          <div class="order_list-container">
+            <div class="sub_title"><h4>我的订单</h4></div>
+            <div class="order_list">
+              <div class="items">
+                ${list.map(o => `
+                  <div class="item">
+                    <div class="order_info">
+                      ${o.type === "补货单" ? '<div class="order_type-add"><p>补货单</p></div>' : ""}
+                      <h6>订单编号:${o.id} <span></span> 下单时间:${o.createdAt || "—"} <span></span> 订货季:${o.season}</h6>
+                      <div class="order_brand">
+                        <div class="brand-logo-rect" style="width:40px;height:40px">${(o.brand || "").slice(0, 4)}</div>
+                        <h6>${o.brand}&nbsp;</h6>
+                      </div>
+                      <div class="order_state"><p>${o.status}</p><p>¥${o.amount}</p></div>
+                      <div class="order_action ops">
+                        <a href="javascript:;" class="oto_btn" data-go="buyer-order-detail" data-oid="${o.id}">查看</a>
+                        <a href="javascript:;" data-act="download:订单Excel">下载</a>
+                        ${o.status.includes("未确认") || o.status.includes("驳回")
+                          ? `<a href="javascript:;" data-go="buyer-selection-edit" data-sel="${o.fromSelection || ""}">修改</a>` : ""}
+                        <a href="javascript:;" data-act="buyer-confirm-order" data-oid="${o.id}">确认提交</a>
+                      </div>
+                    </div>
+                  </div>`).join("") || '<div class="note">暂无订单</div>'}
               </div>
             </div>
-            <div class="ops" style="flex-direction:column">
-              <button class="btn btn-outline btn-sm" data-go="buyer-order-detail" data-oid="${o.id}">查看</button>
-              <button class="btn btn-outline btn-sm" data-act="download:订单Excel">下载 Excel</button>
-              ${o.status.includes("未确认") || o.status.includes("驳回")
-                ? `<button class="btn btn-outline btn-sm" data-go="buyer-selection-edit" data-sel="${o.fromSelection || ""}">修改</button>` : ""}
-              <button class="btn btn-primary btn-sm" data-act="buyer-confirm-order" data-oid="${o.id}">确认提交</button>
-            </div>
-          </div>`).join("") || '<div class="note">暂无订单</div>'}
-      </div>`;
+          </div>
+        </div>
+      </div>
+    </div>`;
   }
 
   function pageBuyerOrderDetail() {
@@ -2428,6 +2511,12 @@
       }
       case "buyer-brand-tab": {
         Store.db.ui.buyerBrandTab = act.split(":")[1] || "intro";
+        Store.persist();
+        render();
+        break;
+      }
+      case "buyer-mine-tab": {
+        Store.db.ui.buyerMineTab = act.split(":")[1] || "info";
         Store.persist();
         render();
         break;
@@ -3016,36 +3105,38 @@
     /* 原站：brand_detail-container · 品牌介绍/LOOKBOOK · brand_info 字段 */
     const b = RR.brands.find(x => x.name === state.selectedBrand) || RR.brands[0];
     const tab = Store.db.ui.buyerBrandTab || "intro";
-    return `<div class="oto_container brand_detail-container">
-      <div class="brand_swiper-container">
-        <div class="brand-logo-rect lg" style="width:100%;max-width:400px;height:240px;margin:0 auto">${b.name}</div>
-      </div>
-      <div class="brand_detail">
-        <div class="filter_link">
-          <div class="collect_link">
-            <a href="javascript:;" class="${tab === "intro" ? "uk-active on" : ""}" data-act="buyer-brand-tab:intro">品牌介绍</a>
-            <a href="javascript:;" class="${tab === "look" ? "uk-active on" : ""}" data-act="buyer-brand-tab:look">LOOKBOOK</a>
-          </div>
-          ${tab === "intro" ? `
-            <div class="brand_info">
-              <h6 class="sub_title">品牌信息</h6>
-              <div class="uk-column-1-2 brand-info-grid">
-                <div><h5>品牌名</h5><p>${b.name}</p></div>
-                <div><h5>成立时间</h5><p>${b.year || "—"}</p></div>
-                <div><h5>官网</h5><p>${b.site || "—"}</p></div>
-                <div><h5>最小起订量</h5><p>${b.moq || Store.db.brandRules.minAmount || 50000}</p></div>
-              </div>
-              <h6 class="sub_title">品牌故事</h6>
-              <p style="color:#555;line-height:1.8">${b.about || "由平台端/品牌端在品牌信息中维护。"}</p>
-              <div class="meta" style="margin-top:16px;color:#888;font-size:13px">品类 ${b.cat || "—"} · 风格 ${b.style || "—"} · 人群 ${b.crowd || "—"}</div>
-            </div>` : `
-            <div class="lookbook-container product-grid">
-              ${(Store.db.looks || []).filter(l => !l.brand || l.brand === b.name).slice(0, 6).map(l =>
-                `<div class="product-card"><div class="cover">LOOK ${l.id}</div><div class="name">${l.title}</div></div>`
-              ).join("") || '<div class="note">暂无 LOOKBOOK</div>'}
-            </div>`}
+    return `<div class="oto-main_container buyer-fe">
+      <div class="oto_container brand_detail-container">
+        <div class="brand_swiper-container">
+          <div class="brand-logo-rect lg" style="width:100%;max-width:400px;height:240px;margin:0 auto">${b.name}</div>
         </div>
-        <div class="submit_area"><a href="javascript:;" class="oto_btn" data-act="go:buyer-brand">返回商品列表</a></div>
+        <div class="brand_detail">
+          <div class="filter_link">
+            <div class="collect_link">
+              <a href="javascript:;" class="${tab === "intro" ? "uk-active on" : ""}" data-act="buyer-brand-tab:intro">品牌介绍</a>
+              <a href="javascript:;" class="${tab === "look" ? "uk-active on" : ""}" data-act="buyer-brand-tab:look">LOOKBOOK</a>
+            </div>
+            ${tab === "intro" ? `
+              <div class="brand_info">
+                <h6 class="sub_title">品牌信息</h6>
+                <div class="uk-column-1-2 brand-info-grid">
+                  <div><h5>品牌名</h5><p>${b.name}</p></div>
+                  <div><h5>成立时间</h5><p>${b.year || "—"}</p></div>
+                  <div><h5>官网</h5><p>${b.site || "—"}</p></div>
+                  <div><h5>最小起订量</h5><p>${b.moq || Store.db.brandRules.minAmount || 50000}</p></div>
+                </div>
+                <h6 class="sub_title">品牌故事</h6>
+                <p style="color:#555;line-height:1.8">${b.about || "由平台端/品牌端在品牌信息中维护。"}</p>
+                <div class="meta" style="margin-top:16px;color:#888;font-size:13px">品类 ${b.cat || "—"} · 风格 ${b.style || "—"} · 人群 ${b.crowd || "—"}</div>
+              </div>` : `
+              <div class="lookbook-container product-grid">
+                ${(Store.db.looks || []).filter(l => !l.brand || l.brand === b.name).slice(0, 6).map(l =>
+                  `<div class="product-card"><div class="cover">LOOK ${l.id}</div><div class="name">${l.title}</div></div>`
+                ).join("") || '<div class="note">暂无 LOOKBOOK</div>'}
+              </div>`}
+          </div>
+          <div class="submit_area"><a href="javascript:;" class="oto_btn" data-act="go:buyer-brand">返回商品列表</a></div>
+        </div>
       </div>
     </div>`;
   }
@@ -3096,42 +3187,86 @@
   }
 
   function pageBuyerProfile() {
+    /* 原站 /mine：mine-container > mine_side + mine_info-container */
     const s = Store.db.buyerSession;
-    return `${subTitle("个人中心")}
-      <div class="form-section">
-        <h3>账号与店铺信息</h3>
-        <div class="form-grid">
-          <label>登录手机</label><div>${s.phone}</div>
-          <label>店铺名</label><div>${s.store}</div>
-          <label>店铺级别</label><div>${s.level}</div>
-          <label>所在城市</label><div>${s.city}</div>
+    const tab = Store.db.ui.buyerMineTab || "info";
+    return `<div class="oto-main_container buyer-fe">
+      <div class="oto_container mine-container">
+        <div class="public_left-container">
+          <ul class="mine_side">
+            <li class="${tab === "info" ? "active" : ""}"><a href="javascript:;" data-act="buyer-mine-tab:info">个人信息</a></li>
+            <li class="${tab === "addr" ? "active" : ""}"><a href="javascript:;" data-act="buyer-mine-tab:addr">收货地址管理</a></li>
+            <li class="${tab === "inv" ? "active" : ""}"><a href="javascript:;" data-act="buyer-mine-tab:inv">发票地址管理</a></li>
+          </ul>
+          <a href="javascript:;" class="mine_logout" data-act="toast:已登出（示意）">登出</a>
+        </div>
+        <div class="public_right-container">
+          <div class="mine_info-container">
+            ${tab === "info" ? `
+              <div class="account_info">
+                <div class="sub_title">登录信息</div>
+                <div>手机号: <span>${s.phone}</span></div>
+              </div>
+              <div class="shop_info">
+                <div class="sub_title">店铺信息</div>
+                <div class="items">
+                  <div class="item"><p>姓名:</p><p>${s.contact || "—"}</p></div>
+                  <div class="item"><p>店铺名称:</p><p>${s.store}</p></div>
+                  <div class="item"><p>店铺地址:</p><p>${s.city || "—"}</p></div>
+                  <div class="item"><p>店铺级别:</p><p>${s.level || "—"}</p></div>
+                </div>
+              </div>` : ""}
+            ${tab === "addr" ? `
+              <div class="sub_title">收货地址管理</div>
+              <table class="data-table">
+                <thead><tr><th>收货人</th><th>电话</th><th>地址</th><th>操作</th></tr></thead>
+                <tbody>${(s.addresses || []).map((a, i) => `<tr><td>${a.name}</td><td>${a.phone}</td><td>${a.addr}</td><td>${link("编辑", "edit-address:" + i)}</td></tr>`).join("")}</tbody>
+              </table>
+              <div style="margin-top:12px">${btn("新增地址", "btn-outline")}</div>` : ""}
+            ${tab === "inv" ? `
+              <div class="sub_title">发票地址管理</div>
+              <div class="form-grid">
+                <label>发票抬头</label><div>${field("invTitle", input("", (s.invoice && s.invoice.title) || ""))}</div>
+                <label>税号</label><div>${field("invTax", input("", (s.invoice && s.invoice.tax) || ""))}</div>
+              </div>
+              <div style="margin-top:12px">${btn("保存发票信息")}</div>` : ""}
+          </div>
         </div>
       </div>
-      <div class="form-section">
-        <h3>收货地址管理</h3>
-        <table class="data-table">
-          <thead><tr><th>收货人</th><th>电话</th><th>地址</th><th>操作</th></tr></thead>
-          <tbody>${(s.addresses || []).map((a, i) => `<tr><td>${a.name}</td><td>${a.phone}</td><td>${a.addr}</td><td>${link("编辑", "edit-address:" + i)}</td></tr>`).join("")}</tbody>
-        </table>
-        ${btn("新增地址", "btn-outline")}
-      </div>
-      <div class="form-section">
-        <h3>发票信息管理</h3>
-        <div class="form-grid">
-          <label>发票抬头</label><div>${field("invTitle", input("", (s.invoice && s.invoice.title) || ""))}</div>
-          <label>税号</label><div>${field("invTax", input("", (s.invoice && s.invoice.tax) || ""))}</div>
-        </div>
-        <div style="margin-top:12px">${btn("保存发票信息")}</div>
-      </div>`;
+    </div>`;
   }
 
   function pageBuyerReplenish() {
-    return `${subTitle("补货")}
-      <div class="note">同品牌板块结构。若无首单或上一补货未完成，确认订单时拦截。</div>
-      <div class="action-bar">
-        <button class="btn btn-outline" data-toggle-rule="first">${state.hasFirstOrder ? "模拟：无首单" : "模拟：已有首单"}</button>
+    /* 原站 /replenish：与首页同构 brand_list-container，侧栏分类 + 品牌格子；侧边栏文案为「我的补货单」 */
+    const brands = Store.buyerBrands(Store.db.buyerSession.cat || "全部");
+    syncBuyerCart();
+    return `<div class="oto-main_container buyer-fe">
+      <div class="oto_container brand_list-container">
+        ${buyerCatSide(`<div class="note" style="margin-top:16px;font-size:12px">无首单或上一补货未完成时，确认订单拦截。<br/><a href="javascript:;" data-toggle-rule="first">${state.hasFirstOrder ? "模拟：无首单" : "模拟：已有首单"}</a></div>`)}
+        <div class="public_right-container">
+          <div class="mob-sub_title"><h5>补货品牌</h5></div>
+          <div class="brand_list">
+            <div class="items uk-grid-medium brand-grid-live">
+              ${brands.map(b => {
+                const noAuth = b.accept === false;
+                return `<div class="item">
+                  <div class="item_inner">
+                    ${noAuth ? '<div class="accept_state">暂无权限</div>' : ""}
+                    <a href="javascript:;" data-go="buyer-brand" data-brand="${b.name}">
+                      <div class="brand-logo-rect">${b.name}</div>
+                      <p>${b.name}</p>
+                    </a>
+                    ${noAuth ? '<div class="get_accept" data-act="toast:已提交权限申请">申请权限</div>' : ""}
+                  </div>
+                </div>`;
+              }).join("") || '<div class="note">该分类下暂无品牌</div>'}
+            </div>
+          </div>
+        </div>
       </div>
-      ${pageBuyerHome()}`;
+      <div class="public_side_bg"></div>
+      ${floatSelTab("我的补货单")}
+    </div>`;
   }
 
   function pageMP() {
@@ -3263,12 +3398,14 @@
       body = `<div class="brand_goodsList-container">${body}</div>`;
     }
     const drawer = (isBuyer && state.cartOpen) ? cartDrawer() : "";
-    /* 原站壳：ots_order-outer > oto-main_container > oto_container > public_left + public_right */
+    /* 买手端页面自带 oto-main_container（对齐原站），勿再包 order-container 壳 */
     if (isBuyer) {
+      const selfShell = /oto-main_container|buyer-fe/.test(body);
+      if (!selfShell) {
+        body = `<div class="oto-main_container buyer-fe"><div class="oto_container order-container"><div class="public_right-container main">${body}</div></div></div>`;
+      }
       app.innerHTML = toastHtml() + protoBar() + topnav("buyer") +
-        `<div class="ots_order-outer-container"><div class="oto-main_container"><div class="oto_container order-container shell full-main">
-          <div class="public_right-container main">${body}</div>
-        </div></div></div>` + footer() + drawer;
+        `<div class="ots_order-outer-container">${body}</div>` + footer() + drawer;
     } else {
       const side = sidebar();
       app.innerHTML = toastHtml() + protoBar() + topnav(state.portal) +

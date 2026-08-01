@@ -4,7 +4,7 @@
 > 对照现网：`https://order.roomroom.com.cn/`  
 > 原型发布：`https://cryangle0.github.io/Room/`  
 > Store：`rr_biz_v5`  
-> 更新：2026-07-31（控件对齐：下拉 / 日期）
+> 更新：2026-08-01（买手 C 端 HTML 严格对齐现网 DOM）
 
 ## 总览（相对 Excel）
 
@@ -59,6 +59,13 @@
 | 发货入口 | 先品牌列表再进发货单 |
 | 买手列表 | `title_underline` + 级别/手机/店/省/市/品牌筛 + `ots_order-invite-detail` |
 | 买手品牌介绍 | `brand_detail-container` · 品牌介绍/LOOKBOOK |
+| **买手 C 端壳** | `header.oto-nav` + `nav_menu`(品牌/补货/选款单/订单) + `login_area` |
+| **买手首页/补货** | `brand_list-container` + `filter_type` 分类筛选 + `item_inner` 品牌格 |
+| **买手商品列表** | `brand_info` + `sku_box` + `season_filter` + `searchCarry` + `goods_list`/`brand_like` |
+| **买手选款单** | `selection-container` / `selection_list` / `selection_info`（修改\|下载\|确认订单） |
+| **买手订单** | `order-container` 左「全部/已完成/未完成」+ `order_list`/`order_info` |
+| **买手个人中心** | `mine-container` + `mine_side`（个人信息/地址/发票） |
+| **快捷选款侧栏** | `side_action` + `selection_side-container` / `balck_bg` |
 | 实时汇总 | 标题「汇总」；状态枚举对齐现网 |
 | 预约列表 | 品牌 select + 店铺 text；日期/时间/人数/签到列 |
 
@@ -107,7 +114,8 @@
 
 - 与现网截图像素级一致：未做  
 - 金蝶对接 / LOOK 业务待定 / 「添加品牌」需求不清：未做  
-- 买手端商品目录现网需买手账号；本轮对齐了品牌介绍 DOM，目录/选款仍按 Excel #12–#14 已通结构  
+- 买手 C 端已按现网 HTML（买手登录后抓取）对齐 DOM class/结构；像素级未做  
+
 - #10 买手维列名「补货/下单」语义：待客户确认（功能双维+展开已通）
 
 ---
@@ -131,3 +139,4 @@
 | `e29cd7a` | #6 修改、#7 回列表、选款可加款数据；Excel 全量 MCP 19/19 |
 | `8c32e23` / `c393160` | 管理端壳/筛选/侧栏 HTML 对齐 |
 | （本轮） | 表单字段级 HTML：商品/品牌设置/合同收款/季节/买手列表/发货入口/买手品牌介绍 |
+| （本轮） | 买手 C 端严格对齐：oto-nav / brand_list / goods_list / selection / order / mine / side_action |
