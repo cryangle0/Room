@@ -135,7 +135,10 @@ def main() -> None:
             asset_map[raw] = destination
             asset_map[raw.split("?", 1)[0]] = destination
             source_records.append((absolute_url, destination))
-        css_path.write_text(rewrite_css(text, css_path, asset_map), encoding="utf-8")
+        localized_css = rewrite_css(text, css_path, asset_map)
+        if asset_map:
+            localized_css = localized_css.rstrip() + "\n"
+        css_path.write_text(localized_css, encoding="utf-8")
 
     append_sources(source_records)
     print(
