@@ -400,8 +400,8 @@
             ${items.map(([id, lab, on]) => `<li class="${on ? "active" : ""}"><a href="javascript:;" data-go="${id}">${lab}</a></li>`).join("")}
           </ul>
           <div class="login_area">
-            <a class="bell_tip" href="javascript:;" data-go="buyer-message"><span class="iconfont ots_icon-tongzhi">🔔</span></a>
-            <a class="nav_person" href="javascript:;" data-go="buyer-profile"><span class="iconfont ots_icon-person">👤</span></a>
+            <a class="bell_tip" href="javascript:;" data-go="buyer-message" title="消息"><span class="iconfont ots_icon-tongzhi"></span></a>
+            <a class="nav_person" href="javascript:;" data-go="buyer-profile" title="个人中心"><span class="iconfont ots_icon-person"></span></a>
           </div>
         </div>
       </header>`;
@@ -1883,7 +1883,7 @@
         ${list.map(g => `
           <div class="item">
             <div class="item_inner">
-              <div class="brand_like goods_check ${state.hearts.includes(g.sku) ? "has_checked heart_stay" : "no_checked"}" data-heart="${g.sku}">♥</div>
+              <div class="brand_like goods_check ${state.hearts.includes(g.sku) ? "has_checked heart_stay" : "no_checked"}" data-heart="${g.sku}"><span class="iconfont ${state.hearts.includes(g.sku) ? "ots_icon-heart" : "ots_icon-heart-o"}"></span></div>
               <a href="javascript:;" data-go="buyer-detail" data-sku="${g.sku}">
                 <div class="cover">LOOK</div>
                 <p>${g.title}</p>
@@ -1898,14 +1898,14 @@
         ${list.map(g => `
           <div class="item item_small">
             <div class="item_inner item_sku">
-              <div class="brand_like goods_check ${state.hearts.includes(g.sku) ? "has_checked" : "no_checked"}" data-heart="${g.sku}">♥</div>
+              <div class="brand_like goods_check ${state.hearts.includes(g.sku) ? "has_checked" : "no_checked"}" data-heart="${g.sku}"><span class="iconfont ${state.hearts.includes(g.sku) ? "ots_icon-heart" : "ots_icon-heart-o"}"></span></div>
               <div class="sku_item" data-go="buyer-detail" data-sku="${g.sku}"><p></p><p>${g.code || g.sku.slice(-3)}</p></div>
             </div>
           </div>`).join("") || '<div class="note">无匹配商品</div>'}
       </div>`;
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container brand_list-container">
-        ${buyerCatSide(`<div style="margin-top:16px"><a href="javascript:;" data-act="go:buyer-home">← 返回品牌列表</a></div>`)}
+        ${buyerCatSide(`<div style="margin-top:16px"><a href="javascript:;" data-act="go:buyer-home">返回品牌列表</a></div>`)}
         <div class="public_right-container">
           <div class="mob-sub_title"><h5>商品列表</h5></div>
           <div class="brand_info">
@@ -1916,8 +1916,8 @@
             </div>
           </div>
           <div class="sku_box">
-            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "code" ? "on" : ""}" data-view="code" title="编码视图">☰</button>
-            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "image" ? "on" : ""}" data-view="image" title="图片视图">▦</button>
+            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "code" ? "on" : ""}" data-view="code" title="编码视图"><span class="filter_icon view-list ${state.viewMode === "code" ? "active" : ""}"></span></button>
+            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "image" ? "on" : ""}" data-view="image" title="图片视图"><span class="filter_icon view-thumbs ${state.viewMode === "image" ? "active" : ""}"></span></button>
           </div>
           <div class="brand_list goods_list">
             <div class="season_filter uk-margin-medium-bottom">
@@ -1926,7 +1926,7 @@
             <div class="searchCarry">
               <div class="search_box">
                 ${field("buyerSearch", input("search", s.search || ""))}
-                <button type="button" data-act="buyer-filter"><span>🔍</span></button>
+                <button type="button" data-act="buyer-filter" title="搜索"><span class="iconfont ots_icon-search"></span></button>
               </div>
               <div class="carry_filter">
                 <div><input class="uk-checkbox" type="checkbox" id="carry" data-field="buyerCarry" ${s.carryOnly ? "checked" : ""} /><label for="carry">Carry Over</label></div>
@@ -1951,7 +1951,7 @@
     return `<div class="rr-drawer-root">
       <div class="balck_bg rr-drawer-mask" data-toggle-cart></div>
       <div class="selection_side-container active rr-drawer rr-drawer-wide" role="dialog" aria-label="快捷选款单">
-        <div class="side_cancel" data-toggle-cart>×</div>
+        <div class="side_cancel" data-toggle-cart title="关闭"><span class="close-x"></span></div>
         <div class="selection_detail-list selection_side">
           <div class="sub_title">${state.page === "buyer-replenish" ? "我的补货单" : "我的选款单"}(件数：${q.pieces},SKU数：${draft.items.length})</div>
           <div class="selection_brand">

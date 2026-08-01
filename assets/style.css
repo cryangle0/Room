@@ -951,8 +951,41 @@ header.oto-nav.buyer-oto-nav .login_area a:hover { color: var(--rr-purple); }
   position: absolute; top: 8px; right: 8px; z-index: 2;
   width: 28px; height: 28px; border: none; background: transparent;
   color: #ccc; font-size: 18px; cursor: pointer; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
 }
 .buyer-fe .brand_like.has_checked { color: #e11d48; }
+.buyer-fe .brand_like .iconfont { font-size: 18px; pointer-events: none; }
+header.oto-nav.buyer-oto-nav .login_area .iconfont { font-size: 20px; color: inherit; }
+.buyer-fe .sku_box .filter_icon {
+  display: inline-block; width: 18px; height: 18px; vertical-align: middle;
+  border: 1.5px solid currentColor; opacity: 0.55;
+}
+.buyer-fe .sku_box .filter_icon.active { opacity: 1; color: var(--rr-purple); }
+.buyer-fe .sku_box .filter_icon.view-list {
+  background:
+    linear-gradient(currentColor, currentColor) 3px 4px / 12px 1.5px no-repeat,
+    linear-gradient(currentColor, currentColor) 3px 8px / 12px 1.5px no-repeat,
+    linear-gradient(currentColor, currentColor) 3px 12px / 12px 1.5px no-repeat;
+}
+.buyer-fe .sku_box .filter_icon.view-thumbs {
+  background:
+    linear-gradient(currentColor, currentColor) 3px 3px / 5px 5px no-repeat,
+    linear-gradient(currentColor, currentColor) 10px 3px / 5px 5px no-repeat,
+    linear-gradient(currentColor, currentColor) 3px 10px / 5px 5px no-repeat,
+    linear-gradient(currentColor, currentColor) 10px 10px / 5px 5px no-repeat;
+  border: none; width: 18px; height: 18px;
+}
+.selection_side-container .side_cancel .close-x {
+  display: inline-block; width: 16px; height: 16px; position: relative;
+}
+.selection_side-container .side_cancel .close-x::before,
+.selection_side-container .side_cancel .close-x::after {
+  content: ""; position: absolute; left: 7px; top: 0;
+  width: 2px; height: 16px; background: #999;
+}
+.selection_side-container .side_cancel .close-x::before { transform: rotate(45deg); }
+.selection_side-container .side_cancel .close-x::after { transform: rotate(-45deg); }
+.buyer-fe .search_box .ots_icon-search { font-size: 16px; color: #666; }
 .buyer-fe .code-grid-live {
   display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px;
 }
