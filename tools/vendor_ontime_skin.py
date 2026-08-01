@@ -187,6 +187,7 @@ def main() -> None:
             source_records.append((absolute_url, destination))
         localized_css = rewrite_imports(text, css_url, css_path, css_map)
         localized_css = rewrite_css(localized_css, css_path, asset_map)
+        localized_css = re.sub(r"[ \t]+(?=\r?$)", "", localized_css, flags=re.MULTILINE)
         if asset_map:
             localized_css = localized_css.rstrip() + "\n"
         css_path.write_text(localized_css, encoding="utf-8")
