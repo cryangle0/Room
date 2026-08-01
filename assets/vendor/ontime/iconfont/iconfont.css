@@ -1,0 +1,71 @@
+@font-face {
+  font-family: "iconfont"; /* Project id 2801692 */
+  src: url(iconfont-bb2fdd74c5.woff2) format('woff2'),
+       url(iconfont-48defa9673.woff) format('woff'),
+       url(iconfont-35bb8d0e14.ttf) format('truetype');
+}
+
+.iconfont {
+  font-family: "iconfont" !important;
+  font-size: 16px;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.ots_icon-filter:before {
+  content: "\e62b";
+}
+
+.ots_icon-noeye:before {
+  content: "\e619";
+}
+
+.ots_icon-eye:before {
+  content: "\e618";
+}
+
+.ots_icon-right:before {
+  content: "\e616";
+}
+
+.ots_icon-del1:before {
+  content: "\e614";
+}
+
+.ots_icon-down:before {
+  content: "\e613";
+}
+
+.ots_icon-heart:before {
+  content: "\e612";
+}
+
+.ots_icon-heart-o:before {
+  content: "\e611";
+}
+
+.ots_icon-info:before {
+  content: "\e60f";
+}
+
+.ots_icon-edit:before {
+  content: "\e60e";
+}
+
+.ots_icon-contact:before {
+  content: "\e60c";
+}
+
+.ots_icon-search:before {
+  content: "\e6ac";
+}
+
+.ots_icon-person:before {
+  content: "\e609";
+}
+
+.ots_icon-tongzhi:before {
+  content: "\e6ff";
+}
+
