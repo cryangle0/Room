@@ -56,7 +56,9 @@
       color: g.color || ["藏青", "黑色", "米白", "灰色", "卡其", "酒红"][idx % 6],
       code: g.code || String(100 + (idx % 90)).padStart(3, "0"),
       sampleSize: g.sampleSize || (g.sizes && g.sizes[0]) || "M",
-      goodsType: inferGoodsType({ ...g, cat })
+      goodsType: inferGoodsType({ ...g, cat }),
+      carry: !!g.carry,
+      isNew: g.isNew != null ? !!g.isNew : idx % 5 === 0
     };
   }
 
@@ -278,6 +280,7 @@
         season: "全部",
         search: "",
         carryOnly: false,
+        newOnly: false,
         orderTab: "全部",
         addresses: [{ name: "王女士", phone: "13681383088", addr: "北京市朝阳区…" }],
         invoice: { title: "Liora Amour 商贸有限公司", tax: "" },
@@ -333,6 +336,14 @@
       if (!merged.stylesMaster) merged.stylesMaster = base.stylesMaster;
       if (!merged.crowdsMaster) merged.crowdsMaster = base.crowdsMaster;
       if (!merged.catsMaster) merged.catsMaster = base.catsMaster;
+      if (merged.buyerSession.newOnly == null) merged.buyerSession.newOnly = false;
+      if (Array.isArray(merged.goods)) {
+        merged.goods = merged.goods.map((g, i) => ({
+          ...g,
+          carry: !!g.carry,
+          isNew: g.isNew != null ? !!g.isNew : i % 5 === 0
+        }));
+      }
       if (merged.brandProfile && !Array.isArray(merged.brandProfile.cats)) {
         const b = merged.brandProfile;
         merged.brandProfile = {
@@ -1096,6 +1107,7 @@
         if (brand && g.brand !== brand) return false;
         if (s.season && s.season !== "全部" && g.season !== s.season) return false;
         if (s.carryOnly && !g.carry) return false;
+        if (s.newOnly && !g.isNew) return false;
         if (s.search) {
           const q = s.search.toLowerCase();
           const code = String(g.code || "").toLowerCase();

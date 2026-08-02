@@ -1922,13 +1922,18 @@
     }
     syncBuyerCart();
     state.cartBrandFilter = brand;
-    const imageView = `<div class="items uk-grid-medium product-grid">
-        ${list.map(g => `
+    /* 原站：图片视图分页；编号(list)视图一次展示全量 */
+    const pageSize = 12;
+    const paged = state.viewMode === "image" ? pageSlice(list, pageSize) : list;
+    const listIcon = `<svg class="filter_icon view-list ${state.viewMode === "code" ? "active" : ""}" width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="4" width="16" height="1.8" fill="currentColor"/><rect x="2" y="9" width="16" height="1.8" fill="currentColor"/><rect x="2" y="14" width="16" height="1.8" fill="currentColor"/></svg>`;
+    const thumbsIcon = `<svg class="filter_icon view-thumbs ${state.viewMode === "image" ? "active" : ""}" width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="2" width="7" height="7" fill="currentColor"/><rect x="11" y="2" width="7" height="7" fill="currentColor"/><rect x="2" y="11" width="7" height="7" fill="currentColor"/><rect x="11" y="11" width="7" height="7" fill="currentColor"/></svg>`;
+    const imageView = `<div class="items uk-grid-medium product-grid uk-child-width-1-2 uk-child-width-1-3@m uk-child-width-1-4@l">
+        ${paged.map(g => `
           <div class="item">
             <div class="item_inner">
               <div class="brand_like goods_check ${state.hearts.includes(g.sku) ? "has_checked heart_stay" : "no_checked"}" data-heart="${g.sku}"><span class="iconfont ${state.hearts.includes(g.sku) ? "ots_icon-heart" : "ots_icon-heart-o"}"></span></div>
               <a href="javascript:;" data-go="buyer-detail" data-sku="${g.sku}">
-                <div class="cover">LOOK</div>
+                <div class="cover">${g.isNew ? '<span class="badge-new">New</span>' : ""}LOOK</div>
                 <p>${g.title}</p>
                 <p>${g.sku}</p>
                 <p>${g.code || ""}</p>
@@ -1936,7 +1941,8 @@
               </a>
             </div>
           </div>`).join("") || '<div class="note">无匹配商品</div>'}
-      </div>`;
+      </div>
+      ${list.length ? pagination(list.length, pageSize) : ""}`;
     const codeView = `<div class="items uk-grid-small code-grid-live">
         ${list.map(g => `
           <div class="item item_small">
@@ -1959,8 +1965,8 @@
             </div>
           </div>
           <div class="sku_box">
-            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "code" ? "on" : ""}" data-view="code" title="编码视图"><span class="filter_icon view-list ${state.viewMode === "code" ? "active" : ""}"></span></button>
-            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "image" ? "on" : ""}" data-view="image" title="图片视图"><span class="filter_icon view-thumbs ${state.viewMode === "image" ? "active" : ""}"></span></button>
+            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "code" ? "on" : ""}" data-view="code" title="列表/编号视图">${listIcon}</button>
+            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "image" ? "on" : ""}" data-view="image" title="网格/图片视图">${thumbsIcon}</button>
           </div>
           <div class="brand_list goods_list">
             <div class="season_filter uk-margin-medium-bottom">
@@ -1972,6 +1978,7 @@
                 <button type="button" data-act="buyer-filter" title="搜索"><span class="iconfont ots_icon-search"></span></button>
               </div>
               <div class="carry_filter">
+                <div><input class="uk-checkbox" type="checkbox" id="goodsNew" data-field="buyerNew" ${s.newOnly ? "checked" : ""} /><label for="goodsNew">New</label></div>
                 <div><input class="uk-checkbox" type="checkbox" id="carry" data-field="buyerCarry" ${s.carryOnly ? "checked" : ""} /><label for="carry">Carry Over</label></div>
               </div>
             </div>
@@ -2554,6 +2561,7 @@
     }
     if (act.startsWith("season:")) {
       Store.db.buyerSession.season = act.slice("season:".length);
+      state.listPage = 1;
       Store.persist();
       render();
       return;
@@ -3151,6 +3159,8 @@
         if (f.buyerSeason) Store.db.buyerSession.season = f.buyerSeason;
         Store.db.buyerSession.search = f.buyerSearch || "";
         Store.db.buyerSession.carryOnly = !!document.querySelector('[data-field="buyerCarry"]:checked');
+        Store.db.buyerSession.newOnly = !!document.querySelector('[data-field="buyerNew"]:checked');
+        state.listPage = 1;
         Store.persist();
         render();
         toast("已搜索（名称 / SKU / 编号）");
@@ -3792,6 +3802,17 @@
     app.querySelectorAll("[data-view]").forEach(el => {
       el.addEventListener("click", () => {
         state.viewMode = el.getAttribute("data-view");
+        if (state.viewMode === "image") state.listPage = 1;
+        render();
+      });
+    });
+    /* New / Carry 勾选即时筛选（对齐现网 change_new / change_carry） */
+    app.querySelectorAll('[data-field="buyerNew"], [data-field="buyerCarry"]').forEach(el => {
+      el.addEventListener("change", () => {
+        Store.db.buyerSession.newOnly = !!document.querySelector('[data-field="buyerNew"]:checked');
+        Store.db.buyerSession.carryOnly = !!document.querySelector('[data-field="buyerCarry"]:checked');
+        state.listPage = 1;
+        Store.persist();
         render();
       });
     });
