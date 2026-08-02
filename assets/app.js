@@ -1947,10 +1947,10 @@
         ${list.map(g => `
           <div class="item item_small">
             <div class="item_inner item_sku">
-              <div class="brand_like goods_check ${state.hearts.includes(g.sku) ? "has_checked" : "no_checked"}" data-heart="${g.sku}"><span class="iconfont ${state.hearts.includes(g.sku) ? "ots_icon-heart" : "ots_icon-heart-o"}"></span></div>
-              <div class="sku_item" data-go="buyer-detail" data-sku="${g.sku}"><p></p><p>${g.code || g.sku.slice(-3)}</p></div>
+              <div class="brand_like goods_check ${state.hearts.includes(g.sku) ? "has_checked heart_stay" : "no_checked"}" data-heart="${g.sku}" title="选款"><span class="heart-mark">${state.hearts.includes(g.sku) ? "♥" : "♡"}</span></div>
+              <div class="sku_item" data-go="buyer-detail" data-sku="${g.sku}"><p class="sku_code">${g.code || g.sku.slice(-3)}</p></div>
             </div>
-          </div>`).join("") || '<div class="note">无匹配商品</div>'}
+          </div>`).join("") || '<div class="note">无匹配商品（可取消 New / Carry Over 筛选）</div>'}
       </div>`;
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container brand_list-container">
@@ -1965,8 +1965,8 @@
             </div>
           </div>
           <div class="sku_box">
-            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "code" ? "on" : ""}" data-view="code" title="列表/编号视图">${listIcon}</button>
-            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "image" ? "on" : ""}" data-view="image" title="网格/图片视图">${thumbsIcon}</button>
+            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "code" ? "on" : ""}" data-view="code" title="编号视图（原站列表图标）">${listIcon}</button>
+            <button type="button" class="uk-button uk-button-link icon-btn ${state.viewMode === "image" ? "on" : ""}" data-view="image" title="图片视图（原站缩略图图标）">${thumbsIcon}</button>
           </div>
           <div class="brand_list goods_list">
             <div class="season_filter uk-margin-medium-bottom">

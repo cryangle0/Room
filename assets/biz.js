@@ -338,10 +338,15 @@
       if (!merged.catsMaster) merged.catsMaster = base.catsMaster;
       if (merged.buyerSession.newOnly == null) merged.buyerSession.newOnly = false;
       if (Array.isArray(merged.goods)) {
+        const have = new Set(merged.goods.map(g => g.sku));
+        (base.goods || []).forEach(g => {
+          if (!have.has(g.sku)) merged.goods.push(clone(g));
+        });
         merged.goods = merged.goods.map((g, i) => ({
           ...g,
           carry: !!g.carry,
-          isNew: g.isNew != null ? !!g.isNew : i % 5 === 0
+          isNew: g.isNew != null ? !!g.isNew : i % 5 === 0,
+          code: g.code || enrichGoods(g, i).code
         }));
       }
       if (merged.brandProfile && !Array.isArray(merged.brandProfile.cats)) {

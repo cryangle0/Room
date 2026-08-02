@@ -96,6 +96,23 @@ window.RR = {
     { sku: "IH27PS048", brand: "IAN HYLTON", season: "2027PS", title: "针织开衫", sizes: ["S", "M", "L"], retail: "3,980.00", wholesale: "1,791.00", status: "正常" },
     { sku: "IH27PS056", brand: "IAN HYLTON", season: "2027PS", title: "羊毛西裤", sizes: ["S", "M", "L"], retail: "3,680.00", wholesale: "1,656.00", status: "正常" },
     { sku: "IH27PS062", brand: "IAN HYLTON", season: "2027PS", title: "丝质吊带", sizes: ["XS", "S", "M"], retail: "2,480.00", wholesale: "1,116.00", status: "正常" },
+    /* 补足编号视图密度（对齐原站 list 密排） */
+    ...Array.from({ length: 41 }, (_, i) => {
+      const n = 70 + i;
+      const retail = 2200 + (i % 9) * 480;
+      return {
+        sku: `IH27PS${String(n).padStart(3, "0")}`,
+        brand: "IAN HYLTON",
+        season: "2027PS",
+        title: `样衣款 ${n}`,
+        sizes: i % 3 === 0 ? ["XS", "S", "M"] : ["S", "M", "L"],
+        retail: retail.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        wholesale: (retail * 0.45).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        status: "正常",
+        carry: i % 4 === 0,
+        code: String(135 + i)
+      };
+    }),
     { sku: "HD27PS008", brand: "HIDEMI", season: "2027PS", title: "极简吊带", sizes: ["XS", "S", "M"], retail: "2,200.00", wholesale: "990.00", status: "正常" },
     { sku: "HD27PS019", brand: "HIDEMI", season: "2027PS", title: "直筒长裤", sizes: ["S", "M", "L"], retail: "2,800.00", wholesale: "1,260.00", status: "正常" },
     { sku: "KH26SS002", brand: "KHIHO", season: "2026SS", title: "金属链条包", sizes: ["均码"], retail: "3,680.00", wholesale: "1,656.00", status: "正常" },

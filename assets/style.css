@@ -1004,12 +1004,28 @@ header.oto-nav.buyer-oto-nav .login_area .iconfont { font-size: 20px; color: inh
 .selection_side-container .side_cancel .close-x::before { transform: rotate(45deg); }
 .selection_side-container .side_cancel .close-x::after { transform: rotate(-45deg); }
 .buyer-fe .search_box .ots_icon-search { font-size: 16px; color: #666; }
+/* 原站 list 图标 = 编号/alias 密排（item_small），不是明细表 */
 .buyer-fe .code-grid-live {
-  display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px;
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 10px;
+  margin-top: 8px;
 }
-.buyer-fe .item_small .item_inner {
-  min-height: 72px; align-items: center; justify-content: center; text-align: center;
+.buyer-fe .code-grid-live .item_small .item_inner.item_sku {
+  min-height: 0; aspect-ratio: 1; padding: 8px;
+  align-items: center; justify-content: center; text-align: center;
+  border: 1px solid #e8e8e8; background: #fff;
 }
+.buyer-fe .code-grid-live .sku_item {
+  cursor: pointer; width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+}
+.buyer-fe .code-grid-live .sku_code {
+  margin: 0; font-size: 15px; font-weight: 600; color: #333; letter-spacing: 0.02em;
+}
+.buyer-fe .code-grid-live .brand_like.goods_check {
+  top: 4px; right: 4px; width: 22px; height: 22px; color: #ccc;
+}
+.buyer-fe .code-grid-live .brand_like.has_checked { color: #e11d48; }
+.buyer-fe .code-grid-live .heart-mark { font-size: 14px; line-height: 1; pointer-events: none; }
 .buyer-fe .sku_item { cursor: pointer; font-weight: 600; }
 
 .buyer-fe .selection_list .item,
