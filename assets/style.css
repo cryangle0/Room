@@ -720,15 +720,20 @@ a.oto_btn:hover { background: var(--rr-purple-soft); }
   justify-content: center;
 }
 .brand-logo-rect {
-  width: 100%; flex: 1; display: flex; align-items: center; justify-content: center;
+  width: 100%; display: flex; align-items: center; justify-content: center;
   font-size: 15px; font-weight: 700; letter-spacing: 0.04em; text-align: center;
-  background: #f7f7f7; min-height: 64px;
+  background: #f7f7f7;
   /* Excel #17：品牌卡竖版高宽比 */
   aspect-ratio: 3 / 4;
+  height: auto;
+  flex: 0 0 auto;
+  min-height: 0;
 }
-.brand-logo-rect.lg { min-height: 120px; width: 180px; flex: 0 0 180px; font-size: 18px; aspect-ratio: 3 / 4; }
+.brand-logo-rect.lg {
+  min-height: 0; width: 180px; flex: 0 0 180px; font-size: 18px; aspect-ratio: 3 / 4;
+}
 .buyer-fe .brand_list .item_inner > a .brand-logo-rect {
-  aspect-ratio: 3 / 4; width: 100%; min-height: 0;
+  aspect-ratio: 3 / 4; width: 100%; height: auto; flex: none; min-height: 0;
 }
 .goods-thumb {
   width: 56px; height: 74px; background: #f0f0f0; color: #bbb;
