@@ -945,10 +945,16 @@ header.oto-nav.buyer-oto-nav .nav_menu a {
 header.oto-nav.buyer-oto-nav .nav_menu li.active a,
 header.oto-nav.buyer-oto-nav .nav_menu a:hover { color: var(--rr-purple); }
 header.oto-nav.buyer-oto-nav .login_area {
-  margin-left: auto; display: flex; align-items: center; gap: 14px;
+  margin-left: auto; display: flex; align-items: center; gap: 16px;
 }
-header.oto-nav.buyer-oto-nav .login_area a { color: #fff; font-size: 16px; }
+header.oto-nav.buyer-oto-nav .login_area a {
+  color: #fff; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; line-height: 1; position: relative;
+}
 header.oto-nav.buyer-oto-nav .login_area a:hover { color: var(--rr-purple); }
+header.oto-nav.buyer-oto-nav .login_area .nav-ico {
+  display: block; width: 20px; height: 20px; flex-shrink: 0;
+}
 
 .buyer-fe .brand_list-container,
 .buyer-fe .selection-container,
@@ -1054,7 +1060,6 @@ header.oto-nav.buyer-oto-nav .login_area a:hover { color: var(--rr-purple); }
 }
 .buyer-fe .brand_like.has_checked { color: #e11d48; }
 .buyer-fe .brand_like .iconfont { font-size: 18px; pointer-events: none; }
-header.oto-nav.buyer-oto-nav .login_area .iconfont { font-size: 20px; color: inherit; }
 .buyer-fe .sku_box .filter_icon {
   display: inline-block; width: 18px; height: 18px; vertical-align: middle;
   opacity: 0.45; color: #666;

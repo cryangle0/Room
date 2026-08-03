@@ -402,8 +402,13 @@
             ${items.map(([id, lab, on]) => `<li class="${on ? "active" : ""}"><a href="javascript:;" data-go="${id}">${lab}</a></li>`).join("")}
           </ul>
           <div class="login_area">
-            <a class="bell_tip" href="javascript:;" data-go="buyer-message" title="消息"><span class="iconfont ots_icon-tongzhi"></span>${Store.unreadMessageCount() ? `<i class="msg-badge">${Store.unreadMessageCount()}</i>` : ""}</a>
-            <a class="nav_person" href="javascript:;" data-go="buyer-profile" title="个人中心"><span class="iconfont ots_icon-person"></span></a>
+            <a class="bell_tip" href="javascript:;" data-go="buyer-message" title="消息通知" aria-label="消息通知">
+              <svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 22a2.2 2.2 0 0 0 2.2-2.2h-4.4A2.2 2.2 0 0 0 12 22zm7-5.2V11a7 7 0 0 0-5-6.7V3.8a2 2 0 1 0-4 0v.5A7 7 0 0 0 5 11v5.8L3.4 18.4A1 1 0 0 0 4.1 20h15.8a1 1 0 0 0 .7-1.6L19 16.8z"/></svg>
+              ${Store.unreadMessageCount() ? `<i class="msg-badge">${Store.unreadMessageCount()}</i>` : ""}
+            </a>
+            <a class="nav_person" href="javascript:;" data-go="buyer-profile" title="个人中心" aria-label="个人中心">
+              <svg class="nav-ico" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0-4.5-4.5A4.5 4.5 0 0 0 12 12zm0 2.2c-3.6 0-8 1.8-8 5.3V21a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1.5c0-3.5-4.4-5.3-8-5.3z"/></svg>
+            </a>
           </div>
         </div>
       </header>`;
