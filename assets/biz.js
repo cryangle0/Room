@@ -116,7 +116,8 @@
         discountLabel: o.brand === "KHIHO" ? "服饰:4.4折 / 配饰:4.4折" : "服饰:4.5折 / 配饰:5.0折",
         retailAmount: money(parseMoney(o.amount) / 0.45),
         lines: linesForBrand(o.brand).map((l, j) => ({
-          sku: l.sku, title: l.title, sizes: clone(l.sizes), price: parseMoney(l.price), discount: 1, retail: parseMoney(l.retail), goodsType: l.goodsType
+          sku: l.sku, title: l.title, sizes: clone(l.sizes), price: parseMoney(l.price), discount: 1,
+          retail: parseMoney(l.retail), goodsType: l.goodsType, color: l.color, code: l.code, sampleSize: l.sampleSize
         })),
         createdAt: o.createdAt || ["2026-03-20 10:00", "2026-07-29 12:46", "2026-07-15 10:40"][oi % 3]
       })),
@@ -236,6 +237,15 @@
       ],
       catsMaster: ["女装", "男装", "男女装", "配饰", "生活方式"],
       fairs: Object.fromEntries((RR.seasons || []).map(s => [s, { first: true, replenish: true }])),
+      orderingFairs: [
+        { id: "FAIR-2027PS", name: "2027 Pre-Spring 订货会", season: "2027PS", cover: true, intro: "春季订货会图文介绍（展示位置待确认）", createdAt: "2026-06-01" },
+        { id: "FAIR-2026SS", name: "2026 Spring/Summer 订货会", season: "2026SS", cover: true, intro: "夏季订货会说明", createdAt: "2025-11-12" }
+      ],
+      buyerMessages: [
+        { id: "m1", title: "订单状态更新", time: "2026-07-28 10:20", body: "您的选款单已生成订单，请及时确认。", read: false },
+        { id: "m2", title: "品牌权限通过", time: "2026-07-20 15:01", body: "您申请的品牌权限已通过。", read: true },
+        { id: "m3", title: "系统通知", time: "2026-07-18 09:12", body: "新订货会已开放，欢迎选款。", read: false }
+      ],
       payInfo: { account: "ROOMROOM 贸易有限公司", bank: "招商银行上海分行", no: "1219 **** **** 8899", sealContract: true, sealOc: true },
       contractSettings: { season: "2026SS", type: "经销", cycle: "45-60天", contact: "张经理", phone: "13800001111", email: "contract@roomroom.com", signDate: "2026-03-01", authStart: "2026-03-01", authEnd: "2026-09-30" },
       brandProfile: (() => {
@@ -336,6 +346,8 @@
       if (!merged.stylesMaster) merged.stylesMaster = base.stylesMaster;
       if (!merged.crowdsMaster) merged.crowdsMaster = base.crowdsMaster;
       if (!merged.catsMaster) merged.catsMaster = base.catsMaster;
+      if (!merged.orderingFairs) merged.orderingFairs = clone(base.orderingFairs || []);
+      if (!merged.buyerMessages) merged.buyerMessages = clone(base.buyerMessages || []);
       if (merged.buyerSession.newOnly == null) merged.buyerSession.newOnly = false;
       if (Array.isArray(merged.goods)) {
         const have = new Set(merged.goods.map(g => g.sku));
@@ -620,6 +632,29 @@
       db.fairs[season] = { ...(db.fairs[season] || { first: true, replenish: true }), ...patch };
       save();
       return `${season} 订货会设置已更新`;
+    },
+    createOrderingFair(payload) {
+      const name = String(payload.name || "").trim();
+      if (!name) return { ok: false, msg: "请填写订货会名称" };
+      const id = uid("FAIR");
+      db.orderingFairs = db.orderingFairs || [];
+      db.orderingFairs.unshift({
+        id,
+        name,
+        season: payload.season || (RR.seasons && RR.seasons[RR.seasons.length - 1]) || "",
+        cover: !!payload.cover,
+        intro: payload.intro || "",
+        createdAt: new Date().toISOString().slice(0, 10)
+      });
+      save();
+      return { ok: true, msg: `已创建订货会 ${name}`, id };
+    },
+    markMessagesRead() {
+      (db.buyerMessages || []).forEach(m => { m.read = true; });
+      save();
+    },
+    unreadMessageCount() {
+      return (db.buyerMessages || []).filter(m => !m.read).length;
     },
     savePayInfo(info) { Object.assign(db.payInfo, info); save(); return "收款设置已保存"; },
     saveContractSettings(info) { Object.assign(db.contractSettings, info); save(); return "合同设置已保存"; },

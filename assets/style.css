@@ -723,8 +723,75 @@ a.oto_btn:hover { background: var(--rr-purple-soft); }
   width: 100%; flex: 1; display: flex; align-items: center; justify-content: center;
   font-size: 15px; font-weight: 700; letter-spacing: 0.04em; text-align: center;
   background: #f7f7f7; min-height: 64px;
+  /* Excel #17：品牌卡竖版高宽比 */
+  aspect-ratio: 3 / 4;
 }
-.brand-logo-rect.lg { min-height: 120px; width: 180px; flex: 0 0 180px; font-size: 18px; }
+.brand-logo-rect.lg { min-height: 120px; width: 180px; flex: 0 0 180px; font-size: 18px; aspect-ratio: 3 / 4; }
+.buyer-fe .brand_list .item_inner > a .brand-logo-rect {
+  aspect-ratio: 3 / 4; width: 100%; min-height: 0;
+}
+.goods-thumb {
+  width: 56px; height: 74px; background: #f0f0f0; color: #bbb;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; letter-spacing: 0.04em; flex-shrink: 0;
+  aspect-ratio: 3 / 4;
+}
+.goods-thumb.sm { width: 40px; height: 53px; font-size: 9px; }
+.goods-thumb.order { width: 72px; height: 96px; }
+.bell_tip { position: relative; }
+.bell_tip .msg-badge {
+  position: absolute; top: -4px; right: -8px; min-width: 16px; height: 16px;
+  border-radius: 8px; background: #e11d48; color: #fff; font-size: 10px;
+  line-height: 16px; text-align: center; padding: 0 4px; font-style: normal;
+}
+.buyer-fe .item_inner .heart-mark { font-size: 16px; line-height: 1; pointer-events: none; }
+.buyer-order-detail .order-detail-head {
+  display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 16px;
+}
+.buyer-order-detail .order-block {
+  border-bottom: 1px solid #eee; padding: 16px 0;
+}
+.buyer-order-detail .order-info-block {
+  display: flex; justify-content: space-between; gap: 24px;
+}
+.buyer-order-detail .order-info-main .row { margin: 6px 0; color: #444; }
+.buyer-order-detail .order-info-main .row span { display: inline-block; min-width: 72px; color: #888; }
+.buyer-order-detail .order-info-side { text-align: right; }
+.buyer-order-detail .order-info-side .status { color: var(--rr-purple); font-weight: 600; margin-bottom: 10px; }
+.buyer-order-detail .order-info-side a { display: block; margin: 6px 0; }
+.buyer-order-detail .block-head {
+  display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: 600;
+}
+.buyer-order-detail .invoice-type-row { display: flex; gap: 20px; margin-bottom: 12px; }
+.buyer-order-detail .invoice-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px;
+}
+.buyer-order-detail .invoice-grid label { display: block; color: #888; font-size: 12px; }
+.buyer-order-detail .order-goods-item {
+  display: grid; grid-template-columns: 72px 1fr auto; gap: 16px;
+  padding: 16px 0; border-bottom: 1px solid #f0f0f0;
+}
+.buyer-order-detail .order-goods-item h6 { margin: 0 0 6px; font-size: 14px; }
+.buyer-order-detail .order-goods-item p { margin: 2px 0; font-size: 12px; color: #666; }
+.buyer-order-detail .order-goods-item .ops a {
+  display: inline-block; margin-right: 8px; margin-top: 8px;
+  border: 1px solid #333; padding: 4px 12px; font-size: 12px; color: #333;
+}
+.buyer-order-detail .order-goods-item .price { text-align: right; }
+.buyer-order-detail .order-goods-item .now { font-size: 16px; font-weight: 600; }
+.buyer-order-detail .order-goods-item .tag { font-size: 12px; color: #999; margin-top: 4px; }
+.buyer-order-detail .brand-line { font-weight: 700; margin: 20px 0 8px; }
+.buyer-order-detail .order-pay-summary {
+  margin-top: 20px; margin-left: auto; max-width: 320px;
+}
+.buyer-order-detail .order-pay-summary div {
+  display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px;
+}
+.message_list .item { border-bottom: 1px solid #eee; padding: 14px 0; }
+.message_list .item.unread h6 { color: var(--rr-purple); }
+.message_list .message_info p { margin: 6px 0; color: #666; }
+.message_list .message_info span { color: #999; font-size: 12px; }
+.invoice-type-row label { margin-right: 8px; color: #555; }
 .brand-card-name { font-size: 12px; color: #666; margin-top: 8px; }
 .brand-hero {
   display: flex; gap: 20px; align-items: flex-start;

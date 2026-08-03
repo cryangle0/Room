@@ -71,6 +71,7 @@
           { id: "brand-discount", label: "设置优惠规则" },
           { id: "brand-size", label: "设置尺寸别名" },
           { id: "brand-fair", label: "订货会设置" },
+          { id: "brand-fair-new", label: "创建新订货会" },
           { id: "brand-pay", label: "收款设置" },
           { id: "brand-contract", label: "合同设置" },
           { id: "brand-edit", label: "品牌信息编辑" },
@@ -401,7 +402,7 @@
             ${items.map(([id, lab, on]) => `<li class="${on ? "active" : ""}"><a href="javascript:;" data-go="${id}">${lab}</a></li>`).join("")}
           </ul>
           <div class="login_area">
-            <a class="bell_tip" href="javascript:;" data-go="buyer-message" title="消息"><span class="iconfont ots_icon-tongzhi"></span></a>
+            <a class="bell_tip" href="javascript:;" data-go="buyer-message" title="消息"><span class="iconfont ots_icon-tongzhi"></span>${Store.unreadMessageCount() ? `<i class="msg-badge">${Store.unreadMessageCount()}</i>` : ""}</a>
             <a class="nav_person" href="javascript:;" data-go="buyer-profile" title="个人中心"><span class="iconfont ots_icon-person"></span></a>
           </div>
         </div>
@@ -442,9 +443,12 @@
     ];
     if (brandNoSide.includes(state.page)) return "";
     // 原站季节页：左侧仅「季节控制」
-    if (state.page === "brand-fair") {
+    if (state.page === "brand-fair" || state.page === "brand-fair-new") {
       return `<div class="public_left-container sidebar">
-        <ul class="mine_side"><li class="active"><a href="javascript:;" data-go="brand-fair">季节控制</a></li></ul>
+        <ul class="mine_side">
+          <li class="${state.page === "brand-fair" ? "active" : ""}"><a href="javascript:;" data-go="brand-fair">季节控制</a></li>
+          <li class="${state.page === "brand-fair-new" ? "active" : ""}"><a href="javascript:;" data-go="brand-fair-new">创建新订货会</a></li>
+        </ul>
       </div>`;
     }
     const group = topGroup(state.page);
@@ -667,14 +671,14 @@
         ${btn("保存勾选", "btn-primary", "save-restock")}
       </div>
       <table class="data-table" id="restock-table">
-        <thead><tr><th>SKU</th><th>商品</th><th>季节</th><th>${kind === "hide" ? "隐藏（全不可见）" : "可补货"}</th></tr></thead>
+        <thead><tr><th>图片</th><th>SKU</th><th>商品</th><th>季节</th><th>${kind === "hide" ? "隐藏（全不可见）" : "可补货"}</th></tr></thead>
         <tbody>
           ${list.map(g => `<tr data-sku="${g.sku}">
-            <td>${g.sku}</td><td>${g.title}</td><td>${g.season}</td>
+            <td>${goodsThumb("sm")}</td><td>${g.sku}</td><td>${g.title}</td><td>${g.season}</td>
             <td>${kind === "hide"
               ? field("hide-" + g.sku, select(["否", "是"], null, g.hideAll ? "是" : "否"))
               : field("restock-" + g.sku, select(["是", "否"], null, g.restock !== false ? "是" : "否"))}</td>
-          </tr>`).join("") || '<tr><td colspan="4">该季度暂无商品</td></tr>'}
+          </tr>`).join("") || '<tr><td colspan="5">该季度暂无商品</td></tr>'}
         </tbody>
       </table>`;
   }
@@ -732,6 +736,9 @@
     /* 原站：edit_boduan > head item_boduan-row + edit_boduan-list > item（无左侧 mine_side、非 table） */
     return `<div class="brand_goodsList-container edit_boduan">
       ${subTitle("品牌管理")}
+      <div class="action-bar" style="margin-bottom:12px">
+        <a href="javascript:;" class="oto_btn" data-go="brand-fair-new">创建新订货会</a>
+      </div>
       <div class="items head_items">
         <div class="item_boduan-row">
           <h4>品牌名称</h4><h4>阶梯优惠规则</h4><h4>尺寸别名</h4><h4>订货会设置</h4><h4>收款设置</h4><h4>合同设置</h4><h4>编辑</h4>
@@ -841,6 +848,10 @@
       </div>`;
   }
 
+  function goodsThumb(cls = "") {
+    return `<div class="goods-thumb ${cls}" aria-hidden="true">LOOK</div>`;
+  }
+
   function pageBrandFair() {
     /* 原站：季节开启状态 · season-row + checkbox 首单/补货（非 select） */
     return `<div class="boduan-container">
@@ -863,6 +874,37 @@
         </div>
         <div class="submit_area action-bar"><a href="javascript:;" class="oto_btn" data-act="save-fair">保存</a></div>
       </div>
+    </div>`;
+  }
+
+  function pageBrandFairNew() {
+    /* Excel #15：创建新订货会（名称 + 图文介绍，展示位待确认） */
+    const list = Store.db.orderingFairs || [];
+    return `<div class="boduan-container fair-create-page">
+      ${subTitle("创建新订货会")}
+      <div class="note">填写订货会名称与图文介绍；具体展示入口待产品确认，当前先归档在平台端订货会列表。</div>
+      <div class="form-grid">
+        <label class="req">订货会名称</label><div>${field("fairName", input("例如：2028SS 订货会"))}</div>
+        <label>关联季节</label><div>${field("fairSeason", select(RR.seasons, null, RR.seasons[RR.seasons.length - 1]))}</div>
+        <label>封面/宣传图</label><div class="span2"><div class="file_area upload-box" data-act="toast:已选择宣传图（示意）"><div class="plus">+</div>上传图文封面</div></div>
+        <label>图文介绍</label><div class="span2"><textarea data-field="fairIntro" placeholder="订货会说明、亮点、场次信息等" rows="5"></textarea></div>
+      </div>
+      <div class="action-bar" style="margin-top:16px">
+        ${btn("创建订货会", "btn-primary", "create-ordering-fair")}
+        ${btn("清空", "btn-outline", "toast:已清空表单")}
+      </div>
+      <div class="sub_title" style="margin-top:32px"><h4>已创建订货会</h4></div>
+      <table class="data-table">
+        <thead><tr><th>名称</th><th>季节</th><th>封面</th><th>介绍</th><th>创建时间</th></tr></thead>
+        <tbody>
+          ${list.map(f => `<tr>
+            <td>${f.name}</td><td>${f.season || "—"}</td>
+            <td>${f.cover ? goodsThumb("sm") : "—"}</td>
+            <td>${(f.intro || "—").slice(0, 40)}${(f.intro || "").length > 40 ? "…" : ""}</td>
+            <td>${f.createdAt || "—"}</td>
+          </tr>`).join("") || '<tr><td colspan="5">暂无订货会</td></tr>'}
+        </tbody>
+      </table>
     </div>`;
   }
 
@@ -1337,12 +1379,14 @@
         ${action ? panels[action] || "" : '<div class="note">请选择上方操作查看完整子流程。</div>'}
       </div>
       <table class="data-table">
-        <thead><tr><th>SKU</th><th>款式</th><th>尺码明细</th><th>数量</th><th>买手价</th><th>小计</th></tr></thead>
+        <thead><tr><th>图片</th><th>SKU</th><th>款式</th><th>尺码明细</th><th>数量</th><th>买手价</th><th>小计</th></tr></thead>
         <tbody>
           ${lines.map(l => {
             const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
             const sub = qty * Number(l.price || 0) * Number(l.discount || 1);
-            return `<tr><td>${l.sku}</td><td>${l.title}</td>
+            return `<tr>
+              <td>${goodsThumb("sm")}</td>
+              <td>${l.sku}</td><td>${l.title}</td>
               <td>${Object.entries(l.sizes || {}).map(([k, v]) => k + "×" + v).join(" / ")}</td>
               <td>${qty}</td><td>${Store.money(l.price)}</td><td>${Store.money(sub)}</td></tr>`;
           }).join("")}
@@ -1771,11 +1815,11 @@
               <div><div class="thumb ph" style="width:48px;height:36px">图</div></div>
               <div class="ops">
                 ${b.status === "待审核" ? `<a href="javascript:;" data-act="approve">通过</a><a href="javascript:;" data-act="reject">取消权限</a>` : ""}
-                <a href="javascript:;" data-go="buyer-balance">余额管理</a>
-                <a href="javascript:;" data-go="buyer-store">查看店铺资料</a>
-                <a href="javascript:;" data-go="buyer-invoice">修改发票信息</a>
-                <a href="javascript:;" data-go="buyer-address">修改地址</a>
-                <a href="javascript:;" data-go="buyer-edit">编辑资料</a>
+                <a href="javascript:;" data-go="buyer-balance" data-buyer="${b.name}">余额管理</a>
+                <a href="javascript:;" data-go="buyer-store" data-buyer="${b.name}">查看店铺资料</a>
+                <a href="javascript:;" data-go="buyer-invoice" data-buyer="${b.name}">修改发票信息</a>
+                <a href="javascript:;" data-go="buyer-address" data-buyer="${b.name}">修改地址</a>
+                <a href="javascript:;" data-go="buyer-edit" data-buyer="${b.name}">编辑资料</a>
                 <a href="javascript:;" data-go="buyer-sub">查看子店铺信息</a>
                 <a href="javascript:;" data-go="buyer-add-brand">添加品牌</a>
                 <a href="javascript:;" data-go="buyer-appoint">添加预约</a>
@@ -1931,7 +1975,7 @@
         ${paged.map(g => `
           <div class="item">
             <div class="item_inner">
-              <div class="brand_like goods_check ${state.hearts.includes(g.sku) ? "has_checked heart_stay" : "no_checked"}" data-heart="${g.sku}"><span class="iconfont ${state.hearts.includes(g.sku) ? "ots_icon-heart" : "ots_icon-heart-o"}"></span></div>
+              <div class="brand_like goods_check ${state.hearts.includes(g.sku) ? "has_checked heart_stay" : "no_checked"}" data-heart="${g.sku}" title="加入选款单"><span class="heart-mark">${state.hearts.includes(g.sku) ? "♥" : "♡"}</span></div>
               <a href="javascript:;" data-go="buyer-detail" data-sku="${g.sku}">
                 <div class="cover">${g.isNew ? '<span class="badge-new">New</span>' : ""}LOOK</div>
                 <p>${g.title}</p>
@@ -2130,62 +2174,86 @@
   }
 
   function pageBuyerOrderDetail() {
-    /* 原站订单详情沿用 order-container 壳 + order_info / order_action / 进度 */
+    /* Excel #19：订单详情带商品图 + 支付统计，对齐原站结构 */
     const o = state.selectedOrder || Store.db.orders[0];
-    const steps = Store.ORDER_FLOW.filter(s => s !== "已完成");
-    const idx = Math.max(0, steps.findIndex(s => o.status === s || o.status.includes(s.slice(0, 4))));
     const lines = o.lines || [];
+    const paid = Store.parseMoney(o.paidTotal || o.paidDeposit || 0);
+    const total = Store.parseMoney(o.amount);
+    const unpaid = Math.max(0, total - paid);
+    const retail = Store.parseMoney(o.retailAmount) || lines.reduce((a, l) => {
+      const qty = Object.values(l.sizes || {}).reduce((x, y) => x + Number(y || 0), 0);
+      return a + qty * Number(l.retail || l.price || 0);
+    }, 0);
+    const inv = o.invoice || Store.db.buyerSession.invoice || {};
+    const addr = (Store.db.buyerSession.addresses && Store.db.buyerSession.addresses[0]) || { name: "—", phone: "—", addr: "—" };
     return `<div class="oto-main_container buyer-fe">
-      <div class="oto_container order-container order_detail-container">
-        <div class="public_left-container">
-          <div class="filter_list filter_type">
-            <div class="sub_title line_circle">我的订单</div>
-            <ul class="uk-tab-right items">
-              <li><a href="javascript:;" data-go="buyer-orders">返回列表</a></li>
-            </ul>
+      <div class="oto_container order-container order_detail-container buyer-order-detail">
+        <div class="public_right-container" style="width:100%">
+          <div class="sub_title order-detail-head">
+            <h4>订单详情</h4>
+            <a href="javascript:;" data-go="buyer-orders">返回订单列表</a>
           </div>
-        </div>
-        <div class="public_right-container">
-          <div class="order_list-container">
-            <div class="sub_title"><h4>订单详情</h4></div>
-            <div class="order_list">
-              <div class="item">
-                <div class="order_info">
-                  ${o.type === "补货单" ? '<div class="order_type-add"><p>补货单</p></div>' : ""}
-                  <h6>订单编号:${o.id} <span></span> 下单时间:${o.createdAt || "—"} <span></span> 订货季:${o.season}</h6>
-                  <div class="order_brand">
-                    <div class="brand-logo-rect" style="width:40px;height:40px">${(o.brand || "").slice(0, 4)}</div>
-                    <h6>${o.brand}&nbsp;</h6>
-                  </div>
-                  <div class="order_state"><p>${o.status}</p><p>¥${o.amount}</p></div>
-                  <div class="order_action ops">
-                    <a href="javascript:;" data-act="download:订单Excel">下载订单</a>
-                    ${o.status.includes("未确认") || o.status.includes("驳回")
-                      ? `<a href="javascript:;" data-go="buyer-selection-edit" data-sel="${o.fromSelection || ""}">修改</a>` : ""}
-                    <a href="javascript:;" class="oto_btn" data-act="buyer-confirm-order" data-oid="${o.id}">确认提交</a>
-                  </div>
+          <div class="order-block order-info-block">
+            <div class="order-info-main">
+              <div class="row"><span>订单编号:</span><b>${o.id}</b></div>
+              <div class="row"><span>下单时间:</span>${o.createdAt || "—"}</div>
+              <div class="row"><span>订单金额:</span>¥ ${o.amount}</div>
+              <div class="row"><span>已付金额:</span>¥ ${Store.money(paid)}</div>
+              <div class="row"><span>待付金额:</span>¥ ${Store.money(unpaid)}</div>
+            </div>
+            <div class="order-info-side">
+              <p class="status">${o.status}</p>
+              <a href="javascript:;" class="oto_btn" data-act="buyer-confirm-order" data-oid="${o.id}">确认订单</a>
+              <a href="javascript:;" data-act="download:订单Excel">下载</a>
+            </div>
+          </div>
+          <div class="order-block">
+            <div class="block-head"><span>收货地址</span><a href="javascript:;" data-go="buyer-profile" data-mine-tab="addr">+ 新建收货地址</a></div>
+            <div class="addr-line">${addr.name} ${addr.phone}<br/>${addr.addr}</div>
+          </div>
+          <div class="order-block">
+            <div class="block-head"><span>开票信息</span></div>
+            <div class="invoice-type-row">
+              <label><input type="radio" name="invKind" ${inv.type !== "个人发票" ? "checked" : ""} disabled /> 企业发票</label>
+              <label><input type="radio" name="invKind" ${inv.type === "个人发票" ? "checked" : ""} disabled /> 个人发票</label>
+            </div>
+            <div class="invoice-grid">
+              <div><label>公司名称</label><div>${inv.title || o.store || "—"}</div></div>
+              <div><label>税号</label><div>${inv.tax || "—"}</div></div>
+            </div>
+          </div>
+          <div class="order-goods-list">
+            <div class="brand-line">${o.brand}</div>
+            ${lines.map(l => {
+              const g = Store.db.goods.find(x => x.sku === l.sku) || {};
+              const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
+              const buyerPrice = qty * Number(l.price || 0) * Number(l.discount || 1);
+              const tag = qty * Number(l.retail || g.retail && Store.parseMoney(g.retail) || l.price || 0);
+              const sizeText = Object.entries(l.sizes || {}).map(([k, v]) => `${k}:${v}`).join(" ");
+              return `<div class="order-goods-item">
+                ${goodsThumb("order")}
+                <div class="meta">
+                  <h6>${l.title || g.title || l.sku}</h6>
+                  <p>SKU:${l.sku}</p>
+                  <p>颜色:${l.color || g.color || "—"}</p>
+                  <p>尺码:${sizeText || "—"}</p>
+                  <div class="ops"><a href="javascript:;" data-act="toast:已提交退货申请">退货</a><a href="javascript:;" data-act="toast:已提交换货申请">换货</a></div>
                 </div>
-              </div>
-            </div>
-            <div class="order_progress">
-              <div class="sub_title">订单进度</div>
-              <div class="timeline">
-                ${steps.map((s, i) => `
-                  <div class="timeline-item ${i < idx ? "done" : ""} ${i === idx ? "on" : ""}">
-                    <div class="timeline-dot"></div>
-                    <div><strong>${s}</strong><div style="color:#999;font-size:12px">${i <= idx ? "已到达" : "未到达"}</div></div>
-                  </div>`).join("")}
-              </div>
-            </div>
-            <table class="data-table">
-              <thead><tr><th>SKU</th><th>款式</th><th>数量</th><th>金额</th></tr></thead>
-              <tbody>
-                ${lines.map(l => {
-                  const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
-                  return `<tr><td>${l.sku}</td><td>${l.title}</td><td>${qty}</td><td>${Store.money(qty * Number(l.price || 0) * Number(l.discount || 1))}</td></tr>`;
-                }).join("") || "<tr><td colspan=4>无明细</td></tr>"}
-              </tbody>
-            </table>
+                <div class="price">
+                  <div class="now">¥${Store.money(buyerPrice)}</div>
+                  <div class="tag">吊牌价: ¥${Store.money(tag)}</div>
+                </div>
+              </div>`;
+            }).join("") || '<div class="note">无商品明细</div>'}
+          </div>
+          <div class="order-pay-summary">
+            <div><span>总计</span><b>¥ ${Store.money(total)}</b></div>
+            <div><span>已付金额</span><b>¥ ${Store.money(paid)}</b></div>
+            <div><span>待付金额</span><b>¥ ${Store.money(unpaid)}</b></div>
+            <div><span>零售总价</span><b>¥ ${Store.money(retail)}</b></div>
+            <div><span>服饰</span><b>${(o.discountLabel || "服饰:4.5折").split("/")[0].trim()}</b></div>
+            <div><span>商品定金</span><b>¥ ${o.deposit || "0.00"}</b></div>
+            <div><span>商品尾款</span><b>¥ ${Store.money(Math.max(0, total - Store.parseMoney(o.deposit)))}</b></div>
           </div>
         </div>
       </div>
@@ -2592,6 +2660,28 @@
       Store.db.buyerSession.addresses[i] = { name, phone, addr: a };
       Store.persist();
       toast("地址已更新");
+      render();
+      return;
+    }
+    if (act.startsWith("buyer-mine-tab:")) {
+      Store.db.ui.buyerMineTab = act.split(":")[1] || "info";
+      Store.persist();
+      render();
+      return;
+    }
+    if (act.startsWith("save-buyer-admin:")) {
+      const mode = act.split(":")[1] || "profile";
+      const f = readFields();
+      const buyerName = state.selectedBuyer || (Store.db.buyers[0] && Store.db.buyers[0].name);
+      if (mode === "invoice") {
+        toast(Store.saveBuyerAdmin(buyerName, { invoice: { title: f.title, tax: f.tax } }));
+      } else if (mode === "address") {
+        toast(Store.saveBuyerAdmin(buyerName, { addresses: [{ name: f.name, phone: f.phone, addr: f.addr }] }));
+      } else {
+        const patch = { name: f.name, level: f.level, city: f.city, phone: f.phone, about: f.about };
+        toast(Store.saveBuyerAdmin(buyerName, patch));
+        if (f.name && f.name !== buyerName) state.selectedBuyer = f.name;
+      }
       render();
       return;
     }
@@ -3101,7 +3191,37 @@
       }
       case "save-buyer-invoice": {
         const f = readFields();
-        toast(Store.saveBuyerProfile({ invoice: { title: f.invTitle, tax: f.invTax } }));
+        toast(Store.saveBuyerProfile({
+          invoice: {
+            title: f.invTitle, tax: f.invTax, phone: f.invPhone,
+            addr: f.invAddr, bank: f.invBank, account: f.invAccount,
+            type: f.invKind || "企业发票"
+          }
+        }));
+        break;
+      }
+      case "save-buyer-profile": {
+        const f = readFields();
+        toast(Store.saveBuyerProfile({ phone: f.phone, contact: f.contact, store: f.store, city: f.city }));
+        render();
+        break;
+      }
+      case "save-buyer-addresses": {
+        const f = readFields();
+        const addrs = (Store.db.buyerSession.addresses || []).map((a, i) => ({
+          name: f["addrName-" + i] || a.name,
+          phone: f["addrPhone-" + i] || a.phone,
+          addr: f["addrDetail-" + i] || a.addr
+        }));
+        toast(Store.saveBuyerProfile({ addresses: addrs }));
+        render();
+        break;
+      }
+      case "create-ordering-fair": {
+        const f = readFields();
+        const r = Store.createOrderingFair({ name: f.fairName, season: f.fairSeason, intro: f.fairIntro, cover: true });
+        toast(r.msg || r);
+        if (r.ok) render();
         break;
       }
       case "add-address": {
@@ -3380,25 +3500,23 @@
   }
 
   function pageBuyerMessage() {
-    /* 原站 /buyer/message：message_list */
-    const msgs = Store.db.ui.buyerMessages || [
-      { title: "订单状态更新", time: "2026-07-28 10:20", body: "您的选款单已生成订单，请及时确认。" },
-      { title: "品牌权限通过", time: "2026-07-20 15:01", body: "您申请的品牌权限已通过。" }
-    ];
+    /* Excel #20：站内消息 */
+    const msgs = Store.db.buyerMessages || [];
+    Store.markMessagesRead();
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container message-container">
         <div class="public_right-container" style="width:100%">
-          <div class="sub_title">消息</div>
+          <div class="sub_title">消息通知</div>
           <div class="message_list">
             <div class="items">
               ${msgs.map(m => `
-                <div class="item">
+                <div class="item ${m.read ? "" : "unread"}">
                   <div class="message_info">
-                    <h6>${m.title}</h6>
+                    <h6>${m.title}${m.read ? "" : ' <span class="badge">新</span>'}</h6>
                     <p>${m.body}</p>
                     <span>${m.time}</span>
                   </div>
-                </div>`).join("")}
+                </div>`).join("") || '<div class="note">暂无消息</div>'}
             </div>
           </div>
         </div>
@@ -3407,7 +3525,7 @@
   }
 
   function pageBuyerProfile() {
-    /* 原站 /mine：mine-container > mine_side + mine_info-container */
+    /* Excel #20：个人中心 · 账号 / 发票 / 地址 */
     const s = Store.db.buyerSession;
     const tab = Store.db.ui.buyerMineTab || "info";
     return `<div class="oto-main_container buyer-fe">
@@ -3425,35 +3543,88 @@
             ${tab === "info" ? `
               <div class="account_info">
                 <div class="sub_title">登录信息</div>
-                <div>手机号: <span>${s.phone}</span></div>
+                <div class="form-grid">
+                  <label>手机号</label><div>${field("phone", input("", s.phone || ""))}</div>
+                </div>
               </div>
               <div class="shop_info">
                 <div class="sub_title">店铺信息</div>
-                <div class="items">
-                  <div class="item"><p>姓名:</p><p>${s.contact || "—"}</p></div>
-                  <div class="item"><p>店铺名称:</p><p>${s.store}</p></div>
-                  <div class="item"><p>店铺地址:</p><p>${s.city || "—"}</p></div>
-                  <div class="item"><p>店铺级别:</p><p>${s.level || "—"}</p></div>
+                <div class="form-grid">
+                  <label>姓名</label><div>${field("contact", input("", s.contact || ""))}</div>
+                  <label>店铺名称</label><div>${field("store", input("", s.store || ""))}</div>
+                  <label>店铺地址</label><div class="span2">${field("city", input("", s.city || ""))}</div>
+                  <label>店铺级别</label><div>${s.level || "—"}</div>
                 </div>
+                <div style="margin-top:16px">${btn("保存资料", "btn-primary", "save-buyer-profile")}</div>
               </div>` : ""}
             ${tab === "addr" ? `
               <div class="sub_title">收货地址管理</div>
               <table class="data-table">
                 <thead><tr><th>收货人</th><th>电话</th><th>地址</th><th>操作</th></tr></thead>
-                <tbody>${(s.addresses || []).map((a, i) => `<tr><td>${a.name}</td><td>${a.phone}</td><td>${a.addr}</td><td>${link("编辑", "edit-address:" + i)}</td></tr>`).join("")}</tbody>
+                <tbody>${(s.addresses || []).map((a, i) => `<tr>
+                  <td>${field("addrName-" + i, input("", a.name))}</td>
+                  <td>${field("addrPhone-" + i, input("", a.phone))}</td>
+                  <td>${field("addrDetail-" + i, input("", a.addr))}</td>
+                  <td><a href="javascript:;" data-act="save-buyer-addresses">保存</a></td>
+                </tr>`).join("")}</tbody>
               </table>
-              <div style="margin-top:12px">${btn("新增地址", "btn-outline")}</div>` : ""}
+              <div style="margin-top:12px">${btn("新增地址", "btn-outline", "add-address")}</div>` : ""}
             ${tab === "inv" ? `
               <div class="sub_title">发票地址管理</div>
-              <div class="form-grid">
-                <label>发票抬头</label><div>${field("invTitle", input("", (s.invoice && s.invoice.title) || ""))}</div>
-                <label>税号</label><div>${field("invTax", input("", (s.invoice && s.invoice.tax) || ""))}</div>
+              <div class="invoice-type-row" style="margin-bottom:12px">
+                <label><input type="radio" name="buyerInvKind" data-field="invKind" value="企业发票" checked /> 企业发票</label>
+                <label><input type="radio" name="buyerInvKind" data-field="invKind" value="个人发票" /> 个人发票</label>
               </div>
-              <div style="margin-top:12px">${btn("保存发票信息")}</div>` : ""}
+              <div class="form-grid">
+                <label>公司名称/抬头</label><div>${field("invTitle", input("", (s.invoice && s.invoice.title) || ""))}</div>
+                <label>税号</label><div>${field("invTax", input("", (s.invoice && s.invoice.tax) || ""))}</div>
+                <label>电话</label><div>${field("invPhone", input("", (s.invoice && s.invoice.phone) || s.phone || ""))}</div>
+                <label>地址</label><div>${field("invAddr", input("", (s.invoice && s.invoice.addr) || ""))}</div>
+                <label>开户行</label><div>${field("invBank", input("", (s.invoice && s.invoice.bank) || ""))}</div>
+                <label>银行账号</label><div>${field("invAccount", input("", (s.invoice && s.invoice.account) || ""))}</div>
+              </div>
+              <div style="margin-top:12px">${btn("保存发票信息", "btn-primary", "save-buyer-invoice")}</div>` : ""}
           </div>
         </div>
       </div>
     </div>`;
+  }
+
+  function pageBuyerAdminForm(mode) {
+    /* Excel #21：平台端买手资料可编辑 */
+    const name = state.selectedBuyer || (Store.db.buyers[0] && Store.db.buyers[0].name);
+    const b = Store.db.buyers.find(x => x.name === name) || Store.db.buyers[0] || {};
+    const title = mode === "edit" ? "编辑店铺资料" : mode === "invoice" ? "修改发票信息" : mode === "address" ? "修改地址" : "查看店铺资料";
+    if (mode === "invoice") {
+      return `${subTitle(title)}
+        <div class="note">买手：${b.name || "—"}</div>
+        <div class="form-grid">
+          <label>抬头</label><div>${field("title", input("", (b.invoice && b.invoice.title) || b.name || ""))}</div>
+          <label>税号</label><div>${field("tax", input("", (b.invoice && b.invoice.tax) || ""))}</div>
+        </div>
+        <div style="margin-top:20px">${btn("保存", "btn-primary", "save-buyer-admin:invoice")}${btn("返回", "btn-outline", "go:buyer-list")}</div>`;
+    }
+    if (mode === "address") {
+      const a = (b.addresses && b.addresses[0]) || { name: "", phone: b.phone || "", addr: b.city || "" };
+      return `${subTitle(title)}
+        <div class="note">买手：${b.name || "—"}</div>
+        <div class="form-grid">
+          <label>收货人</label><div>${field("name", input("", a.name))}</div>
+          <label>电话</label><div>${field("phone", input("", a.phone))}</div>
+          <label>地址</label><div class="span2">${field("addr", input("", a.addr))}</div>
+        </div>
+        <div style="margin-top:20px">${btn("保存", "btn-primary", "save-buyer-admin:address")}${btn("返回", "btn-outline", "go:buyer-list")}</div>`;
+    }
+    return `${subTitle(title)}
+      <div class="note">${mode === "edit" ? "编辑买手提交的店铺信息" : "查看买手提交的店铺信息（可直接修改后保存）"}</div>
+      <div class="form-grid">
+        <label>店铺名</label><div>${field("name", input("", b.name || ""))}</div>
+        <label>级别</label><div>${field("level", select(["A", "B", "C", "D", "—"], null, b.level || "—"))}</div>
+        <label>城市</label><div>${field("city", input("", b.city || ""))}</div>
+        <label>手机号</label><div>${field("phone", input("", b.phone || ""))}</div>
+        <label>简介</label><div class="span2"><textarea data-field="about" rows="3">${b.about || "独立买手店，聚焦先锋女装。"}</textarea></div>
+      </div>
+      <div style="margin-top:20px">${btn("保存", "btn-primary", "save-buyer-admin:profile")}${btn("返回列表", "btn-outline", "go:buyer-list")}</div>`;
   }
 
   function pageBuyerReplenish() {
@@ -3527,6 +3698,7 @@
     "brand-discount": pageBrandDiscount,
     "brand-size": pageBrandSize,
     "brand-fair": pageBrandFair,
+    "brand-fair-new": pageBrandFairNew,
     "brand-pay": pageBrandPay,
     "brand-contract": pageBrandContract,
     "brand-edit": pageBrandEdit,
@@ -3556,19 +3728,10 @@
     "buyer-list": pageBuyerList,
     "buyer-add": pageBuyerAdd,
     "buyer-balance": pageBuyerBalance,
-    "buyer-store": () => simpleFormPage("查看店铺资料", "查看买手提交的店铺信息", `
-      <label>店铺名</label><div>Liora Amour</div>
-      <label>级别</label><div>B</div>
-      <label>城市</label><div>北京市</div>
-      <label>简介</label><div class="span2">独立买手店，聚焦先锋女装。</div>`),
-    "buyer-invoice": () => simpleFormPage("修改发票信息", "", `
-      <label>抬头</label><div>${field("title", input())}</div><label>税号</label><div>${field("tax", input())}</div>`),
-    "buyer-address": () => simpleFormPage("修改地址", "", `
-      <label>收货人</label><div>${field("name", input())}</div><label>电话</label><div>${field("phone", input())}</div>
-      <label>地址</label><div class="span2">${field("addr", input())}</div>`),
-    "buyer-edit": () => simpleFormPage("编辑店铺资料", "", `
-      <label>店铺名</label><div>${field("name", input("Liora Amour", "Liora Amour"))}</div>
-      <label>级别</label><div>${field("level", select(["A", "B", "C"], null, "B"))}</div>`),
+    "buyer-store": () => pageBuyerAdminForm("store"),
+    "buyer-invoice": () => pageBuyerAdminForm("invoice"),
+    "buyer-address": () => pageBuyerAdminForm("address"),
+    "buyer-edit": () => pageBuyerAdminForm("edit"),
     "buyer-sub": () => {
       const list = Store.db.buyerSession.substores || [];
       return `${subTitle("查看/添加子店铺")}
@@ -3676,6 +3839,13 @@
         }
         if (sel) state.selectedSel = Store.db.selections.find(s => s.id === sel) || state.selectedSel;
         if (oid) state.selectedOrder = Store.db.orders.find(o => o.id === oid) || state.selectedOrder;
+        const buyerName = el.getAttribute("data-buyer");
+        if (buyerName) state.selectedBuyer = buyerName;
+        const mineTab = el.getAttribute("data-mine-tab");
+        if (mineTab) {
+          Store.db.ui.buyerMineTab = mineTab;
+          Store.persist();
+        }
         const ship = el.getAttribute("data-ship");
         const sku = el.getAttribute("data-sku");
         if (ship) state.selectedShip = Store.db.shipments.find(x => x.id === ship) || state.selectedShip;
