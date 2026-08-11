@@ -99,6 +99,25 @@
     return /data-act="(?:back|restock-back|ship-back)"|返回上一级|返回(?:品牌列表|商品列表|订单列表|列表|订单|登录)/.test(html || "");
   }
 
+  /* 把返回条注入内容壳内部，避免贴在视口最左侧、与居中内容错位 */
+  function withPageBack(html) {
+    if (bodyHasBack(html) || !resolveBackTarget()) return html || "";
+    const bar = pageBackBar();
+    const patterns = [
+      /(<div class="oto_container[^"]*"[^>]*>)/,
+      /(<div class="brand_goodsList-container"[^>]*>)/,
+      /(<div class="brand_detail-container"[^>]*>)/,
+      /(<div class="goods_detail-container"[^>]*>)/,
+      /(<div class="public_right-container[^"]*"[^>]*>)/,
+      /(<div class="register-card"[^>]*>)/,
+      /(<div class="login-card"[^>]*>)/
+    ];
+    for (const re of patterns) {
+      if (re.test(html)) return html.replace(re, `$1${bar}`);
+    }
+    return bar + html;
+  }
+
   function syncBuyerCart() {
     state.cart = Store.db.buyerSession.selections.map(x => x.sku);
     state.hearts = [...state.cart];
@@ -4740,8 +4759,7 @@
   function render() {
     /* 登录 / 注册 / 审核进度：独立全屏页（无端口壳） */
     if (["login", "register", "register-status"].includes(state.page)) {
-      let authBody = pages[state.page]();
-      if (!bodyHasBack(authBody) && resolveBackTarget()) authBody = pageBackBar() + authBody;
+      const authBody = withPageBack(pages[state.page]());
       app.innerHTML = toastHtml() + authBody;
       bind();
       return;
@@ -4752,16 +4770,14 @@
       return;
     }
     if (state.page === "coverage" || state.page === "flow-map") {
-      let body = state.page === "flow-map" ? pageFlowMap() : pageCoverage();
-      if (!bodyHasBack(body) && resolveBackTarget()) body = pageBackBar() + body;
+      const body = withPageBack(state.page === "flow-map" ? pageFlowMap() : pageCoverage());
       app.innerHTML = toastHtml() + protoBar() + `<div class="shell full-main"><div class="main">${body}</div></div>` + footer();
       bind();
       return;
     }
 
     const isBuyer = state.portal === "buyer";
-    let body = (pages[state.page] || pageGoodsList)();
-    if (!bodyHasBack(body) && resolveBackTarget()) body = pageBackBar() + body;
+    let body = withPageBack((pages[state.page] || pageGoodsList)());
     /* 统一包一层现网右侧容器 class（已自带 brand_goodsList-container 的不重复包） */
     if (!isBuyer && !/brand_goodsList-container|ots_order-form|title_underline|buyer-layout/.test(body)) {
       body = `<div class="brand_goodsList-container">${body}</div>`;

@@ -113,10 +113,16 @@ label { display: block; margin-bottom: 6px; color: var(--rr-muted); font-size: 1
 /* 原站标题：sub_title > h4 */
 .sub_title { margin: 0 0 20px; }
 .sub_title h4 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.02em; }
-.page-back-bar { margin: 0 0 14px; }
+.page-back-bar {
+  flex: 0 0 100%;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 14px;
+}
 .page-back {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 13px; color: #666; text-decoration: none;
+  line-height: 1;
 }
 .page-back:hover { color: var(--rr-purple); }
 
@@ -222,7 +228,8 @@ h1.title_underline {
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
   height: 40px; padding: 0 28px; min-width: 120px;
-  border: none; font-size: 14px; transition: 0.15s background, 0.15s color;
+  border: none; font-size: 14px; line-height: 1;
+  transition: 0.15s background, 0.15s color;
 }
 .btn-primary { background: var(--rr-purple); color: #fff; }
 .btn-primary:hover { background: var(--rr-purple-hover); color: #fff; }
@@ -985,16 +992,31 @@ header.oto-nav.buyer-oto-nav .login_area .nav-ico {
 .buyer-fe .brand_list-container,
 .buyer-fe .selection-container,
 .buyer-fe .order-container {
-  display: flex; gap: 32px; align-items: flex-start;
+  display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start;
   max-width: 1200px; margin: 0 auto; padding: 24px 24px 48px;
 }
 /* 个人中心 / 消息通知：与其它子页统一内容宽度，不横向铺满 */
 .buyer-fe .mine-container,
 .buyer-fe .message-container,
 .buyer-fe .oto_container.content-page {
-  display: flex; gap: 32px; align-items: flex-start;
+  display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start;
   max-width: 960px; margin: 0 auto; padding: 24px 24px 48px;
   width: 100%; box-sizing: border-box;
+}
+.buyer-fe .mine-container > .public_left-container,
+.buyer-fe .brand_list-container > .public_left-container,
+.buyer-fe .selection-container > .public_left-container,
+.buyer-fe .order-container > .public_left-container,
+.buyer-fe .oto_container.content-page > .public_left-container {
+  flex: 0 0 160px;
+}
+.buyer-fe .mine-container > .public_right-container,
+.buyer-fe .brand_list-container > .public_right-container,
+.buyer-fe .selection-container > .public_right-container,
+.buyer-fe .order-container > .public_right-container,
+.buyer-fe .oto_container.content-page > .public_right-container {
+  flex: 1 1 0;
+  min-width: 0;
 }
 .buyer-fe .message-container { display: block; }
 .buyer-fe .mine-container .public_right-container,
@@ -1193,7 +1215,8 @@ header.oto-nav.buyer-oto-nav .login_area .nav-ico {
 .buyer-fe .mine_side { list-style: none; margin: 0; padding: 0; }
 .buyer-fe .mine_side a { display: block; padding: 10px 0; color: #666; font-size: 14px; }
 .buyer-fe .mine_side li.active a { color: var(--rr-purple); font-weight: 600; }
-.buyer-fe .mine_logout { display: inline-block; margin-top: 24px; color: #999; font-size: 13px; }
+.buyer-fe .mine_logout { display: inline-block; margin-top: 24px; color: #666; font-size: 13px; }
+.buyer-fe .mine_logout:hover { color: var(--rr-purple); }
 .buyer-fe .mine_info-container .sub_title { font-size: 16px; font-weight: 700; margin: 0 0 12px; }
 .buyer-fe .account_info, .buyer-fe .shop_info { margin-bottom: 28px; }
 .buyer-fe .shop_info .items .item {
