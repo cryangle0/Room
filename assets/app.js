@@ -24,8 +24,78 @@
     selectedRole: null,
     listPage: 1,
     selAddOpen: false,
-    cartBrandFilter: ""
+    cartBrandFilter: "",
+    navStack: []
   };
+
+  /* 子页默认上级（无浏览历史时回退）；侧栏直达的顶层页不注入返回 */
+  const PAGE_PARENT = {
+    "goods-add": "goods-list",
+    "goods-view": "goods-list",
+    "goods-carry": "goods-list",
+    "goods-batch": "goods-list",
+    "brand-add": "brand-list",
+    "brand-discount": "brand-list",
+    "brand-size": "brand-list",
+    "brand-pay": "brand-list",
+    "brand-contract": "brand-list",
+    "brand-edit": "brand-list",
+    "brand-fair": "brand-list",
+    "brand-fair-new": "brand-list",
+    "brand-master-style": "brand-list",
+    "brand-master-crowd": "brand-list",
+    "brand-master-size": "brand-list",
+    "selection-detail": "order-selection",
+    "order-detail": "order-list",
+    "order-contract": "order-list",
+    "order-oc": "order-list",
+    "contract-preview": "order-detail",
+    "oc-preview": "order-oc",
+    "ship-detail": "ship-list",
+    "buyer-add": "buyer-list",
+    "buyer-store": "buyer-list",
+    "buyer-invoice": "buyer-list",
+    "buyer-address": "buyer-list",
+    "buyer-edit": "buyer-list",
+    "buyer-sub": "buyer-list",
+    "buyer-add-brand": "buyer-list",
+    "buyer-appoint": "buyer-list",
+    "role-perm": "role-list",
+    "account-center": "goods-list",
+    "buyer-brand": "buyer-home",
+    "buyer-brand-about": "buyer-brand",
+    "buyer-detail": "buyer-brand",
+    "buyer-selection-edit": "buyer-selection",
+    "buyer-order-detail": "buyer-orders",
+    "buyer-message": "buyer-home",
+    "buyer-profile": "buyer-home",
+    register: "login",
+    "register-status": "login"
+  };
+
+  function isRootNavEl(el) {
+    return !!(el && el.closest(".mine_side, .uk-navbar-nav, .proto-bar, .nav_menu, .logo_area, .ots_order-nav > .topnav-inner > .logo"));
+  }
+
+  function resolveBackTarget() {
+    if (state.navStack.length) return state.navStack[state.navStack.length - 1];
+    const parent = PAGE_PARENT[state.page];
+    if (!parent) return "";
+    /* 品牌端店铺设置页即顶层，不强制回品牌列表 */
+    if (state.portal === "brand" && /^brand-(discount|size|fair|pay|contract|edit)/.test(state.page)) return "";
+    if (state.portal === "buyer" && parent === "goods-list") return "buyer-home";
+    if (state.portal === "brand" && parent === "goods-list") return "brand-discount";
+    return parent;
+  }
+
+  function pageBackBar() {
+    if (!resolveBackTarget()) return "";
+    return `<div class="page-back-bar"><a href="javascript:;" class="page-back" data-act="back">← 返回上一级</a></div>`;
+  }
+
+  function bodyHasBack(html) {
+    return /data-act="(?:back|restock-back|ship-back)"|返回上一级|返回(?:品牌列表|商品列表|订单列表|列表|订单|登录)/.test(html || "");
+  }
 
   function syncBuyerCart() {
     state.cart = Store.db.buyerSession.selections.map(x => x.sku);
@@ -152,6 +222,7 @@
   function setPortal(p) {
     state.portal = p;
     localStorage.setItem("rr_portal", p);
+    state.navStack = [];
     if (p === "mp") state.page = "mp-home";
     else if (p === "buyer") state.page = "buyer-home";
     else if (p === "brand") state.page = "brand-discount";
@@ -162,7 +233,7 @@
     render();
   }
 
-  function go(page) {
+  function go(page, opts = {}) {
     // 补货/隐藏：侧栏再次进入时回到品牌列表（非详情钻取）
     if (page === "goods-restock") {
       Store.db.ui.restockBrand = "";
@@ -172,6 +243,16 @@
     /* 原「季节控制」已并入创建订货会 */
     if (page === "brand-fair") page = "brand-fair-new";
     if (page === "goods-add") { state.goodsSpecs = null; state.goodsDraft = null; }
+
+    if (opts.replace) {
+      state.navStack = [];
+    } else if (opts.back) {
+      /* 已由调用方 pop */
+    } else if (page && page !== state.page) {
+      state.navStack.push(state.page);
+      if (state.navStack.length > 24) state.navStack.shift();
+    }
+
     state.page = page;
     state.cartOpen = false;
     state.listPage = 1;
@@ -2809,7 +2890,20 @@
 
   function handleAct(act, el) {
     if (!act) return;
-    if (act.startsWith("go:")) { go(act.slice(3)); return; }
+    if (act.startsWith("go:")) {
+      const target = act.slice(3);
+      if (isRootNavEl(el)) { go(target, { replace: true }); return; }
+      const stackTop = state.navStack[state.navStack.length - 1];
+      const parent = PAGE_PARENT[state.page];
+      if (target === stackTop || target === parent) {
+        if (state.navStack.length && state.navStack[state.navStack.length - 1] === target) state.navStack.pop();
+        else state.navStack = [];
+        go(target, { back: true });
+        return;
+      }
+      go(target);
+      return;
+    }
     if (act.startsWith("toast:")) { toast(act.slice(6)); return; }
 
     if (act.startsWith("cat:")) {
@@ -3296,9 +3390,16 @@
         render();
         toast("已清空筛选条件");
         break;
-      case "back":
-        go(state.portal === "buyer" ? "buyer-home" : "goods-list");
+      case "back": {
+        const target = resolveBackTarget();
+        if (!target) {
+          toast("已在顶层页面");
+          break;
+        }
+        if (state.navStack.length) state.navStack.pop();
+        go(target, { back: true });
         break;
+      }
       case "send-code": {
         const f = readFields();
         const r = Store.sendSmsCode(f.regPhone || f.loginPhone || f.queryPhone);
@@ -4633,7 +4734,9 @@
   function render() {
     /* 登录 / 注册 / 审核进度：独立全屏页（无端口壳） */
     if (["login", "register", "register-status"].includes(state.page)) {
-      app.innerHTML = toastHtml() + pages[state.page]();
+      let authBody = pages[state.page]();
+      if (!bodyHasBack(authBody) && resolveBackTarget()) authBody = pageBackBar() + authBody;
+      app.innerHTML = toastHtml() + authBody;
       bind();
       return;
     }
@@ -4643,7 +4746,8 @@
       return;
     }
     if (state.page === "coverage" || state.page === "flow-map") {
-      const body = state.page === "flow-map" ? pageFlowMap() : pageCoverage();
+      let body = state.page === "flow-map" ? pageFlowMap() : pageCoverage();
+      if (!bodyHasBack(body) && resolveBackTarget()) body = pageBackBar() + body;
       app.innerHTML = toastHtml() + protoBar() + `<div class="shell full-main"><div class="main">${body}</div></div>` + footer();
       bind();
       return;
@@ -4651,6 +4755,7 @@
 
     const isBuyer = state.portal === "buyer";
     let body = (pages[state.page] || pageGoodsList)();
+    if (!bodyHasBack(body) && resolveBackTarget()) body = pageBackBar() + body;
     /* 统一包一层现网右侧容器 class（已自带 brand_goodsList-container 的不重复包） */
     if (!isBuyer && !/brand_goodsList-container|ots_order-form|title_underline|buyer-layout/.test(body)) {
       body = `<div class="brand_goodsList-container">${body}</div>`;
@@ -4722,7 +4827,7 @@
           Store.db.ui.restockKind = "";
           Store.persist();
         }
-        go(page);
+        go(page, { replace: isRootNavEl(el) });
       });
     });
     app.querySelectorAll("[data-role]").forEach(el => {

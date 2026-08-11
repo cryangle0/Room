@@ -113,6 +113,12 @@ label { display: block; margin-bottom: 6px; color: var(--rr-muted); font-size: 1
 /* 原站标题：sub_title > h4 */
 .sub_title { margin: 0 0 20px; }
 .sub_title h4 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.02em; }
+.page-back-bar { margin: 0 0 14px; }
+.page-back {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 13px; color: #666; text-decoration: none;
+}
+.page-back:hover { color: var(--rr-purple); }
 
 /* Filter — 原站 brand_goodsFilter / goods_filter / item_inner（label 在上） */
 .brand_goodsFilter,
