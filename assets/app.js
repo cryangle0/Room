@@ -4494,7 +4494,7 @@
     syncBuyerCart();
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container brand_list-container">
-        ${buyerCatSide(`<div class="note" style="margin-top:16px;font-size:12px">无首单或上一补货未完成时，确认订单拦截。<br/><a href="javascript:;" data-toggle-rule="first">${state.hasFirstOrder ? "模拟：无首单" : "模拟：已有首单"}</a></div>`)}
+        ${buyerCatSide()}
         <div class="public_right-container">
           <div class="mob-sub_title"><h5>补货品牌</h5></div>
           <div class="brand_list">
