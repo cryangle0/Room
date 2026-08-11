@@ -1935,7 +1935,7 @@
     const mine = Store.buyerAppointments();
     const fairs = Store.db.orderingFairs || [];
     return `<div class="oto-main_container buyer-fe">
-      <div class="oto_container">
+      <div class="oto_container content-page">
         ${subTitle("预约申请 · 线下参加订货会")}
         <div class="note">提交后由平台/品牌在「预约管理 · 审核预约」处理，通过后即可到场看款。</div>
         <div class="form-section intent-apply">

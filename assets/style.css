@@ -175,11 +175,14 @@ h1.title_underline {
 }
 .filter-grid {
   display: grid;
-  grid-template-columns: 100px 1fr 100px 1fr;
+  grid-template-columns: 100px minmax(140px, 260px) 100px minmax(140px, 260px);
   gap: 16px 20px;
   align-items: center;
+  max-width: 880px;
 }
 .filter-grid .full { grid-column: 1 / -1; }
+.filter-grid input,
+.filter-grid select { width: 100%; max-width: 100%; box-sizing: border-box; }
 .filter-label { color: var(--rr-muted); text-align: right; padding-right: 8px; }
 .filter-actions { display: flex; align-items: center; gap: 24px; margin-top: 20px; }
 
@@ -353,10 +356,17 @@ h1.title_underline {
   border-bottom: 1px solid var(--rr-border);
 }
 .form-grid {
-  display: grid; grid-template-columns: 140px 1fr 140px 1fr;
-  gap: 16px 16px; align-items: center;
+  display: grid;
+  grid-template-columns: 120px minmax(160px, 280px) 120px minmax(160px, 280px);
+  gap: 14px 20px;
+  align-items: center;
+  max-width: 880px;
 }
-.form-grid .span2 { grid-column: 2 / 5; }
+.form-grid > div { min-width: 0; }
+.form-grid input,
+.form-grid select,
+.form-grid textarea { width: 100%; max-width: 100%; box-sizing: border-box; }
+.form-grid .span2 { grid-column: 2 / 5; max-width: 680px; }
 .form-grid .span-full { grid-column: 1 / -1; }
 .upload-box {
   border: 1px dashed #ccc; background: var(--rr-panel);
@@ -971,6 +981,24 @@ header.oto-nav.buyer-oto-nav .login_area .nav-ico {
   display: flex; gap: 32px; align-items: flex-start;
   max-width: 1200px; margin: 0 auto; padding: 24px 24px 48px;
 }
+/* 买手端表单/列表子页：统一内容宽度，避免横向铺满 */
+.buyer-fe > .oto_container:not(.brand_list-container):not(.selection-container):not(.order-container):not(.mine-container),
+.buyer-fe .oto_container.content-page {
+  max-width: 960px; margin: 0 auto; padding: 24px 24px 48px; width: 100%; box-sizing: border-box;
+}
+.buyer-fe .intent-apply,
+.buyer-fe .form-section {
+  max-width: 880px;
+}
+.public_right-container.main .form-section,
+.public_right-container.main .intent-apply,
+.brand_goodsList-container > .form-section {
+  max-width: 880px;
+}
+.public_right-container.main .note,
+.buyer-fe .note {
+  max-width: 880px;
+}
 .buyer-fe .public_left-container { width: 160px; flex-shrink: 0; position: sticky; top: 80px; }
 .buyer-fe .public_right-container { flex: 1; min-width: 0; }
 .buyer-fe .filter_list .sub_title.line_circle {
@@ -1204,7 +1232,11 @@ header.oto-nav.buyer-oto-nav .login_area .nav-ico {
   .sidebar { width: 100%; display: flex; overflow-x: auto; padding: 0; }
   .sidebar ul { display: flex; gap: 20px; }
   .sidebar li { margin: 0; white-space: nowrap; }
-  .filter-grid, .form-grid { grid-template-columns: 1fr; }
+  .filter-grid, .form-grid {
+    grid-template-columns: 110px minmax(0, 1fr);
+    max-width: 100%;
+  }
+  .form-grid .span2 { grid-column: 2; max-width: none; }
   .filter-label { text-align: left; }
   .brand-grid, .product-grid, .brand-grid-live { grid-template-columns: repeat(2, 1fr); }
   .goods-row, .table-head { grid-template-columns: 1fr; }
@@ -1273,7 +1305,7 @@ header.oto-nav.buyer-oto-nav .login_area .nav-ico {
 .brand-gate .action-bar { justify-content: center; margin-top: 20px; }
 
 /* 意向品牌 */
-.intent-apply { border: 1px solid var(--rr-border); padding: 20px; margin: 16px 0 28px; }
+.intent-apply { border: 1px solid var(--rr-border); padding: 20px; margin: 16px 0 28px; max-width: 880px; box-sizing: border-box; }
 .intent-brand-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 24px; }
 .chip {
   display: inline-block; padding: 4px 12px; font-size: 12px;
