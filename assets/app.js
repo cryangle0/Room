@@ -72,7 +72,6 @@
           { id: "brand-add", label: "添加品牌" },
           { id: "brand-discount", label: "设置优惠规则" },
           { id: "brand-size", label: "设置尺寸别名" },
-          { id: "brand-fair", label: "订货会设置" },
           { id: "brand-fair-new", label: "创建新订货会" },
           { id: "brand-pay", label: "收款设置" },
           { id: "brand-contract", label: "合同设置" },
@@ -170,6 +169,8 @@
       Store.db.ui.restockKind = "";
       Store.persist();
     }
+    /* 原「季节控制」已并入创建订货会 */
+    if (page === "brand-fair") page = "brand-fair-new";
     if (page === "goods-add") { state.goodsSpecs = null; state.goodsDraft = null; }
     state.page = page;
     state.cartOpen = false;
@@ -458,15 +459,6 @@
       "buyer-list", "ship-list"
     ];
     if (brandNoSide.includes(state.page)) return "";
-    // 原站季节页：左侧仅「季节控制」
-    if (state.page === "brand-fair" || state.page === "brand-fair-new") {
-      return `<div class="public_left-container sidebar">
-        <ul class="mine_side">
-          <li class="${state.page === "brand-fair" ? "active" : ""}"><a href="javascript:;" data-go="brand-fair">季节控制</a></li>
-          <li class="${state.page === "brand-fair-new" ? "active" : ""}"><a href="javascript:;" data-go="brand-fair-new">创建新订货会</a></li>
-        </ul>
-      </div>`;
-    }
     const group = topGroup(state.page);
     let items = (routes.platform.side[group] || []);
     // 主数据页：侧栏仅保留品牌列表 + 三项主数据
@@ -870,7 +862,7 @@
             <div class="g-name"><h4>${b.name}</h4></div>
             <h4><a href="javascript:;" data-go="brand-discount" data-brand="${b.name}">设置优惠规则</a></h4>
             <h4><a href="javascript:;" data-go="brand-size" data-brand="${b.name}">设置尺寸别名</a></h4>
-            <h4><a href="javascript:;" data-go="brand-fair" data-brand="${b.name}">订货会设置</a></h4>
+            <h4><a href="javascript:;" data-go="brand-fair-new" data-brand="${b.name}">订货会设置</a></h4>
             <h4><a href="javascript:;" data-go="brand-pay" data-brand="${b.name}">收款设置</a></h4>
             <h4><a href="javascript:;" data-go="brand-contract" data-brand="${b.name}">合同设置</a></h4>
             <h4><span class="dep-ratio" data-brand-ratio="${b.name}">${ratio}</span>
@@ -1023,14 +1015,18 @@
   }
 
   function pageBrandFairNew() {
-    /* Excel #15：创建新订货会（名称 + 图文介绍，展示位待确认） */
+    /* 创建订货会时设置该季「首单 / 补货」开关；原「季节控制」页已并入此处 */
     const list = Store.db.orderingFairs || [];
+    const defaultSeason = RR.seasons[RR.seasons.length - 1];
+    const curFair = Store.db.fairs[defaultSeason] || { first: true, replenish: true };
     return `<div class="boduan-container fair-create-page">
       ${subTitle("创建新订货会")}
-      <div class="note">填写订货会名称与图文介绍；具体展示入口待产品确认，当前先归档在平台端订货会列表。</div>
+      <div class="note">创建时选择关联季节，并设置该季是否开放<strong>首单</strong> / <strong>补货</strong>（关闭后买手仍可见商品，但对应类型不可下单）。</div>
       <div class="form-grid">
         <label class="req">订货会名称</label><div>${field("fairName", input("例如：2028SS 订货会"))}</div>
-        <label>关联季节</label><div>${field("fairSeason", select(RR.seasons, null, RR.seasons[RR.seasons.length - 1]))}</div>
+        <label>关联季节</label><div>${field("fairSeason", select(RR.seasons, null, defaultSeason))}</div>
+        <label>首单</label><div><label class="check-inline"><input type="checkbox" data-field="fairFirst" ${curFair.first !== false ? "checked" : ""} /> 开放该季首单下单</label></div>
+        <label>补货</label><div><label class="check-inline"><input type="checkbox" data-field="fairReplenish" ${curFair.replenish !== false ? "checked" : ""} /> 开放该季补货下单</label></div>
         <label>封面/宣传图</label><div class="span2"><div class="file_area upload-box" data-act="toast:已选择宣传图（示意）"><div class="plus">+</div>上传图文封面</div></div>
         <label>图文介绍</label><div class="span2"><textarea data-field="fairIntro" placeholder="订货会说明、亮点、场次信息等" rows="5"></textarea></div>
       </div>
@@ -1040,14 +1036,23 @@
       </div>
       <div class="sub_title" style="margin-top:32px"><h4>已创建订货会</h4></div>
       <table class="data-table">
-        <thead><tr><th>名称</th><th>季节</th><th>封面</th><th>介绍</th><th>创建时间</th></tr></thead>
+        <thead><tr><th>名称</th><th>季节</th><th>首单</th><th>补货</th><th>封面</th><th>介绍</th><th>创建时间</th><th>操作</th></tr></thead>
         <tbody>
-          ${list.map(f => `<tr>
+          ${list.map(f => {
+            const fair = Store.db.fairs[f.season] || { first: true, replenish: true };
+            return `<tr>
             <td>${f.name}</td><td>${f.season || "—"}</td>
+            <td><span class="badge ${fair.first !== false ? "green" : "red"}">${fair.first !== false ? "开" : "关"}</span></td>
+            <td><span class="badge ${fair.replenish !== false ? "green" : "red"}">${fair.replenish !== false ? "开" : "关"}</span></td>
             <td>${f.cover ? goodsThumb("sm") : "—"}</td>
             <td>${(f.intro || "—").slice(0, 40)}${(f.intro || "").length > 40 ? "…" : ""}</td>
             <td>${f.createdAt || "—"}</td>
-          </tr>`).join("") || '<tr><td colspan="5">暂无订货会</td></tr>'}
+            <td class="ops">
+              <a href="javascript:;" data-act="toggle-fair:${f.season}:first">${fair.first !== false ? "关首单" : "开首单"}</a>
+              <a href="javascript:;" data-act="toggle-fair:${f.season}:replenish">${fair.replenish !== false ? "关补货" : "开补货"}</a>
+            </td>
+          </tr>`;
+          }).join("") || '<tr><td colspan="8">暂无订货会</td></tr>'}
         </tbody>
       </table>
     </div>`;
@@ -2670,7 +2675,7 @@
       ["平台", "风格 / 适用人群 / 平台标准尺码配置", "品牌管理主数据三页", "ok"],
       ["平台", "预约管理：预约列表 / 审核预约", "预约管理分组（通过·拒绝含原因）", "ok"],
       ["平台", "意向申请：审核买手提交的品牌申请", "意向审核", "ok"],
-      ["平台", "订货会管理：创建订货会（手动输入季节）/ 订货会列表", "订货会设置 + 创建新订货会", "ok"],
+      ["平台", "订货会管理：创建订货会（含首单/补货开关）/ 订货会列表", "创建新订货会（原季节控制已并入）", "ok"],
       ["平台", "商品管理：补货/隐藏、批量导入、列表", "商品管理分组", "ok"],
       ["平台", "添加新商品：商品编号可重复 / 支持多规格 / SKC 编号", "添加新商品页多规格编辑器（SKC 唯一校验+自动生成）", "ok"],
       ["平台", "订单管理：驳回 / 折扣 / 首付比例 / 付款凭证 / 生成OC / 下载", "订单详情动态操作区", "ok"],
@@ -2937,6 +2942,16 @@
     if (act.startsWith("discount-season:")) {
       Store.setDiscountSeason(act.slice("discount-season:".length));
       toast("已切换季度：" + Store.db.ui.discountSeason);
+      render();
+      return;
+    }
+    if (act.startsWith("toggle-fair:")) {
+      const [, season, kind] = act.split(":");
+      const cur = Store.db.fairs[season] || { first: true, replenish: true };
+      const patch = kind === "first"
+        ? { first: !cur.first }
+        : { replenish: !cur.replenish };
+      toast(Store.setFair(season, patch));
       render();
       return;
     }
@@ -3933,7 +3948,14 @@
       }
       case "create-ordering-fair": {
         const f = readFields();
-        const r = Store.createOrderingFair({ name: f.fairName, season: f.fairSeason, intro: f.fairIntro, cover: true });
+        const r = Store.createOrderingFair({
+          name: f.fairName,
+          season: f.fairSeason,
+          intro: f.fairIntro,
+          cover: true,
+          first: !!f.fairFirst,
+          replenish: !!f.fairReplenish
+        });
         toast(r.msg || r);
         if (r.ok) render();
         break;

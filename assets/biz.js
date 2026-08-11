@@ -802,18 +802,33 @@
     createOrderingFair(payload) {
       const name = String(payload.name || "").trim();
       if (!name) return { ok: false, msg: "请填写订货会名称" };
+      const season = payload.season || (RR.seasons && RR.seasons[RR.seasons.length - 1]) || "";
       const id = uid("FAIR");
       db.orderingFairs = db.orderingFairs || [];
       db.orderingFairs.unshift({
         id,
         name,
-        season: payload.season || (RR.seasons && RR.seasons[RR.seasons.length - 1]) || "",
+        season,
+        first: payload.first !== false,
+        replenish: payload.replenish !== false,
         cover: !!payload.cover,
         intro: payload.intro || "",
         createdAt: new Date().toISOString().slice(0, 10)
       });
+      /* 同步季节开启状态：创建时写入首单/补货开关 */
+      if (season) {
+        db.fairs[season] = {
+          ...(db.fairs[season] || {}),
+          first: payload.first !== false,
+          replenish: payload.replenish !== false
+        };
+      }
       save();
-      return { ok: true, msg: `已创建订货会 ${name}`, id };
+      return {
+        ok: true,
+        msg: `已创建订货会 ${name}（${season} · 首单${payload.first !== false ? "开" : "关"} / 补货${payload.replenish !== false ? "开" : "关"}）`,
+        id
+      };
     },
     markMessagesRead() {
       (db.buyerMessages || []).forEach(m => { m.read = true; });
