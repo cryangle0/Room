@@ -444,7 +444,6 @@
         `<li><a href="javascript:;" class="${group === t.id ? "active" : ""}" data-go="${firstPage[t.id]}">${t.label}</a></li>`
       ).join("")}</ul>
       <div class="nav-right ots_order-nav_person">
-        <span class="role-chip">${portal === "brand" ? "品牌端 · HAIZHEN WANG" : "平台端 · 高级管理员"}</span>
         <span class="avatar">管</span>
         <a class="uk-button" href="javascript:;" data-go="account-center">账户中心</a>
       </div>
