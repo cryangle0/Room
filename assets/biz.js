@@ -100,6 +100,8 @@
     return {
       ...g,
       cat,
+      /* 商品编号(sku/款号)允许重复，skc（款+色）才是唯一编号 */
+      skc: g.skc || g.sku,
       subcat: g.subcat || "外套",
       restock: g.restock !== false,
       hideInFirst: !!g.hideInFirst,
@@ -114,8 +116,14 @@
     };
   }
 
+  /* skc 唯一，sku（款号）可重复：优先按 skc 命中 */
+  function findGoods(key) {
+    if (!key) return null;
+    return db.goods.find(g => g.skc === key) || db.goods.find(g => g.sku === key) || null;
+  }
+
   function enrichLine(l, idx) {
-    const g = SEED.goods.find(x => x.sku === l.sku) || {};
+    const g = SEED.goods.find(x => x.skc === l.sku || x.sku === l.sku) || {};
     const eg = enrichGoods({ ...g, ...l }, idx || 0);
     const sizes = l.sizes || Object.fromEntries((eg.sizes || ["S", "M", "L"]).map(sz => [sz, 0]));
     return {
@@ -477,6 +485,7 @@
           ...g,
           carry: !!g.carry,
           isNew: g.isNew != null ? !!g.isNew : i % 5 === 0,
+          skc: g.skc || g.sku,
           code: g.code || enrichGoods(g, i).code
         }));
       }
@@ -564,8 +573,12 @@
     },
 
     // ----- goods -----
+    /* 商品编号可重复，按 skc（唯一）优先定位，兼容只传 sku 的老数据 */
+    findGoods(key) {
+      return findGoods(key);
+    },
     toggleDelete(sku) {
-      const g = db.goods.find(x => x.sku === sku);
+      const g = findGoods(sku);
       if (!g) return "商品不存在";
       g.status = g.status === "已删款" ? "正常" : "已删款";
       save(); syncLegacy();
@@ -578,7 +591,7 @@
     },
     saveRestock(rows) {
       rows.forEach(r => {
-        const g = db.goods.find(x => x.sku === r.sku);
+        const g = findGoods(r.sku);
         if (!g) return;
         if (r.restock != null) g.restock = r.restock;
         if (r.hideAll != null) g.hideAll = r.hideAll;
@@ -603,27 +616,61 @@
       save(); syncLegacy();
       return `已批量更新 ${n} 款（${brand}${season && season !== "全部" ? " · " + season : ""}）`;
     },
+    /* 添加新商品：商品编号(sku)可重复；每个规格(款+色)生成一条 skc，skc 必须唯一 */
     addGoods(payload) {
-      if (!payload.sku || !payload.title || !payload.brand) return { ok: false, msg: "请填写品牌、款式名称、SKU" };
-      if (db.goods.some(g => g.sku === payload.sku)) return { ok: false, msg: "SKU 已存在" };
-      db.goods.unshift({
-        sku: payload.sku,
-        brand: payload.brand,
-        season: payload.season || "2026SS",
-        title: payload.title,
-        sizes: (payload.sizes || "S,M,L").split(/[,，\s]+/).filter(Boolean),
-        retail: money(payload.retail || 0),
-        wholesale: money(payload.wholesale || 0),
-        status: "正常",
-        carry: !!payload.carry,
-        cat: payload.cat || "女装",
-        subcat: payload.subcat || "",
-        restock: true,
-        hideInFirst: false,
-        linesheet: payload.linesheet || ""
+      if (!payload.sku || !payload.title || !payload.brand) return { ok: false, msg: "请填写品牌、款式名称、商品编号" };
+      const asSizes = v => (Array.isArray(v) ? v : String(v || "S,M,L").split(/[,，\s]+/)).filter(Boolean);
+      const specs = (payload.specs && payload.specs.length ? payload.specs : [{
+        color: payload.color || "", skc: payload.skc || "", sizes: payload.sizes
+      }]).map((s, i) => ({
+        color: String(s.color || "").trim(),
+        skc: String(s.skc || "").trim() || Store.nextSkc(payload.sku, s.color, i),
+        sizes: asSizes(s.sizes && (Array.isArray(s.sizes) ? s.sizes.length : s.sizes) ? s.sizes : payload.sizes)
+      }));
+      const dupIn = specs.map(s => s.skc).filter((x, i, a) => a.indexOf(x) !== i);
+      if (dupIn.length) return { ok: false, msg: `SKC 编号重复：${dupIn[0]}` };
+      const clash = specs.find(s => db.goods.some(g => (g.skc || g.sku) === s.skc));
+      if (clash) return { ok: false, msg: `SKC 编号已存在：${clash.skc}（商品编号可重复，SKC 需唯一）` };
+      const repeated = db.goods.some(g => g.sku === payload.sku);
+      specs.forEach(s => {
+        db.goods.unshift({
+          sku: payload.sku,
+          skc: s.skc,
+          brand: payload.brand,
+          season: payload.season || "2026SS",
+          title: payload.title,
+          color: s.color,
+          sizes: s.sizes.length ? s.sizes : ["S", "M", "L"],
+          retail: money(payload.retail || 0),
+          wholesale: money(payload.wholesale || 0),
+          status: "正常",
+          carry: !!payload.carry,
+          cat: payload.cat || "女装",
+          subcat: payload.subcat || "",
+          restock: payload.restock !== false,
+          hideInFirst: false,
+          linesheet: payload.linesheet || "",
+          shipAt: payload.shipAt || ""
+        });
       });
       save(); syncLegacy();
-      return { ok: true, msg: `商品 ${payload.sku} 已添加` };
+      return {
+        ok: true,
+        count: specs.length,
+        skcs: specs.map(s => s.skc),
+        msg: `商品 ${payload.sku} 已添加 ${specs.length} 个规格（SKC：${specs.map(s => s.skc).join("、")}）${repeated ? "；该商品编号已存在，按可重复处理" : ""}`
+      };
+    },
+    /* 默认 SKC 规则：商品编号 + 色序号，冲突则递增 */
+    nextSkc(sku, color, idx) {
+      const base = `${sku}-${String(idx + 1).padStart(2, "0")}`;
+      let skc = base;
+      let n = idx + 1;
+      while (db.goods.some(g => (g.skc || g.sku) === skc)) {
+        n += 1;
+        skc = `${sku}-${String(n).padStart(2, "0")}`;
+      }
+      return skc;
     },
     batchImport(brand, cat, count = 3) {
       for (let i = 0; i < count; i++) {
@@ -884,7 +931,7 @@
       if (!s) return { ok: false, msg: "选款单不存在" };
       if (s.locked) return { ok: false, msg: "选款单已锁定" };
       if ((s.lines || []).some(l => l.sku === sku)) return { ok: false, msg: "该款已在选款单中" };
-      const g = db.goods.find(x => x.sku === sku);
+      const g = findGoods(sku);
       if (!g) return { ok: false, msg: "商品不存在" };
       if (g.brand !== s.brand) return { ok: false, msg: "只能添加本品牌款式（选款单按品牌独立）" };
       const sizes = Object.fromEntries((g.sizes || ["S", "M", "L"]).map(sz => [sz, sz === (g.sampleSize || "M") || sz === "M" ? 1 : 0]));
@@ -948,7 +995,7 @@
     draftQuote(brand) {
       const items = db.buyerSession.selections.filter(x => !brand || x.brand === brand);
       const toLine = (i, idx, forceOne) => {
-        const g = db.goods.find(x => x.sku === i.sku) || i;
+        const g = findGoods(i.sku) || i;
         let sizes = i.sizes || Object.fromEntries((g.sizes || ["S", "M", "L"]).map(sz => [sz, 0]));
         const hasQty = Object.values(sizes).some(v => Number(v) > 0);
         if (forceOne && !hasQty) {
@@ -967,7 +1014,7 @@
     bumpDraftQty(sku, size, d) {
       const item = db.buyerSession.selections.find(x => x.sku === sku);
       if (!item) return { ok: false, msg: "未在选款中" };
-      const g = db.goods.find(x => x.sku === sku);
+      const g = findGoods(sku);
       item.sizes = item.sizes || Object.fromEntries((g && g.sizes || ["S", "M", "L"]).map(sz => [sz, 0]));
       item.sizes[size] = Math.max(0, Number(item.sizes[size] || 0) + Number(d || 0));
       save();
@@ -1604,7 +1651,7 @@
       return rows;
     },
     upsertDraftSelection(sku, sizes) {
-      const g = db.goods.find(x => x.sku === sku);
+      const g = findGoods(sku);
       if (!g) return { ok: false, msg: "商品不存在" };
       if (g.status === "已删款" || g.hideAll) return { ok: false, msg: "商品不可选" };
       const list = db.buyerSession.selections;
@@ -1634,7 +1681,7 @@
       const l = db.looks.find(x => String(x.id) === String(id));
       if (!l) return { ok: false, msg: "LOOK 不存在" };
       const skus = String(skuText || "").split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
-      const bad = skus.filter(s => !db.goods.some(g => g.sku === s));
+      const bad = skus.filter(s => !findGoods(s));
       if (bad.length) return { ok: false, msg: "无效 SKU：" + bad.join(",") };
       l.skus = skus;
       save();
@@ -1712,7 +1759,7 @@
       const idx = list.findIndex(x => x.sku === sku);
       if (idx >= 0) list.splice(idx, 1);
       else {
-        const g = db.goods.find(x => x.sku === sku);
+        const g = findGoods(sku);
         if (g) {
           const sizes = Object.fromEntries((g.sizes || ["S", "M", "L"]).map(sz => [sz, 0]));
           list.push({
@@ -1732,7 +1779,7 @@
       if (!check.ok) return check;
       const id = uid("SEL");
       const lines = items.map((i, idx) => {
-        const g = db.goods.find(x => x.sku === i.sku) || {};
+        const g = findGoods(i.sku) || {};
         let sizes = i.sizes || {};
         if (!Object.values(sizes).some(v => Number(v) > 0)) {
           sizes = Object.fromEntries((g.sizes || ["S", "M"]).map((sz, j) => [sz, j < 2 ? 1 : 0]));
@@ -1813,7 +1860,7 @@
           const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
           const price = Number(l.price || 0) * Number(l.discount || 1);
           if (!map[l.sku]) {
-            const g = db.goods.find(x => x.sku === l.sku) || {};
+            const g = findGoods(l.sku) || {};
             map[l.sku] = {
               sku: l.sku, title: l.title || g.title, color: g.color || "—",
               sizes: {}, pieces: 0, amount: 0, unit: price,

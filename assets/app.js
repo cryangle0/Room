@@ -170,6 +170,7 @@
       Store.db.ui.restockKind = "";
       Store.persist();
     }
+    if (page === "goods-add") { state.goodsSpecs = null; state.goodsDraft = null; }
     state.page = page;
     state.cartOpen = false;
     state.listPage = 1;
@@ -632,7 +633,7 @@
     /* 原站：brand_goodsList > items > item_goods-row（SKU 行 + goods_name/img + sizes + oto_btn） */
     const rows = list.map(g => `
       <div class="item_goods-row goods-card">
-        <div class="goods_sku goods-meta">SKU:<span>${g.sku}</span>　品牌<span>${g.brand}</span>　季节<span>${g.season}</span>${g.carry ? '　<span class="badge">Carry Over</span>' : ""}</div>
+        <div class="goods_sku goods-meta">SKU:<span>${g.sku}</span>　SKC:<span>${g.skc || g.sku}</span>${g.color ? `　颜色<span>${g.color}</span>` : ""}　品牌<span>${g.brand}</span>　季节<span>${g.season}</span>${g.carry ? '　<span class="badge">Carry Over</span>' : ""}</div>
         <div class="goods-row">
           <div class="goods_name goods-info">
             <div class="thumb ph">IMG</div>
@@ -645,7 +646,7 @@
           <div class="goods_small ops uk-flex-column">
             <a href="javascript:;" class="oto_btn" data-go="goods-add">编辑</a>
             <a href="javascript:;" class="oto_btn" data-go="goods-view">查看</a>
-            <a href="javascript:;" class="oto_btn" data-act="toggle-delete:${g.sku}">${g.status === "已删款" ? "取消删款" : "删款"}</a>
+            <a href="javascript:;" class="oto_btn" data-act="toggle-delete:${g.skc || g.sku}">${g.status === "已删款" ? "取消删款" : "删款"}</a>
           </div>
         </div>
       </div>`).join("") || '<div class="note">无匹配商品，请调整筛选条件</div>';
@@ -672,26 +673,45 @@
     </div>`;
   }
 
+  /* 《功能点思维导图》添加新商品：编号可重复 / 支持多规格 / skc编号 */
+  function goodsSpecRows() {
+    const sizes = Store.db.standardSizes || ["XS", "S", "M", "L", "XL"];
+    const specs = state.goodsSpecs && state.goodsSpecs.length ? state.goodsSpecs : [{ color: "黑色", skc: "", sizes: ["S", "M", "L"] }];
+    state.goodsSpecs = specs;
+    return `<div class="spec-list">
+      ${specs.map((sp, i) => `<div class="spec-row" data-spec="${i}">
+        <div class="spec-idx">规格 ${i + 1}</div>
+        <div class="spec-f spec-color"><label>颜色</label>${field("specColor-" + i, select(RR.colors, "请选择", sp.color || "请选择"))}</div>
+        <div class="spec-f spec-skc"><label>SKC 编号</label>${field("specSkc-" + i, input("留空自动生成，如 JL26SS001-01", sp.skc || ""))}</div>
+        <div class="spec-f spec-sizes"><label>尺寸</label>${checkGroup("specSizes-" + i, sizes, sp.sizes && sp.sizes.length ? sp.sizes : ["S", "M", "L"])}</div>
+        <div class="spec-ops">${specs.length > 1 ? `<a href="javascript:;" class="oto_btn sm" data-act="del-spec:${i}">删除</a>` : ""}</div>
+      </div>`).join("")}
+    </div>
+    <div class="action-bar"><a href="javascript:;" class="oto_btn" data-act="add-spec">+ 添加规格（颜色）</a></div>`;
+  }
+
   function pageGoodsAdd() {
     /* 原站：sub_title「修改商品信息」；波段=text；季节/色/尺码/品类=select；Carry=checkbox；发货时间=text 控件（原型用 date） */
+    const d = state.goodsDraft || {};
+    const dv = (k, fallback) => (d[k] === undefined || d[k] === "" ? fallback : d[k]);
     return `${subTitle("添加新商品")}
+      <div class="note">商品编号（款号）<strong>允许重复</strong>；每个「款 + 色」为一条 <strong>SKC</strong>，SKC 编号在平台内唯一，留空按「编号-序号」自动生成。</div>
       <div class="ots_order-form ots_order-form-column goods-add-form">
-        <div class="form_item-long"><label class="req">所属品牌 *</label><div>${field("brand", select(RR.brands.map(b => b.name), "选择品牌", "JUNLI"))}</div></div>
-        <div class="form_item-long"><label class="req">款式名称 *</label><div>${field("title", input("款式名称"))}</div></div>
-        <div class="form_item-long"><label class="req">sku *</label><div>${field("sku", input("SKU"))}</div></div>
-        <div class="form_item-long"><label>波段</label><div>${field("band", input("波段名称"))}</div></div>
-        <div class="form_item-long"><label>预计发货时间</label><div>${field("shipAt", dateInput(""))}</div></div>
-        <div class="form_item-long"><label class="req">季节 *</label><div>${field("season", select(RR.seasons, null, "2026SS"))}</div></div>
+        <div class="form_item-long"><label class="req">所属品牌 *</label><div>${field("brand", select(RR.brands.map(b => b.name), "选择品牌", dv("brand", "JUNLI")))}</div></div>
+        <div class="form_item-long"><label class="req">款式名称 *</label><div>${field("title", input("款式名称", dv("title", "")))}</div></div>
+        <div class="form_item-long"><label class="req">商品编号(sku) *</label><div>${field("sku", input("商品编号，可与已有商品重复", dv("sku", "")))}</div></div>
+        <div class="form_item-long"><label>波段</label><div>${field("band", input("波段名称", dv("band", "")))}</div></div>
+        <div class="form_item-long"><label>预计发货时间</label><div>${field("shipAt", dateInput(dv("shipAt", "")))}</div></div>
+        <div class="form_item-long"><label class="req">季节 *</label><div>${field("season", select(RR.seasons, null, dv("season", "2026SS")))}</div></div>
         <div class="form_item-long"><label>Carry Over</label><div><label class="check-inline"><input type="checkbox" data-field="carry" /></label></div></div>
         <div class="form_item-long"><label>可补货</label><div><label class="check-inline"><input type="checkbox" data-field="restock" checked /></label></div></div>
-        <div class="form_item-long"><label class="req">尺寸列表 *</label><div>${checkGroup("sizes", Store.db.standardSizes || ["XS", "S", "M", "L", "XL"], ["S", "M", "L"])}</div></div>
-        <div class="form_item-long"><label>面料/材质</label><div>${field("fabric", input())}</div></div>
-        <div class="form_item-long"><label class="req">品类 *</label><div>${field("cat", select(["女装", "男装", "男女装", "配饰", "生活方式"], null, "女装"))}</div></div>
-        <div class="form_item-long"><label>二级品类</label><div>${field("subcat", select(["外套", "连衣裙", "裤装", "裙装"], null, "外套"))}</div></div>
-        <div class="form_item-long"><label class="req">建议零售价 *</label><div>${field("retail", input("CNY", "3000"))}</div></div>
-        <div class="form_item-long"><label class="req">订货价 *</label><div>${field("wholesale", input("CNY", "1350"))}</div></div>
-        <div class="form_item-long"><label>颜色</label><div>${field("color", select(RR.colors, "请选择", "黑色"))}</div></div>
-        <div class="form_item-long"><label>最小起订量</label><div>${field("moq", input("件", "1"))}</div></div>
+        <div class="form_item-long"><label class="req">规格（颜色 + SKC 编号 + 尺寸）*</label><div>${goodsSpecRows()}</div></div>
+        <div class="form_item-long"><label>面料/材质</label><div>${field("fabric", input("", dv("fabric", "")))}</div></div>
+        <div class="form_item-long"><label class="req">品类 *</label><div>${field("cat", select(["女装", "男装", "男女装", "配饰", "生活方式"], null, dv("cat", "女装")))}</div></div>
+        <div class="form_item-long"><label>二级品类</label><div>${field("subcat", select(["外套", "连衣裙", "裤装", "裙装"], null, dv("subcat", "外套")))}</div></div>
+        <div class="form_item-long"><label class="req">建议零售价 *</label><div>${field("retail", input("CNY", dv("retail", "3000")))}</div></div>
+        <div class="form_item-long"><label class="req">订货价 *</label><div>${field("wholesale", input("CNY", dv("wholesale", "1350")))}</div></div>
+        <div class="form_item-long"><label>最小起订量</label><div>${field("moq", input("件", dv("moq", "1")))}</div></div>
         <div class="form_item-long"><label>缩略图</label><div class="upload-box"><div class="plus">+</div>缩略图 · &lt;5MB</div></div>
         <div class="form_item-long"><label>白底图</label><div class="upload-box"><div class="plus">+</div>白底图 · &lt;5MB</div></div>
         <div class="form_item-long"><label>商品图片</label><div class="upload-box"><div class="plus">+</div>多图上传</div></div>
@@ -769,11 +789,11 @@
       <table class="data-table" id="restock-table">
         <thead><tr><th>图片</th><th>SKU</th><th>商品</th><th>季节</th><th>${kind === "hide" ? "隐藏（全不可见）" : "可补货"}</th></tr></thead>
         <tbody>
-          ${list.map(g => `<tr data-sku="${g.sku}">
-            <td>${goodsThumb("sm")}</td><td>${g.sku}</td><td>${g.title}</td><td>${g.season}</td>
+          ${list.map(g => `<tr data-sku="${g.skc || g.sku}">
+            <td>${goodsThumb("sm")}</td><td>${g.skc || g.sku}</td><td>${g.title}${g.color ? ` · ${g.color}` : ""}</td><td>${g.season}</td>
             <td>${kind === "hide"
-              ? field("hide-" + g.sku, select(["否", "是"], null, g.hideAll ? "是" : "否"))
-              : field("restock-" + g.sku, select(["是", "否"], null, g.restock !== false ? "是" : "否"))}</td>
+              ? field("hide-" + (g.skc || g.sku), select(["否", "是"], null, g.hideAll ? "是" : "否"))
+              : field("restock-" + (g.skc || g.sku), select(["是", "否"], null, g.restock !== false ? "是" : "否"))}</td>
           </tr>`).join("") || '<tr><td colspan="5">该季度暂无商品</td></tr>'}
         </tbody>
       </table>`;
@@ -2283,8 +2303,8 @@
         ${paged.map(g => `
           <div class="item">
             <div class="item_inner">
-              <div class="brand_like goods_check ${state.hearts.includes(g.sku) ? "has_checked heart_stay" : "no_checked"}" data-heart="${g.sku}" title="加入选款单"><span class="heart-mark">${state.hearts.includes(g.sku) ? "♥" : "♡"}</span></div>
-              <a href="javascript:;" data-go="buyer-detail" data-sku="${g.sku}">
+              <div class="brand_like goods_check ${state.hearts.includes(g.skc || g.sku) ? "has_checked heart_stay" : "no_checked"}" data-heart="${g.skc || g.sku}" title="加入选款单"><span class="heart-mark">${state.hearts.includes(g.skc || g.sku) ? "♥" : "♡"}</span></div>
+              <a href="javascript:;" data-go="buyer-detail" data-sku="${g.skc || g.sku}">
                 <div class="cover">${g.isNew ? '<span class="badge-new">New</span>' : ""}LOOK</div>
                 <p>${g.title}</p>
                 <p>${g.sku}</p>
@@ -2299,8 +2319,8 @@
         ${list.map(g => `
           <div class="item item_small">
             <div class="item_inner item_sku">
-              <div class="brand_like goods_check ${state.hearts.includes(g.sku) ? "has_checked heart_stay" : "no_checked"}" data-heart="${g.sku}" title="选款"><span class="heart-mark">${state.hearts.includes(g.sku) ? "♥" : "♡"}</span></div>
-              <div class="sku_item" data-go="buyer-detail" data-sku="${g.sku}"><p class="sku_code">${g.code || g.sku.slice(-3)}</p></div>
+              <div class="brand_like goods_check ${state.hearts.includes(g.skc || g.sku) ? "has_checked heart_stay" : "no_checked"}" data-heart="${g.skc || g.sku}" title="选款"><span class="heart-mark">${state.hearts.includes(g.skc || g.sku) ? "♥" : "♡"}</span></div>
+              <div class="sku_item" data-go="buyer-detail" data-sku="${g.skc || g.sku}"><p class="sku_code">${g.code || g.sku.slice(-3)}</p></div>
             </div>
           </div>`).join("") || '<div class="note">无匹配商品（可取消 New / Carry Over 筛选）</div>'}
       </div>`;
@@ -2653,7 +2673,8 @@
       ["平台", "预约管理：预约列表 / 审核预约", "预约管理分组（通过·拒绝含原因）", "ok"],
       ["平台", "意向申请：审核买手提交的品牌申请", "意向审核", "ok"],
       ["平台", "订货会管理：创建订货会（手动输入季节）/ 订货会列表", "订货会设置 + 创建新订货会", "ok"],
-      ["平台", "商品管理：补货/隐藏、添加（编号可重复/多规格/skc）、批量导入、列表", "商品管理分组", "ok"],
+      ["平台", "商品管理：补货/隐藏、批量导入、列表", "商品管理分组", "ok"],
+      ["平台", "添加新商品：商品编号可重复 / 支持多规格 / SKC 编号", "添加新商品页多规格编辑器（SKC 唯一校验+自动生成）", "ok"],
       ["平台", "订单管理：驳回 / 折扣 / 首付比例 / 付款凭证 / 生成OC / 下载", "订单详情动态操作区", "ok"],
       ["平台", "订单完成：不考虑发货，人工点完成并统计付款差额", "「完成结算」按钮 + 付款差额", "ok"],
       ["平台", "选款单管理：修改 / 生成订单 / 下载 / 取消", "选款单管理 + 详情", "ok"],
@@ -3119,6 +3140,23 @@
         return;
       }
       toast(Store.setBuyerStatus(name, "已通过"));
+      render();
+      return;
+    }
+    if (act.startsWith("del-spec:")) {
+      const idx = Number(act.split(":")[1]);
+      const f = readFields();
+      const cur = [...app.querySelectorAll("[data-spec]")].map(row => {
+        const i = row.getAttribute("data-spec");
+        const color = f["specColor-" + i];
+        return {
+          color: color === "请选择" ? "" : color,
+          skc: f["specSkc-" + i] || "",
+          sizes: [...row.querySelectorAll(`[data-check="specSizes-${i}"]:checked`)].map(x => x.value)
+        };
+      });
+      state.goodsSpecs = cur.filter((_, i) => i !== idx);
+      state.goodsDraft = f;
       render();
       return;
     }
@@ -3637,18 +3675,51 @@
       }
       case "save-goods": {
         const f = readFields();
-        const sizes = [...app.querySelectorAll('[data-check="sizes"]:checked')].map(x => x.value);
+        /* 多规格：每行「颜色 + SKC + 尺寸」生成一条 SKC */
+        const specs = [...app.querySelectorAll("[data-spec]")].map(row => {
+          const i = row.getAttribute("data-spec");
+          const color = f["specColor-" + i];
+          return {
+            color: color === "请选择" ? "" : color,
+            skc: f["specSkc-" + i] || "",
+            sizes: [...row.querySelectorAll(`[data-check="specSizes-${i}"]:checked`)].map(x => x.value)
+          };
+        });
+        state.goodsSpecs = specs.length ? specs : state.goodsSpecs;
+        state.goodsDraft = f;
         const r = Store.addGoods({
           brand: f.brand, title: f.title, sku: f.sku, season: f.season,
-          sizes: sizes.length ? sizes : ["S", "M", "L"],
+          specs,
           retail: f.retail, wholesale: f.wholesale, cat: f.cat, subcat: f.subcat,
           carry: !!f.carry || f.carry === "是",
           restock: f.restock !== false && f.restock !== "否",
-          linesheet: f.band || "", color: f.color || "",
+          linesheet: f.band || "",
           shipAt: f.shipAt || ""
         });
         toast(r.msg);
-        if (r.ok) go("goods-list");
+        if (r.ok) {
+          state.goodsSpecs = null;
+          state.goodsDraft = null;
+          go("goods-list");
+        } else render();
+        break;
+      }
+      case "add-spec": {
+        const f = readFields();
+        const cur = [...app.querySelectorAll("[data-spec]")].map(row => {
+          const i = row.getAttribute("data-spec");
+          const color = f["specColor-" + i];
+          return {
+            color: color === "请选择" ? "" : color,
+            skc: f["specSkc-" + i] || "",
+            sizes: [...row.querySelectorAll(`[data-check="specSizes-${i}"]:checked`)].map(x => x.value)
+          };
+        });
+        const used = cur.map(s => s.color);
+        const next = (RR.colors || []).find(c => !used.includes(c)) || "";
+        state.goodsSpecs = [...cur, { color: next, skc: "", sizes: ["S", "M", "L"] }];
+        state.goodsDraft = f;
+        render();
         break;
       }
       case "save-discount": {
@@ -3771,8 +3842,8 @@
         const season = Store.db.ui.restockSeason || "全部";
         const list = Store.db.goods.filter(g => g.brand === brand && (season === "全部" || g.season === season));
         const rows = list.map(g => kind === "hide"
-          ? { sku: g.sku, hideAll: (f["hide-" + g.sku] || "否") === "是" }
-          : { sku: g.sku, restock: (f["restock-" + g.sku] || "是") === "是" });
+          ? { sku: g.skc || g.sku, hideAll: (f["hide-" + (g.skc || g.sku)] || "否") === "是" }
+          : { sku: g.skc || g.sku, restock: (f["restock-" + (g.skc || g.sku)] || "是") === "是" });
         toast(Store.saveRestock(rows));
         render();
         break;

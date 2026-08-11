@@ -366,11 +366,56 @@ async () => {
     { name: "pending-status", ok: mine.some((a) => a.brand === "JUNLI" && a.status === "待审核" && Number(a.people) === 3) }
   ]);
 
+  /* 添加新商品：编号可重复 / 支持多规格 / skc编号 */
+  await click(qa("[data-portal]").find((e) => e.getAttribute("data-portal") === "platform"));
+  await click(navGo("goods-add"));
+  const specHint = has("允许重复") && has("SKC");
+  const oneRow = qa("[data-spec]").length === 1;
+  await click(byAct("add-spec"));
+  const dupSku = Store.db.goods[0].sku;
+  setF("title", "门禁多规格款");
+  setF("sku", dupSku);
+  const keepAfterAdd = (q('[data-field="title"]') || {}).value === "门禁多规格款";
+  setF("specSkc-0", "GATE-SKC-A");
+  setF("specSkc-1", "GATE-SKC-A");
+  const beforeG = Store.db.goods.length;
+  await click(byAct("save-context"));
+  const dupSkcBlocked = Store.db.goods.length === beforeG && !Store.db.goods.some((g) => g.skc === "GATE-SKC-A");
+  const keepAfterFail = (q('[data-field="sku"]') || {}).value === dupSku;
+  setF("specSkc-1", "");
+  await click(byAct("save-context"));
+  const rows = Store.db.goods.filter((g) => g.sku === dupSku);
+  const skcs = rows.map((g) => g.skc);
+  add("G1", "添加新商品：编号可重复 / 多规格 / SKC 编号", [
+    { name: "spec-editor", ok: specHint && oneRow },
+    { name: "keep-input", ok: keepAfterAdd && keepAfterFail },
+    { name: "dup-skc-blocked", ok: dupSkcBlocked },
+    { name: "sku-repeatable", ok: rows.length >= 3 },
+    { name: "multi-spec-saved", ok: skcs.includes("GATE-SKC-A") && rows.some((g) => g.color === "白色") },
+    { name: "skc-auto-gen", ok: skcs.some((s) => /-\d{2}$/.test(s)) },
+    { name: "skc-unique", ok: new Set(Store.db.goods.map((g) => g.skc)).size === Store.db.goods.length },
+    { name: "list-shows-skc", ok: has("GATE-SKC-A") }
+  ]);
+
+  /* 买手端仍能按 SKC 选款下单（重复编号不串行） */
+  const gskc = "GATE-SKC-A";
+  const selBrand = rows[0] && rows[0].brand;
+  const foundBySkc = !!Store.findGoods(gskc) && Store.findGoods(gskc).skc === gskc;
+  Store.toggleHeart(gskc);
+  const inDraft = (Store.db.buyerSession.selections || []).some((x) => x.sku === gskc);
+  Store.toggleHeart(gskc);
+  const removed = !(Store.db.buyerSession.selections || []).some((x) => x.sku === gskc);
+  add("G2", "重复编号下按 SKC 唯一定位商品", [
+    { name: "find-by-skc", ok: foundBySkc },
+    { name: "brand-kept", ok: !!selBrand },
+    { name: "heart-by-skc", ok: inDraft && removed }
+  ]);
+
   /* 覆盖核对页：思维导图逐项对照 */
   await click(byGo("coverage"));
   add("P5", "覆盖核对页含思维导图逐项对照", [
     { name: "mind-table", ok: has("功能点思维导图逐项对照") },
-    { name: "platform-rows", ok: has("设置品牌订单首付比例") && has("审核预约") },
+    { name: "platform-rows", ok: has("设置品牌订单首付比例") && has("审核预约") && has("商品编号可重复") },
     { name: "buyer-rows", ok: has("预约申请（申请线下参加订货会）") }
   ]);
 
