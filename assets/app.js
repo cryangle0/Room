@@ -57,17 +57,19 @@
   const routes = {
     platform: {
       top: [
-        { id: "brand", label: "我的店铺" },
+        { id: "brand", label: "品牌管理" },
         { id: "goods", label: "商品管理" },
         { id: "order", label: "订单管理" },
         { id: "ship", label: "发货管理" },
+        { id: "appoint", label: "预约管理" },
         { id: "intent", label: "意向审核" },
         { id: "buyer", label: "买手管理" },
         { id: "role", label: "角色权限" }
       ],
       side: {
         brand: [
-          { id: "brand-list", label: "品牌管理" },
+          { id: "brand-list", label: "品牌列表" },
+          { id: "brand-add", label: "添加品牌" },
           { id: "brand-discount", label: "设置优惠规则" },
           { id: "brand-size", label: "设置尺寸别名" },
           { id: "brand-fair", label: "订货会设置" },
@@ -100,6 +102,10 @@
           { id: "order-kingdee", label: "金蝶同步" }
         ],
         ship: [{ id: "ship-list", label: "发货管理" }],
+        appoint: [
+          { id: "appoint-list", label: "预约列表" },
+          { id: "appoint-audit", label: "审核预约" }
+        ],
         intent: [{ id: "intent-list", label: "意向管理" }],
         buyer: [
           { id: "buyer-list", label: "买手审核" },
@@ -124,7 +130,7 @@
     },
     brand: {
       top: [
-        { id: "brand", label: "我的店铺" },
+        { id: "brand", label: "品牌设置" },
         { id: "goods", label: "商品管理" },
         { id: "order", label: "订单管理" },
         { id: "ship", label: "发货管理" },
@@ -175,6 +181,7 @@
 
   function topGroup(page) {
     if (page === "coverage" || page === "account-center") return "account";
+    if (page.startsWith("appoint")) return "appoint";
     if (page.startsWith("brand")) return "brand";
     if (page.startsWith("goods")) return "goods";
     if (page.startsWith("order") || page.startsWith("selection") || page.startsWith("contract") || page.startsWith("oc-")) return "order";
@@ -381,8 +388,10 @@
         `<a href="javascript:;" class="${state.portal === id ? "on" : ""}" data-portal="${id}">${lab}</a>`
       ).join("")}
       <span>|</span>
+      <a href="javascript:;" class="${state.page === "flow-map" ? "on" : ""}" data-go="flow-map">业务流程</a>
       <a href="javascript:;" class="${state.page === "coverage" ? "on" : ""}" data-go="coverage">覆盖核对</a>
-      <span style="margin-left:12px;opacity:.6">菜单≈90% · 业务闭环见核对页</span>
+      <a href="javascript:;" class="${state.page === "login" ? "on" : ""}" data-go="login">登录/注册</a>
+      <span style="margin-left:12px;opacity:.6">注册流程 / 订单流程见「业务流程」</span>
     </div>`;
   }
 
@@ -393,7 +402,9 @@
         ["buyer-home", "品牌", state.page === "buyer-home" || state.page.startsWith("buyer-brand") || state.page === "buyer-detail"],
         ["buyer-replenish", "补货", state.page === "buyer-replenish"],
         ["buyer-selection", "我的选款单", state.page.startsWith("buyer-selection")],
-        ["buyer-orders", "我的订单", state.page.startsWith("buyer-order")]
+        ["buyer-orders", "我的订单", state.page.startsWith("buyer-order")],
+        ["buyer-intent", "意向品牌", state.page === "buyer-intent"],
+        ["buyer-appoint-apply", "预约申请", state.page === "buyer-appoint-apply"]
       ];
       return `<header class="oto-nav buyer-oto-nav" id="navTop">
         <div class="oto_container nav-container">
@@ -421,6 +432,7 @@
       goods: "goods-list",
       order: "order-selection",
       ship: "ship-list",
+      appoint: "appoint-list",
       intent: "intent-list",
       buyer: "buyer-list",
       role: "role-list"
@@ -461,7 +473,7 @@
     // 主数据页：侧栏仅保留品牌列表 + 三项主数据
     if (/^brand-master-/.test(state.page)) {
       items = [
-        { id: "brand-list", label: "品牌管理" },
+        { id: "brand-list", label: "品牌列表" },
         { id: "brand-master-style", label: "风格资料维护" },
         { id: "brand-master-crowd", label: "适用人群维护" },
         { id: "brand-master-size", label: "平台标准尺码" }
@@ -470,8 +482,8 @@
     if (state.portal === "brand") {
       if (group === "buyer" || group === "role" || group === "account") items = [];
       if (group === "brand") {
-        // 品牌端无「全品牌列表」，直接进本品牌配置
-        items = items.filter(i => i.id !== "brand-list" && !/^brand-master-/.test(i.id));
+        // 品牌端无「全品牌列表 / 添加品牌」，直接进本品牌配置
+        items = items.filter(i => !["brand-list", "brand-add"].includes(i.id) && !/^brand-master-/.test(i.id));
       }
       if (group === "order") {
         items = items.filter(i => !["order-recon", "order-appoint"].includes(i.id));
@@ -496,22 +508,101 @@
   /* ---------- Pages ---------- */
 
   function pageLogin() {
+    const isBuyer = state.roleLogin === "buyer";
+    const defPhone = isBuyer ? (Store.db.buyerSession.phone || "13681383088") : "13800000000";
     return `${protoBar()}
     <div class="login-page">
       <div class="login-card">
         <h1>ROOMROOM</h1>
-        <div class="sub">订货管理系统 · 手机验证码登录</div>
+        <div class="sub">订货管理系统 · 手机号 + 验证码登录</div>
         <div class="role-pick">
           <button class="${state.roleLogin === "platform" ? "on" : ""}" data-role="platform">平台端</button>
           <button class="${state.roleLogin === "brand" ? "on" : ""}" data-role="brand">品牌端</button>
-          <button class="${state.roleLogin === "buyer" ? "on" : ""}" data-role="buyer">买手端</button>
+          <button class="${isBuyer ? "on" : ""}" data-role="buyer">买手端</button>
         </div>
-        <div class="login-field"><label>手机号</label><input placeholder="请输入手机号" value="13800000000" /></div>
+        <div class="login-field"><label>手机号</label>${field("loginPhone", input("请输入手机号", defPhone))}</div>
         <div class="login-field"><label>验证码</label>
-          <div class="row"><input placeholder="6位验证码" value="888888" /><button type="button" class="code-btn" data-act="send-code">获取验证码</button></div>
+          <div class="row">${field("loginCode", input("6位验证码", "888888"))}<button type="button" class="code-btn" data-act="send-code">获取验证码</button></div>
         </div>
         <button class="btn btn-primary btn-block" id="do-login">登录</button>
-        <p style="margin-top:16px;font-size:12px;color:#999;text-align:center">根据账号身份权限自动进入对应端口（需求：统一登录页）</p>
+        ${isBuyer ? `<div class="login-links">
+          <a href="javascript:;" data-go="register">买手注册</a>
+          <span>·</span>
+          <a href="javascript:;" data-go="register-status">查询审核进度</a>
+        </div>
+        <div class="note login-note">买手端需<strong>平台审核通过</strong>后才能登录（《注册流程图》）。<br/>
+          可试：<code>13681383088</code> 已通过 · <code>18659515999</code> 待审核（登录被拦截）</div>`
+        : `<p class="login-note-min">根据账号身份权限自动进入对应端口（统一登录页）</p>`}
+      </div>
+    </div>`;
+  }
+
+  /* 《注册流程图》买手端：填写资料注册 → 提交申请 */
+  function pageBuyerRegister() {
+    const reg = Store.db.regSession || {};
+    const prev = reg.phone ? Store.buyerRegStatus(reg.phone) : { found: false };
+    const b = (prev.found && prev.buyer) || {};
+    const rejected = prev.found && prev.status === "已拒绝";
+    /* 校验失败重渲染时保留已填内容 */
+    const d = state.regDraft || {};
+    const dv = (k, fallback) => (d[k] === undefined || d[k] === "" ? fallback : d[k]);
+    return `${protoBar()}
+    <div class="login-page register-page">
+      <div class="login-card register-card">
+        <h1>买手注册</h1>
+        <div class="sub">手机号 + 验证码注册，提交后由平台审核（审核通过才可登录买手端）</div>
+        ${rejected ? `<div class="reject-tip">上次申请被拒绝：${b.reason || "资料不符合要求"}<br/>请修改资料后重新提交。</div>` : ""}
+        <div class="reg-grid">
+          <div class="login-field"><label>手机号 *</label>
+            <div class="row">${field("regPhone", input("11 位手机号", dv("regPhone", b.phone || reg.phone || "")))}<button type="button" class="code-btn" data-act="send-code">获取验证码</button></div>
+          </div>
+          <div class="login-field"><label>验证码 *</label>${field("regCode", input("6位验证码", "888888"))}</div>
+          <div class="login-field"><label>店铺名 *</label>${field("regStore", input("买手店/集合店名称", dv("regStore", b.name || reg.store || "")))}</div>
+          <div class="login-field"><label>联系人 *</label>${field("regContact", input("联系人姓名", dv("regContact", b.contact || "")))}</div>
+          <div class="login-field"><label>所在城市 *</label>${field("regCity", select(RR.cities, "请选择", dv("regCity", b.city || "上海市 / 上海市")))}</div>
+          <div class="login-field"><label>店铺地址</label>${field("regAddr", input("详细地址", dv("regAddr", (b.addresses && b.addresses[0] && b.addresses[0].addr) || "")))}</div>
+          <div class="login-field"><label>发票抬头</label>${field("regInvoice", input("公司名称", dv("regInvoice", (b.invoice && b.invoice.title) || "")))}</div>
+          <div class="login-field"><label>税号</label>${field("regTax", input("纳税人识别号", dv("regTax", (b.invoice && b.invoice.tax) || "")))}</div>
+          <div class="login-field"><label>意向品牌</label>${field("regIntent", select(RR.brands.map(x => x.name), "暂不选择", dv("regIntent", b.intent || "暂不选择")))}</div>
+          <div class="login-field"><label>门店照片</label><div class="upload-box sm"><div class="plus">+</div>巡店图 · &lt;5MB</div></div>
+        </div>
+        <label class="check-inline reg-agree"><input type="checkbox" data-field="regAgree" checked /> 已阅读并同意《平台服务协议》</label>
+        <button class="btn btn-primary btn-block" data-act="submit-register">提交申请</button>
+        <div class="login-links">
+          <a href="javascript:;" data-go="login">返回登录</a><span>·</span>
+          <a href="javascript:;" data-go="register-status">查询审核进度</a>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  /* 《注册流程图》：审核拒绝 → 回到填写资料；审核通过 → 登录买手端 */
+  function pageRegisterStatus() {
+    const reg = Store.db.regSession || {};
+    const r = Store.buyerRegStatus(state.regQueryPhone || reg.phone || "");
+    const st = r.found ? r.status : "";
+    const badge = st === "已通过" ? "green" : st === "已拒绝" || st === "已关闭" ? "red" : "";
+    return `${protoBar()}
+    <div class="login-page">
+      <div class="login-card">
+        <h1>注册审核进度</h1>
+        <div class="sub">平台端「买手管理 · 买手审核」处理后，此处状态同步更新</div>
+        <div class="login-field"><label>手机号</label>
+          <div class="row">${field("queryPhone", input("注册手机号", r.phone || ""))}<button type="button" class="code-btn" data-act="query-reg">查询</button></div>
+        </div>
+        ${r.found ? `<div class="reg-status-box">
+          <div class="row"><span>店铺名</span><b>${r.store}</b></div>
+          <div class="row"><span>提交时间</span><b>${r.at || "—"}</b></div>
+          <div class="row"><span>审核状态</span><b class="badge ${badge}">${st}</b></div>
+          ${r.reason ? `<div class="row"><span>拒绝原因</span><b class="red-text">${r.reason}</b></div>` : ""}
+        </div>
+        ${st === "已通过"
+          ? `<button class="btn btn-primary btn-block" data-act="login-as-buyer:${r.phone}">登录买手端</button>`
+          : st === "已拒绝" || st === "已关闭"
+            ? `<button class="btn btn-primary btn-block" data-go="register">修改资料重新提交</button>`
+            : `<div class="note">审核中：平台端可在「买手管理 → 买手审核」通过或拒绝本申请。</div>`}`
+        : `<div class="note">未查询到该手机号的注册记录，请先<a href="javascript:;" data-go="register">提交注册资料</a>。</div>`}
+        <div class="login-links"><a href="javascript:;" data-go="login">返回登录</a></div>
       </div>
     </div>`;
   }
@@ -739,18 +830,24 @@
 
   function pageBrandList() {
     /* 原站：edit_boduan > head item_boduan-row + edit_boduan-list > item（无左侧 mine_side、非 table） */
+    const isPlatform = state.portal === "platform";
     return `<div class="brand_goodsList-container edit_boduan">
-      ${subTitle("品牌管理")}
+      ${subTitle("品牌列表")}
+      <div class="note">「下单需审核买手」开启后，买手须在意向品牌提交申请并由平台通过，才能查看该品牌商品并下单。</div>
       <div class="action-bar" style="margin-bottom:12px">
+        ${isPlatform ? `<a href="javascript:;" class="oto_btn" data-go="brand-add">添加品牌</a>` : ""}
         <a href="javascript:;" class="oto_btn" data-go="brand-fair-new">创建新订货会</a>
       </div>
       <div class="items head_items">
         <div class="item_boduan-row">
-          <h4>品牌名称</h4><h4>阶梯优惠规则</h4><h4>尺寸别名</h4><h4>订货会设置</h4><h4>收款设置</h4><h4>合同设置</h4><h4>编辑</h4>
+          <h4>品牌名称</h4><h4>阶梯优惠规则</h4><h4>尺寸别名</h4><h4>订货会设置</h4><h4>收款设置</h4><h4>合同设置</h4><h4>订单首付比例(定金)</h4><h4>下单需审核买手</h4><h4>编辑</h4>
         </div>
       </div>
       <div class="edit_boduan-list">
-        ${RR.brands.map(b => `
+        ${RR.brands.map(b => {
+          const need = Store.brandNeedAudit(b.name);
+          const ratio = Math.round(Store.brandDepositRatio(b.name) * 100) + "%";
+          return `
           <div class="item uk-flex-nowrap">
             <div class="g-name"><h4>${b.name}</h4></div>
             <h4><a href="javascript:;" data-go="brand-discount" data-brand="${b.name}">设置优惠规则</a></h4>
@@ -758,8 +855,14 @@
             <h4><a href="javascript:;" data-go="brand-fair" data-brand="${b.name}">订货会设置</a></h4>
             <h4><a href="javascript:;" data-go="brand-pay" data-brand="${b.name}">收款设置</a></h4>
             <h4><a href="javascript:;" data-go="brand-contract" data-brand="${b.name}">合同设置</a></h4>
+            <h4><span class="dep-ratio" data-brand-ratio="${b.name}">${ratio}</span>
+              ${isPlatform ? `<a href="javascript:;" class="oto_btn sm" data-go="brand-pay" data-brand="${b.name}">修改</a>` : ""}</h4>
+            <h4>${isPlatform
+              ? `<a href="javascript:;" class="audit-toggle ${need ? "on" : ""}" data-act="brand-audit:${b.name}:${need ? "0" : "1"}">${need ? "需审核" : "免审核"}</a>`
+              : `<span class="badge ${need ? "" : "green"}">${need ? "需审核" : "免审核"}</span>`}</h4>
             <h4><a href="javascript:;" data-go="brand-edit" data-brand="${b.name}">编辑</a></h4>
-          </div>`).join("")}
+          </div>`;
+        }).join("")}
       </div>
       ${state.portal === "platform" ? `<div class="note" style="margin-top:24px">平台主数据：
         <a href="javascript:;" data-go="brand-master-style">风格资料维护</a> ·
@@ -767,6 +870,25 @@
         <a href="javascript:;" data-go="brand-master-size">平台标准尺码</a>
       </div>` : ""}
     </div>`;
+  }
+
+  /* 《平台运营后台》品牌管理 · 添加品牌 */
+  function pageBrandAdd() {
+    return `${subTitle("添加品牌")}
+      <div class="note">新增品牌后即出现在品牌列表，可继续设置优惠规则 / 尺寸别名 / 订货会 / 收款（含首付比例）/ 合同。</div>
+      <div class="form-section">
+        <div class="form-grid">
+          <label class="req">品牌名称 *</label><div>${field("nbName", input("品牌名称，如 ROOMROOM STUDIO"))}</div>
+          <label>品类</label><div>${field("nbCat", select(Store.db.catsMaster || ["女装", "男装", "男女装", "配饰", "生活方式"], null, "女装"))}</div>
+          <label>风格</label><div>${field("nbStyle", select((Store.db.stylesMaster || []).map(s => s.name), "请选择"))}</div>
+          <label>适用人群</label><div>${field("nbCrowd", select((Store.db.crowdsMaster || []).map(c => c.name), "请选择"))}</div>
+          <label>订单首付比例(定金)</label><div>${field("nbRatio", select(RR.depositRatios, null, "30%"))}</div>
+          <label>下单需审核买手</label><div><label class="check-inline"><input type="checkbox" data-field="nbAudit" /> 开启后买手需先提交品牌申请</label></div>
+          <label>品牌介绍</label><div>${field("nbAbout", input("品牌简介"))}</div>
+        </div>
+        <div class="action-bar">${btn("保存并加入品牌列表", "btn-primary", "add-brand")}
+          ${btn("返回品牌列表", "btn-outline", "go:brand-list")}</div>
+      </div>`;
   }
 
   function pageBrandDiscount() {
@@ -916,10 +1038,18 @@
   function pageBrandPay() {
     /* 原站：bank_payment · 公司名称/收款账户名称/开户行/账号/支行/地址 + 双公章 */
     const p = Store.db.payInfo || {};
+    const brand = state.selectedBrand || RR.brands[0].name;
+    const ratio = Math.round(Store.brandDepositRatio(brand) * 100) + "%";
     return `<div class="bank_payment-container">
       <div class="bank_payment uk-width-1-1">
         <h6 class="sub_title">收款信息</h6>
+        <div class="note">「订单首付比例（定金）」为该品牌下单后平台设置定金的默认比例（《功能点思维导图》品牌设置 / 平台品牌管理）。</div>
         <div class="items">
+          <div class="item"><h6>品牌</h6>${field("depBrand", select(RR.brands.map(b => b.name), null, brand))}</div>
+          <div class="item"><h6>订单首付比例(定金)</h6>
+            <div class="row">${field("depBrandRatio", select(RR.depositRatios, null, ratio))}
+              <a href="javascript:;" class="oto_btn" data-act="save-brand-ratio">保存比例</a></div>
+          </div>
           <div class="item"><h6>公司名称</h6>${field("company", input("请输入公司名称", p.company || p.account || ""))}</div>
           <div class="item"><h6>收款账户名称</h6>${field("account", input("请输入开户名称", p.account || ""))}</div>
           <div class="item"><h6>开户行</h6>${field("bank", input("请输入开户行", p.bank || ""))}</div>
@@ -1205,11 +1335,13 @@
     const f = Store.db.ui.orderFilter;
     const title = forceType === "补货单" ? "补货单管理" : "订单管理";
     /* 原站订单管理筛选：品牌/季节/状态=select；国家/省/城市/店铺/订单号=text */
+    /* 订单状态取值＝《订单流程图》节点 */
+    const statusOpts = Store.ORDER_FLOW.concat([Store.ORDER_ST.rejected, Store.ORDER_ST.canceled]);
     const filters = forceType
       ? [
           ["选择品牌", select(RR.brands.map(b => b.name), "全部", f.brand)],
           ["季节", select(RR.seasons, "全部", f.season)],
-          ["订单状态", select(["买手未确认", "买手已确认待品牌确认", "定金确认", "尾款确认", "已完成", "已驳回"], "全部", f.status)],
+          ["订单状态", select(statusOpts, "全部", f.status)],
           ["国家", input("输入国家")],
           ["省", input("输入省")],
           ["城市", input("输入城市")],
@@ -1220,7 +1352,7 @@
           ["选择品牌", select(RR.brands.map(b => b.name), "全部", f.brand)],
           ["季节", select(RR.seasons, "全部", f.season)],
           ["订单类型", select(["首单", "补货单"], "全部", f.type)],
-          ["订单状态", select(["买手未确认", "买手已确认待品牌确认", "定金确认", "尾款确认", "已完成", "已驳回"], "全部", f.status)],
+          ["订单状态", select(statusOpts, "全部", f.status)],
           ["国家", input("输入国家")],
           ["省", input("输入省")],
           ["城市", input("输入城市")],
@@ -1238,6 +1370,8 @@
           const paid = Store.parseMoney(o.paidDeposit);
           const dep = Store.parseMoney(o.deposit);
           const due = Math.max(0, dep - paid);
+          const pay = Store.paymentStats(o);
+          const acts = Store.orderActions(o, "platform");
           return `<div class="order-live-card">
             <div class="order-live-head">
               <div class="order-live-brand">
@@ -1263,7 +1397,7 @@
                   <div>吊牌价：${o.retailAmount || "—"}</div>
                   <div>批发价：<span class="purple">${o.amount}</span></div>
                   <div>定金：${o.deposit} / ${dep ? Math.round(paid / dep * 100) : 0}%</div>
-                  <div>已付：${o.paidDeposit || "0.00"} · 待付：${Store.money(due)}</div>
+                  <div>已核对：${Store.money(pay.confirmed)} · 未付：${Store.money(pay.unpaid)}</div>
                 </div>
                 <div class="col tips">
                   ${tips.map(t => `<div>· ${t}</div>`).join("") || `<div class="muted">· ${o.status}</div>`}
@@ -1271,15 +1405,14 @@
                 </div>
               </div>
               <div class="order-live-actions">
-                <button type="button" class="oto_btn" data-act="reject-order" data-oid="${o.id}">驳回订单</button>
-                <button type="button" class="oto_btn" data-go="order-detail" data-oid="${o.id}" data-order-action="modify">设置折扣</button>
-                <button type="button" class="oto_btn" data-go="order-detail" data-oid="${o.id}" data-order-action="deposit">修改定金</button>
-                <button type="button" class="oto_btn" data-go="order-detail" data-oid="${o.id}" data-order-action="deposit">确认定金</button>
-                <button type="button" class="oto_btn" data-go="order-detail" data-oid="${o.id}" data-order-action="voucher">上传付款凭证</button>
-                <button type="button" class="oto_btn" data-go="buyer-sub">查看子店铺信息</button>
-                <button type="button" class="oto_btn purple-text" data-go="order-detail" data-oid="${o.id}" data-order-action="invoice">发票信息</button>
-                <button type="button" class="oto_btn" data-go="order-detail" data-oid="${o.id}" data-order-action="substore">选择子店铺</button>
-                <button type="button" class="oto_btn" data-go="order-detail" data-oid="${o.id}" data-order-action="whitelist">设为白名单</button>
+                ${acts.filter(a => !a.wait && a.act !== "download:订单").map(a => {
+                  const detailPanel = a.act.startsWith("open-order-panel:") ? a.act.slice("open-order-panel:".length) : "";
+                  return detailPanel
+                    ? `<button type="button" class="oto_btn" data-go="order-detail" data-oid="${o.id}" data-order-action="${detailPanel}">${a.label}</button>`
+                    : `<button type="button" class="oto_btn ${a.primary ? "primary-text" : ""}" data-act="${a.act}" data-oid="${o.id}">${a.label}</button>`;
+                }).join("")}
+                ${acts.filter(a => a.wait).map(a => `<span class="wait-chip">${a.label}</span>`).join("")}
+                <button type="button" class="oto_btn purple-text" data-go="order-detail" data-oid="${o.id}">流程详情</button>
               </div>
             </div>
           </div>`;
@@ -1289,13 +1422,64 @@
     </div>`;
   }
 
+  /* 订单流程节点条（平台端/买手端共用） */
+  function orderFlowSteps(o) {
+    const nodes = Store.orderFlowNodes(o);
+    const st = o.status;
+    const ended = st === Store.ORDER_ST.rejected || st === Store.ORDER_ST.canceled;
+    return `${ended ? `<div class="flow-ended">当前：${st}${o.rejectReason ? " · " + o.rejectReason : ""}${o.cancelReason ? " · " + o.cancelReason : ""}</div>` : ""}
+      <div class="flow-steps">
+        ${nodes.map((n, i) => `<div class="fstep ${n.done ? "done" : ""} ${n.current ? "cur" : ""}">
+          <i>${i + 1}</i><b>${n.name}</b><em>${n.owner}</em>
+        </div>`).join("")}
+      </div>`;
+  }
+
+  /* 付款凭证表：平台核对通过 / 不通过（不通过退回买手重新上传） */
+  function paymentTable(o, side) {
+    const list = o.payments || [];
+    const platform = side !== "buyer";
+    return `<table class="data-table pay-table">
+      <thead><tr><th>类型</th><th>金额</th><th>付款日期</th><th>凭证</th><th>核对状态</th>${platform ? "<th>操作</th>" : ""}</tr></thead>
+      <tbody>
+        ${list.map((p, i) => `<tr>
+          <td>${p.kind}</td><td>¥${p.amount}</td><td>${p.at}</td><td>${p.file}</td>
+          <td><span class="badge ${p.status === "已核对" ? "green" : p.status === "不通过" ? "red" : ""}">${p.status}</span>${p.note ? `<div class="muted">${p.note}</div>` : ""}</td>
+          ${platform ? `<td class="ops">${p.status === "待核对"
+            ? `<a href="javascript:;" data-act="check-pay:${i}:pass" data-oid="${o.id}">核对通过</a>
+               <a href="javascript:;" data-act="check-pay:${i}:fail" data-oid="${o.id}">不通过</a>`
+            : "—"}</td>` : ""}
+        </tr>`).join("") || `<tr><td colspan="${platform ? 6 : 5}">暂无付款凭证</td></tr>`}
+      </tbody>
+    </table>`;
+  }
+
   function pageOrderDetail() {
     const o = state.selectedOrder || Store.db.orders[0];
     const action = state.orderAction;
     const rules = Store.getDiscountRules();
     const lines = o.lines || [];
     const skuCount = lines.length;
+    const pay = Store.paymentStats(o);
+    const actions = Store.orderActions(o, "platform");
     const panels = {
+      reject: `<div class="modal-panel"><h3>驳回订单</h3>
+        <div class="note">驳回后选款单自动解锁，买手可修改后重新下单（对应流程图「驳回 → 下单页」）。</div>
+        <div class="form-grid"><label>驳回原因</label><div class="span2">${field("rejReason", input("如：起订额不足 / 款式需调整", "起订额不足，请补充款式"))}</div></div>
+        <div class="action-bar">${btn("确认驳回", "btn-primary", "reject-order")}</div></div>`,
+      check: `<div class="modal-panel"><h3>核对付款凭证</h3>
+        <div class="note">核对通过进入下一节点；不通过退回买手重新上传（尾款支持分批次，未付清将回到「待支付尾款」）。</div>
+        <div class="form-grid"><label>不通过原因</label><div class="span2">${field("checkNote", input("如：转账金额与应付不符"))}</div></div>
+        ${paymentTable(o, "platform")}
+        <div class="pay-sum">应付合计 ¥${Store.money(pay.total)} · 已核对 ¥${Store.money(pay.confirmed)} · 待核对 ¥${Store.money(pay.pending)} · 未付 ¥${Store.money(pay.unpaid)}</div></div>`,
+      voucher: `<div class="modal-panel"><h3>代买手上传付款凭证</h3>
+        <div class="upload-box"><div class="plus">+</div>上传转账截图 / PDF</div>
+        <div class="form-grid" style="margin-top:16px">
+          <label>凭证类型</label><div>${field("payKind", select(["定金", "尾款"], null, Store.orderStage(o) >= 6 ? "尾款" : "定金"))}</div>
+          <label>付款金额</label><div>${field("payAmt", input("", Store.orderStage(o) >= 6 ? Store.money(pay.unpaid) : o.deposit))}</div>
+          <label>付款时间</label><div>${field("payAt", dateInput(new Date().toISOString().slice(0, 10)))}</div>
+        </div>
+        <div class="action-bar">${btn("提交凭证", "btn-primary", "submit-pay")}</div></div>`,
       modify: `<div class="modal-panel"><h3>修改订单 · 增减款 / 设置折扣</h3>
         <table class="data-table"><thead><tr><th>SKU</th><th>尺码</th><th>数量合计</th><th>单款折扣</th><th></th></tr></thead>
         <tbody>
@@ -1317,12 +1501,6 @@
         <label>类型</label><div>${field("invType", select(["增值税专用发票", "普通发票"], null, "普通发票"))}</div></div>
         <div class="action-bar">${btn("提交发票申请")}</div>
         ${o.invoice ? `<div class="note">已申请：${o.invoice.title} · ${o.invoice.type} · ¥${o.invoice.amount}</div>` : ""}</div>`,
-      voucher: `<div class="modal-panel"><h3>上传付款凭证</h3>
-        <div class="upload-box"><div class="plus">+</div>上传转账截图 / PDF</div>
-        <div class="form-grid" style="margin-top:16px"><label>付款金额</label><div>${field("voucherAmt", input("", o.deposit))}</div>
-        <label>付款时间</label><div>${field("voucherAt", dateInput(new Date().toISOString().slice(0, 10)))}</div></div>
-        <div class="action-bar">${btn("提交凭证")}</div>
-        ${o.voucher ? `<div class="note">已上传凭证：¥${o.voucher.amount} · ${o.voucher.at}</div>` : ""}</div>`,
       whitelist: `<div class="modal-panel"><h3>白名单特殊处理</h3>
         <div class="note">订单未达起订量时，可设为白名单允许继续流转。当前白名单：${o.whitelist ? "是" : "否"}</div>
         <div class="form-grid"><label>当前金额</label><div>¥${o.amount}</div>
@@ -1343,11 +1521,15 @@
         <label>原因</label><div>${field("retReason", input())}</div></div>
         <div class="action-bar">${btn("提交退换货")}</div>
         ${(o.returns || []).map(r => `<div class="note">${r.type} ${r.sku}×${r.qty} · ${r.reason || ""}</div>`).join("")}</div>`,
-      deposit: `<div class="modal-panel"><h3>品牌确认 · 设置定金</h3>
+      deposit: `<div class="modal-panel"><h3>设置定金 · 首付比例</h3>
+        <div class="note">按品牌首付比例设置应收定金，提交后进入「待买手确认定金」。</div>
         <div class="form-grid"><label>订单金额</label><div>¥${o.amount}</div>
-        <label>定金比例</label><div>${field("depRatio", select(RR.depositRatios, null, "30%"))}</div>
-        <label>应收定金</label><div>${field("depAmt", input("", o.deposit))}</div></div>
-        <div class="action-bar">${btn("确认定金并确认订单")}</div></div>`
+        <label>首付比例</label><div>${field("depRatio", select(RR.depositRatios, null, Math.round(Number(o.depositRatio || 0.3) * 100) + "%"))}</div>
+        <label>应收定金</label><div>¥${o.deposit}（按比例自动计算）</div></div>
+        <div class="action-bar">${btn("确认定金比例", "btn-primary", "confirm-deposit")}</div>
+        <hr/>
+        <div class="form-grid"><label>整单折扣</label><div>${field("orderDiscount", input("如 0.45", "0.45"))}</div></div>
+        <div class="action-bar">${btn("设置折扣", "btn-outline", "set-order-discount")}</div></div>`
     };
 
     return `${subTitle("订单详情")}
@@ -1355,33 +1537,45 @@
         <strong>${o.brand}</strong>
         <span class="badge">${o.type}</span>
         <span>最小起订额 ¥${Store.money(rules.minAmount)}</span>
-        <span>品类折扣 服饰 ${rules.cloth}</span>
         <span>已选金额 ¥${o.amount}</span>
         <span class="badge gray">${o.status}${o.whitelist ? " · 白名单" : ""}</span>
       </div>
+      ${orderFlowSteps(o)}
       <div class="stat-row">
         <div class="stat"><div class="l">订单金额</div><div class="n">¥${o.amount}</div></div>
-        <div class="stat"><div class="l">应收定金</div><div class="n">¥${o.deposit}</div></div>
-        <div class="stat"><div class="l">实收定金</div><div class="n">¥${o.paidDeposit || "0.00"}</div></div>
+        <div class="stat"><div class="l">应收定金(${Math.round(Number(o.depositRatio || 0.3) * 100)}%)</div><div class="n">¥${o.deposit}</div></div>
+        <div class="stat"><div class="l">已核对付款</div><div class="n">¥${Store.money(pay.confirmed)}</div></div>
+        <div class="stat"><div class="l">未付金额</div><div class="n">¥${Store.money(pay.unpaid)}</div></div>
+        <div class="stat"><div class="l">付款差额</div><div class="n">${o.settleDiff !== "" && o.settleDiff != null ? "¥" + o.settleDiff : "¥" + Store.money(pay.diff)}</div></div>
         <div class="stat"><div class="l">SKU 数</div><div class="n">${skuCount}</div></div>
       </div>
       <div class="form-section">
-        <h3>订单操作（点击展开子流程）</h3>
-        <div class="action-bar">
-          <button class="btn btn-primary" data-order-action="deposit">确认定金并确认订单</button>
-          <button class="btn btn-outline" data-order-action="modify">增减款 / 设折扣</button>
-          <button class="btn btn-outline" data-order-action="voucher">上传付款凭证</button>
-          <button class="btn btn-outline" data-order-action="invoice">申请发票</button>
-          <button class="btn btn-outline" data-act="confirm-final">确认尾款</button>
-          <button class="btn btn-outline" data-order-action="substore">分配子店铺</button>
-          <button class="btn btn-outline" data-order-action="return">退换货</button>
-          <button class="btn btn-outline" data-order-action="whitelist">白名单</button>
-          <button class="btn btn-outline" data-act="create-contract">生成合同</button>
-          <button class="btn btn-outline" data-act="create-oc">生成 OC</button>
-          <button class="btn btn-outline" data-act="reject-order">驳回订单</button>
-          <button class="btn btn-outline" data-act="download:订单">下载订单</button>
+        <h3>当前节点可执行操作 · ${o.status}</h3>
+        <div class="action-bar flow-actions">
+          ${actions.map(a => a.wait
+            ? `<span class="wait-chip">${a.label}</span>`
+            : `<button class="btn ${a.primary ? "btn-primary" : "btn-outline"}" data-act="${a.act}" data-oid="${o.id}">${a.label}</button>`).join("")}
         </div>
-        ${action ? panels[action] || "" : '<div class="note">请选择上方操作查看完整子流程。</div>'}
+        <div class="action-bar sub-actions">
+          <span class="muted">其他操作：</span>
+          <button class="btn btn-outline" data-act="open-order-panel:voucher" data-oid="${o.id}">上传付款凭证</button>
+          <button class="btn btn-outline" data-act="open-order-panel:substore" data-oid="${o.id}">分配子店铺</button>
+          <button class="btn btn-outline" data-act="open-order-panel:return" data-oid="${o.id}">退换货</button>
+          <button class="btn btn-outline" data-act="open-order-panel:whitelist" data-oid="${o.id}">白名单</button>
+          <button class="btn btn-outline" data-act="create-contract" data-oid="${o.id}">生成合同</button>
+          ${o.ocId ? `<button class="btn btn-outline" data-act="download:OC-${o.ocId}">下载 OC ${o.ocId}</button>` : ""}
+        </div>
+        ${action ? panels[action] || "" : '<div class="note">按流程图，仅展示当前节点允许的动作；其他操作见上方「其他操作」。</div>'}
+      </div>
+      <div class="form-section">
+        <h3>付款凭证与核对</h3>
+        ${paymentTable(o, "platform")}
+        <div class="pay-sum">应付 ¥${Store.money(pay.total)}（定金 ¥${Store.money(pay.deposit)} + 尾款 ¥${Store.money(pay.finalDue)}） ·
+          已核对 ¥${Store.money(pay.confirmed)} · 待核对 ¥${Store.money(pay.pending)} · 差额 ¥${Store.money(pay.diff)}</div>
+      </div>
+      <div class="form-section">
+        <h3>流程记录</h3>
+        <ul class="flow-log">${(o.flowLog || []).map(l => `<li><span>${l.at}</span>${l.text}</li>`).join("") || "<li>暂无记录</li>"}</ul>
       </div>
       <table class="data-table">
         <thead><tr><th>图片</th><th>SKU</th><th>款式</th><th>尺码明细</th><th>数量</th><th>买手价</th><th>小计</th></tr></thead>
@@ -1586,14 +1780,81 @@
         <thead><tr>
           <th>品牌</th><th>店铺名</th><th>预约日期</th><th>预约时间</th><th>人数</th><th>手机号</th><th>提交时间</th><th>签到时间</th><th>操作</th>
         </tr></thead>
-        <tbody>${Store.db.appointments.map(a => `<tr>
+        <tbody>${Store.db.appointments.map((a, i) => `<tr>
           <td>${a.brand}</td><td>${a.store}</td><td>${(a.date || "").split(" ")[0] || a.date}</td>
           <td>${a.time || (a.date || "").split(" ")[1] || "—"}</td>
           <td>${a.people || 1}</td><td>${a.phone}</td>
           <td>${a.submitAt || a.date || "—"}</td><td>${a.checkin || "—"}</td>
-          <td class="ops"><a href="javascript:;" data-act="download:预约记录">下载</a></td>
-        </tr>`).join("") || '<tr><td colspan="9">暂无预约</td></tr>'}</tbody>
+          <td><span class="badge ${a.status === "已通过" ? "green" : a.status === "已拒绝" ? "red" : ""}">${a.status || "待审核"}</span></td>
+          <td class="ops"><a href="javascript:;" data-act="download:预约记录">下载</a>
+            ${a.status === "待审核" ? `<a href="javascript:;" data-go="appoint-audit">去审核</a>` : ""}</td>
+        </tr>`).join("") || '<tr><td colspan="10">暂无预约</td></tr>'}</tbody>
       </table>
+    </div>`;
+  }
+
+  /* 《平台运营后台》预约管理 · 审核预约 */
+  function pageAppointAudit() {
+    const list = Store.db.appointments.map((a, i) => ({ ...a, index: i }));
+    const pending = list.filter(a => (a.status || "待审核") === "待审核");
+    const rejectIdx = Store.db.ui.rejectAppoint;
+    return `${subTitle("审核预约")}
+      <div class="note">买手在「预约申请」提交后进入待审核；通过后计入订货会到场名额，拒绝需填写原因并通知买手。</div>
+      <div class="stat-row">
+        <div class="stat"><div class="l">待审核</div><div class="n">${pending.length}</div></div>
+        <div class="stat"><div class="l">已通过</div><div class="n">${list.filter(a => a.status === "已通过").length}</div></div>
+        <div class="stat"><div class="l">已拒绝</div><div class="n">${list.filter(a => a.status === "已拒绝").length}</div></div>
+      </div>
+      ${rejectIdx !== "" && rejectIdx != null ? `<div class="reject-panel">
+        <h4>拒绝预约 · ${(Store.db.appointments[rejectIdx] || {}).store || ""}</h4>
+        <div class="form-grid">
+          <label>拒绝原因</label><div>${field("appointReason", input("如：该场次名额已满，请改约"))}</div>
+        </div>
+        <div class="action-bar">${btn("确认拒绝", "btn-primary", "submit-reject-appoint")}${btn("取消", "btn-outline", "cancel-reject-appoint")}</div>
+      </div>` : ""}
+      <table class="data-table">
+        <thead><tr><th>店铺名</th><th>品牌</th><th>场次</th><th>预约时间</th><th>人数</th><th>手机号</th><th>提交时间</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>${list.map(a => `<tr>
+          <td>${a.store}</td><td>${a.brand}</td><td>${a.season || "—"}</td><td>${a.date || "—"}</td>
+          <td>${a.people || 1}</td><td>${a.phone}</td><td>${a.submitAt || "—"}</td>
+          <td><span class="badge ${a.status === "已通过" ? "green" : a.status === "已拒绝" ? "red" : ""}">${a.status || "待审核"}</span>
+            ${a.reason ? `<div class="red-text" style="font-size:12px">${a.reason}</div>` : ""}</td>
+          <td class="ops">${(a.status || "待审核") === "待审核"
+            ? `<a href="javascript:;" data-act="approve-appoint:${a.index}">通过</a>
+               <a href="javascript:;" data-act="reject-appoint:${a.index}">拒绝</a>`
+            : `<a href="javascript:;" data-act="approve-appoint:${a.index}">重新通过</a>`}</td>
+        </tr>`).join("") || '<tr><td colspan="9">暂无预约</td></tr>'}</tbody>
+      </table>`;
+  }
+
+  /* 《买手采购端》预约申请：申请线下参加订货会 */
+  function pageBuyerFairAppoint() {
+    const mine = Store.buyerAppointments();
+    const fairs = Store.db.orderingFairs || [];
+    return `<div class="oto-main_container buyer-fe">
+      <div class="oto_container">
+        ${subTitle("预约申请 · 线下参加订货会")}
+        <div class="note">提交后由平台/品牌在「预约管理 · 审核预约」处理，通过后即可到场看款。</div>
+        <div class="form-section intent-apply">
+          <div class="form-grid">
+            <label>订货会</label><div>${field("apFair", select(fairs.map(f => `${f.name}（${f.season}）`), "请选择订货会"))}</div>
+            <label>品牌</label><div>${field("apBrand", select(RR.brands.map(b => b.name), "请选择品牌"))}</div>
+            <label>到场日期时间</label><div>${field("apDate", datetimeInput("2026-04-08T14:00"))}</div>
+            <label>到场人数</label><div>${field("apPeople", input("如 2", "2"))}</div>
+            <label>联系人手机号</label><div>${field("apPhone", input("手机号", Store.db.buyerSession.phone || ""))}</div>
+          </div>
+          <div class="action-bar">${btn("提交预约申请", "btn-primary", "submit-buyer-appoint")}</div>
+        </div>
+        ${subTitle("我的预约")}
+        <table class="data-table">
+          <thead><tr><th>订货会/品牌</th><th>到场时间</th><th>人数</th><th>状态</th><th>说明</th></tr></thead>
+          <tbody>${mine.map(a => `<tr>
+            <td>${a.season || "—"} · ${a.brand}</td><td>${a.date || "—"}</td><td>${a.people || 1}</td>
+            <td><span class="badge ${a.status === "已通过" ? "green" : a.status === "已拒绝" ? "red" : ""}">${a.status || "待审核"}</span></td>
+            <td>${a.reason || (a.status === "已通过" ? "可到场看款" : "等待审核")}</td>
+          </tr>`).join("") || '<tr><td colspan="5">暂无预约记录</td></tr>'}</tbody>
+        </table>
+      </div>
     </div>`;
   }
 
@@ -1761,12 +2022,15 @@
   }
 
   function pageIntent() {
-    return `${subTitle("意向管理")}
-      <div class="note">品牌审核买手是否可查看本品牌商品</div>
+    /* 《注册流程图》平台端：审核买手提交的品牌申请 */
+    return `${subTitle("意向申请 · 审核买手提交的品牌申请")}
+      <div class="note">审核通过后买手才能查看并下单该品牌商品；「免审核」品牌无需申请，买手可直接选款。
+        品牌是否需审核在 <a href="javascript:;" data-go="brand-list">品牌列表</a> 设置。</div>
       <table class="data-table">
-        <thead><tr><th>店铺名</th><th>申请品牌</th><th>申请日期</th><th>状态</th><th>操作</th></tr></thead>
+        <thead><tr><th>店铺名</th><th>申请品牌</th><th>申请日期</th><th>品牌下单要求</th><th>状态</th><th>操作</th></tr></thead>
         <tbody>${Store.db.intentions.map(i => `<tr>
-          <td>${i.store}</td><td>${i.brand}</td><td>${i.date}</td>
+          <td>${i.store}</td><td>${i.brand}</td><td>${i.date || (i.at || "").slice(0, 10) || "—"}</td>
+          <td>${Store.brandNeedAudit(i.brand) ? '<span class="badge">需审核买手</span>' : '<span class="badge green">免审核</span>'}</td>
           <td><span class="badge ${i.status === "已通过" ? "green" : i.status === "已拒绝" ? "red" : ""}">${i.status}</span></td>
           <td class="ops">${i.status === "待审核" ? `${btn("通过", "btn-outline btn-sm")}${btn("拒绝", "btn-outline btn-sm")}` : "—"}</td>
         </tr>`).join("")}</tbody>
@@ -1807,19 +2071,33 @@
       <div class="submit_area uk-margin-small-top">
         <a href="javascript:;" class="ots_order-btn" data-go="buyer-add">添加买手</a>
       </div>
+      ${Store.db.ui.rejectBuyer ? `<div class="modal-panel reject-panel">
+        <h3>拒绝买手注册申请 · ${Store.db.ui.rejectBuyer}</h3>
+        <div class="note">拒绝后买手端「审核进度」显示原因，可修改资料重新提交（《注册流程图》审核拒绝分支）。</div>
+        <div class="form-grid"><label>拒绝原因</label><div class="span2">${field("rejectReason", input("如：营业执照/门店照片不清晰", "门店照片不清晰，请重新上传"))}</div></div>
+        <div class="action-bar">${btn("提交拒绝", "btn-primary", "submit-reject-buyer")}${btn("取消", "btn-outline", "cancel-reject-buyer")}</div>
+      </div>` : ""}
       <div class="ots_order-invite-detail">
         <div class="items">
           <div class="item invite_title">
-            <div>店铺名</div><div>手机号</div><div>店铺级别</div><div>巡店图</div><div>操作</div>
+            <div>店铺名</div><div>手机号</div><div>审核状态</div><div>注册来源/时间</div><div>操作</div>
           </div>
           ${list.map(b => `
             <div class="item">
               <div>${b.name}<br/>${b.province || ""}<br/>${b.city || ""}</div>
               <div>${b.phone}</div>
-              <div class="level_detail">${b.status === "待审核" ? "待审核" : b.level}</div>
-              <div><div class="thumb ph" style="width:48px;height:36px">图</div></div>
+              <div class="level_detail">
+                <span class="badge ${b.status === "已通过" ? "green" : b.status === "待审核" ? "" : "red"}">${b.status}</span>
+                ${b.status === "已通过" ? `<div class="muted">级别 ${b.level || "—"}</div>` : ""}
+                ${b.reason ? `<div class="muted red-text">${b.reason}</div>` : ""}
+              </div>
+              <div>${b.source || "平台录入"}<br/><span class="muted">${b.regAt || "—"}</span></div>
               <div class="ops">
-                ${b.status === "待审核" ? `<a href="javascript:;" data-act="approve">通过</a><a href="javascript:;" data-act="reject">取消权限</a>` : ""}
+                ${b.status === "待审核"
+                  ? `<a href="javascript:;" data-act="approve-buyer:${b.name}">通过</a><a href="javascript:;" data-act="reject-buyer:${b.name}">拒绝</a>`
+                  : b.status === "已拒绝"
+                    ? `<a href="javascript:;" data-act="approve-buyer:${b.name}">改为通过</a>`
+                    : `<a href="javascript:;" data-act="reject-buyer:${b.name}">关闭权限</a>`}
                 <a href="javascript:;" data-go="buyer-balance" data-buyer="${b.name}">余额管理</a>
                 <a href="javascript:;" data-go="buyer-store" data-buyer="${b.name}">查看店铺资料</a>
                 <a href="javascript:;" data-go="buyer-invoice" data-buyer="${b.name}">修改发票信息</a>
@@ -1925,19 +2203,21 @@
         ${buyerCatSide()}
         <div class="public_right-container">
           <div class="mob-sub_title"><h5>品牌列表</h5></div>
+          <div class="note buyer-access-note">仅可进入<strong>已审核通过</strong>或<strong>不需要审核</strong>的品牌商品（《注册流程图》）；需审核品牌请先在
+            <a href="javascript:;" data-go="buyer-intent">意向品牌</a>提交申请。</div>
           <div class="brand_list">
             <div class="items uk-grid-medium brand-grid-live">
               ${brands.map(b => {
                 const noAuth = b.accept === false;
-                const pending = b.pending || b.access === "pending";
+                const pending = b.pending;
                 return `<div class="item">
                   <div class="item_inner">
-                    ${noAuth ? `<div class="accept_state">${pending ? "申请中" : "暂无权限"}</div>` : ""}
-                    <a href="javascript:;" data-go="${noAuth ? "buyer-home" : "buyer-brand"}" data-brand="${b.name}">
+                    ${noAuth ? `<div class="accept_state">${pending ? "申请中" : b.denied ? "申请被拒绝" : "需申请"}</div>` : b.needAudit ? '<div class="accept_state ok">已通过</div>' : ""}
+                    <a href="javascript:;" data-go="${noAuth ? "buyer-intent" : "buyer-brand"}" data-brand="${b.name}">
                       <div class="brand-logo-rect">${b.name}</div>
                       <p>${b.name}</p>
                     </a>
-                    ${noAuth && !pending ? `<div class="get_accept" data-act="apply-brand:${b.name}">申请权限</div>` : ""}
+                    ${noAuth && !pending ? `<div class="get_accept" data-act="apply-brand:${b.name}">${b.denied ? "重新申请" : "申请权限"}</div>` : ""}
                     ${pending ? '<div class="get_accept" style="color:#999;cursor:default">已提交申请</div>' : ""}
                   </div>
                 </div>`;
@@ -1955,6 +2235,29 @@
     /* 原站 /goods/list/{nid}：left 分类筛选 + brand_info + sku_box + season_filter + goods_list item_inner */
     const brand = state.selectedBrand;
     const bmeta = RR.brands.find(b => b.name === brand) || { about: "", style: "" };
+    /* 《注册流程图》：只能查看已审核通过或不需要审核的品牌商品 */
+    const gate = Store.brandOrderable(brand);
+    if (!gate.ok) {
+      return `<div class="oto-main_container buyer-fe">
+        <div class="oto_container brand_list-container">
+          ${buyerCatSide(`<div style="margin-top:16px"><a href="javascript:;" data-act="go:buyer-home">返回品牌列表</a></div>`)}
+          <div class="public_right-container">
+            <div class="brand-gate">
+              <div class="brand-logo-rect lg">${brand}</div>
+              <h3>${gate.msg}</h3>
+              <p>该品牌开启了「下单需审核买手」，需平台审核通过后才能查看商品并加入选款单。</p>
+              <div class="action-bar">
+                ${gate.pending
+                  ? '<span class="wait-chip">品牌申请审核中</span>'
+                  : `<button class="btn btn-primary" data-act="apply-brand:${brand}">${gate.denied ? "重新提交申请" : "提交品牌申请"}</button>`}
+                <button class="btn btn-outline" data-go="buyer-intent">查看我的品牌申请</button>
+                <button class="btn btn-outline" data-go="buyer-home">返回品牌列表</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }
     const s = Store.db.buyerSession;
     const seasons = Store.buyerSeasons(brand);
     /* 切品牌后若当前季节无货，落到该品牌最近有货季（避免空列表缺 brand_like/item_inner） */
@@ -2151,7 +2454,10 @@
             <div class="sub_title"><h4>我的订单</h4></div>
             <div class="order_list">
               <div class="items">
-                ${list.map(o => `
+                ${list.map(o => {
+                  const acts = Store.orderActions(o, "buyer");
+                  const pay = Store.paymentStats(o);
+                  return `
                   <div class="item">
                     <div class="order_info">
                       ${o.type === "补货单" ? '<div class="order_type-add"><p>补货单</p></div>' : ""}
@@ -2160,16 +2466,26 @@
                         <div class="brand-logo-rect" style="width:40px;height:40px">${(o.brand || "").slice(0, 4)}</div>
                         <h6>${o.brand}&nbsp;</h6>
                       </div>
-                      <div class="order_state"><p>${o.status}</p><p>¥${o.amount}</p></div>
+                      <div class="order_state">
+                        <p>${o.status}</p><p>¥${o.amount}</p>
+                        <p class="muted">已付 ¥${Store.money(pay.confirmed)} · 待付 ¥${Store.money(pay.unpaid)}</p>
+                      </div>
                       <div class="order_action ops">
                         <a href="javascript:;" class="oto_btn" data-go="buyer-order-detail" data-oid="${o.id}">查看</a>
                         <a href="javascript:;" data-act="download:订单Excel">下载</a>
-                        ${o.status.includes("未确认") || o.status.includes("驳回")
-                          ? `<a href="javascript:;" data-go="buyer-selection-edit" data-sel="${o.fromSelection || ""}">修改</a>` : ""}
-                        <a href="javascript:;" data-act="buyer-confirm-order" data-oid="${o.id}">确认提交</a>
+                        ${o.status === Store.ORDER_ST.rejected
+                          ? `<a href="javascript:;" data-go="buyer-selection-edit" data-sel="${o.fromSelection || ""}">修改重下</a>` : ""}
+                        ${acts.filter(a => !a.wait && a.act !== "download:订单").map(a => {
+                          const panel = a.act.startsWith("open-order-panel:") ? a.act.slice("open-order-panel:".length) : "";
+                          if (panel) return `<a href="javascript:;" data-go="buyer-order-detail" data-oid="${o.id}" data-order-action="${panel}">${a.label}</a>`;
+                          if (a.act.startsWith("go:")) return `<a href="javascript:;" data-act="${a.act}">${a.label}</a>`;
+                          return `<a href="javascript:;" data-act="${a.act}" data-oid="${o.id}">${a.label}</a>`;
+                        }).join("")}
+                        ${acts.filter(a => a.wait).map(a => `<span class="wait-chip">${a.label}</span>`).join("")}
                       </div>
                     </div>
-                  </div>`).join("") || '<div class="note">暂无订单</div>'}
+                  </div>`;
+                }).join("") || '<div class="note">暂无订单</div>'}
               </div>
             </div>
           </div>
@@ -2191,6 +2507,33 @@
     }, 0);
     const inv = o.invoice || Store.db.buyerSession.invoice || {};
     const addr = (Store.db.buyerSession.addresses && Store.db.buyerSession.addresses[0]) || { name: "—", phone: "—", addr: "—" };
+    const stats = Store.paymentStats(o);
+    const acts = Store.orderActions(o, "buyer");
+    const panel = state.orderAction;
+    const payPanels = {
+      cancel: `<div class="modal-panel"><h3>取消订单</h3>
+        <div class="note">仅「待平台确认」可自行取消；取消后选款单解锁，可修改后重新下单。</div>
+        <div class="form-grid"><label>取消原因</label><div class="span2">${field("cancelReason", input("如：本季调整采购计划", "本季调整采购计划"))}</div></div>
+        <div class="action-bar">${btn("确认取消订单", "btn-primary", "buyer-cancel-order")}</div></div>`,
+      "pay-deposit": `<div class="modal-panel"><h3>上传定金付款凭证</h3>
+        <div class="upload-box"><div class="plus">+</div>上传转账截图 / PDF</div>
+        <div class="form-grid" style="margin-top:16px">
+          <label>付款类型</label><div>${field("payKind", select(["定金"], null, "定金"))}</div>
+          <label>付款金额</label><div>${field("payAmt", input("", o.deposit))}</div>
+          <label>付款时间</label><div>${field("payAt", dateInput(new Date().toISOString().slice(0, 10)))}</div>
+        </div>
+        <div class="action-bar">${btn("提交凭证", "btn-primary", "submit-pay")}</div></div>`,
+      "pay-final": `<div class="modal-panel"><h3>上传尾款付款凭证（支持分批次）</h3>
+        <div class="note">可一次全额支付，也可分批次上传；平台核对通过且付清后进入「待完成结算」。</div>
+        <div class="upload-box"><div class="plus">+</div>上传转账截图 / PDF</div>
+        <div class="form-grid" style="margin-top:16px">
+          <label>付款类型</label><div>${field("payKind", select(["尾款"], null, "尾款"))}</div>
+          <label>本次金额</label><div>${field("payAmt", input("可小于未付金额（分批次）", Store.money(stats.unpaid)))}</div>
+          <label>付款时间</label><div>${field("payAt", dateInput(new Date().toISOString().slice(0, 10)))}</div>
+        </div>
+        <div class="action-bar">${btn("提交凭证", "btn-primary", "submit-pay")}</div>
+        <div class="pay-sum">未付金额 ¥${Store.money(stats.unpaid)}（已核对 ¥${Store.money(stats.confirmed)}）</div></div>`
+    };
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container order-container order_detail-container buyer-order-detail">
         <div class="public_right-container" style="width:100%">
@@ -2198,19 +2541,35 @@
             <h4>订单详情</h4>
             <a href="javascript:;" data-go="buyer-orders">返回订单列表</a>
           </div>
+          ${orderFlowSteps(o)}
           <div class="order-block order-info-block">
             <div class="order-info-main">
               <div class="row"><span>订单编号:</span><b>${o.id}</b></div>
               <div class="row"><span>下单时间:</span>${o.createdAt || "—"}</div>
               <div class="row"><span>订单金额:</span>¥ ${o.amount}</div>
-              <div class="row"><span>已付金额:</span>¥ ${Store.money(paid)}</div>
-              <div class="row"><span>待付金额:</span>¥ ${Store.money(unpaid)}</div>
+              <div class="row"><span>应付定金:</span>¥ ${o.deposit}（${Math.round(Number(o.depositRatio || 0.3) * 100)}%）</div>
+              <div class="row"><span>已付金额:</span>¥ ${Store.money(stats.confirmed)}</div>
+              <div class="row"><span>待付金额:</span>¥ ${Store.money(stats.unpaid)}</div>
             </div>
             <div class="order-info-side">
               <p class="status">${o.status}</p>
-              <a href="javascript:;" class="oto_btn" data-act="buyer-confirm-order" data-oid="${o.id}">确认订单</a>
+              ${acts.filter(a => !a.wait && a.act !== "download:订单").map(a => {
+                const p = a.act.startsWith("open-order-panel:") ? a.act.slice("open-order-panel:".length) : "";
+                if (p) return `<a href="javascript:;" class="oto_btn" data-act="open-order-panel:${p}" data-oid="${o.id}">${a.label}</a>`;
+                return `<a href="javascript:;" class="oto_btn" data-act="${a.act}" data-oid="${o.id}">${a.label}</a>`;
+              }).join("")}
+              ${acts.filter(a => a.wait).map(a => `<span class="wait-chip">${a.label}</span>`).join("")}
               <a href="javascript:;" data-act="download:订单Excel">下载</a>
             </div>
+          </div>
+          ${payPanels[panel] || ""}
+          <div class="order-block">
+            <div class="block-head"><span>付款凭证</span><span class="muted">定金 ¥${Store.money(stats.deposit)} · 尾款 ¥${Store.money(stats.finalDue)}</span></div>
+            ${paymentTable(o, "buyer")}
+          </div>
+          <div class="order-block">
+            <div class="block-head"><span>流程记录</span></div>
+            <ul class="flow-log">${(o.flowLog || []).map(l => `<li><span>${l.at}</span>${l.text}</li>`).join("") || "<li>暂无记录</li>"}</ul>
           </div>
           <div class="order-block">
             <div class="block-head"><span>收货地址</span><a href="javascript:;" data-go="buyer-profile" data-mine-tab="addr">+ 新建收货地址</a></div>
@@ -2283,8 +2642,43 @@
       ["LOOK / 添加品牌", "有入口", "有", "LOOK 增删绑 SKU；添加品牌开通权限", "ok"],
       ["金蝶对接", "无页", "有", "已补「金蝶同步」本地模拟页", "ok"]
     ];
+    /* 《功能点思维导图》三张图逐项对照 */
+    const mind = [
+      ["平台", "买手管理：审核 / 修改资料 / 余额 / 发票 / 地址 / 添加品牌 / 添加预约", "买手管理各子页", "ok"],
+      ["平台", "品牌管理：添加品牌", "品牌管理 → 添加品牌", "ok"],
+      ["平台", "品牌列表：优惠规则 / 尺寸别名 / 订货会 / 收款 / 合同 / 编辑", "品牌列表行内链接", "ok"],
+      ["平台", "设置品牌订单首付比例（定金）", "品牌列表列 + 收款设置内保存比例", "ok"],
+      ["平台", "设置品牌商品下单是否需要审核买手", "品牌列表「下单需审核买手」开关", "ok"],
+      ["平台", "风格 / 适用人群 / 平台标准尺码配置", "品牌管理主数据三页", "ok"],
+      ["平台", "预约管理：预约列表 / 审核预约", "预约管理分组（通过·拒绝含原因）", "ok"],
+      ["平台", "意向申请：审核买手提交的品牌申请", "意向审核", "ok"],
+      ["平台", "订货会管理：创建订货会（手动输入季节）/ 订货会列表", "订货会设置 + 创建新订货会", "ok"],
+      ["平台", "商品管理：补货/隐藏、添加（编号可重复/多规格/skc）、批量导入、列表", "商品管理分组", "ok"],
+      ["平台", "订单管理：驳回 / 折扣 / 首付比例 / 付款凭证 / 生成OC / 下载", "订单详情动态操作区", "ok"],
+      ["平台", "订单完成：不考虑发货，人工点完成并统计付款差额", "「完成结算」按钮 + 付款差额", "ok"],
+      ["平台", "选款单管理：修改 / 生成订单 / 下载 / 取消", "选款单管理 + 详情", "ok"],
+      ["平台", "款式汇总 / 实时订单汇总 / 总选款单 / 总订单 / 订单分析", "订单管理分组各页", "ok"],
+      ["平台", "平台运营账号管理：账号管理 / 角色权限", "账户中心 + 角色权限", "ok"],
+      ["品牌", "品牌设置：优惠 / 尺寸别名 / 订货会 / 收款 / 合同（非订单合同模板）/ 编辑 / 首付比例 / 风格 / 人群", "品牌端「品牌设置」分组", "ok"],
+      ["品牌", "意向申请 / 商品管理 / 订单管理 / 补货单 / 汇总统计 / 预约列表", "品牌端各分组", "ok"],
+      ["买手", "买手注册 / 手机号+验证码登录", "注册页 + 审核进度 + 登录门槛", "ok"],
+      ["买手", "预约申请（申请线下参加订货会）", "买手端「预约申请」", "ok"],
+      ["买手", "订货会采购：仅已通过或免审核品牌可加入选款单（仅加款式）", "品牌门槛 + 选款单", "ok"],
+      ["买手", "补货采购 / 选款单（修改·下载·生成订单）", "补货页 + 我的选款单", "ok"],
+      ["买手", "我的订单：订货会订单（取消 / 确认定金 / 上传付款凭证）+ 补货订单", "我的订单动态操作区", "ok"],
+      ["买手", "意向品牌：申请品牌 / 已通过品牌列表", "买手端「意向品牌」", "ok"]
+    ];
     return `${subTitle("覆盖核对（实事求是）")}
       <div class="note">结论：主业务与开放项已在本地 Store 闭环；仍<strong>不接真实现网/金蝶 HTTP</strong>，下载为 CSV 导出，上传为批量导入模拟。</div>
+      <h3 style="margin:20px 0 8px;font-size:16px">功能点思维导图逐项对照（平台端 / 品牌端 / 买手端）</h3>
+      <table class="data-table gap-table">
+        <thead><tr><th>端</th><th>思维导图功能点</th><th>原型落点</th><th>状态</th></tr></thead>
+        <tbody>${mind.map(r => `<tr>
+          <td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td>
+          <td class="${r[3]}">${r[3] === "ok" ? "已覆盖" : "部分"}</td>
+        </tr>`).join("")}</tbody>
+      </table>
+      <h3 style="margin:24px 0 8px;font-size:16px">现网 / 需求差异</h3>
       <table class="data-table gap-table">
         <thead><tr><th>能力</th><th>现网</th><th>需求</th><th>原型现状</th><th>状态</th></tr></thead>
         <tbody>${rows.map(r => `<tr>
@@ -2696,6 +3090,82 @@
       return;
     }
 
+    /* ---------- 注册流程（图1） ---------- */
+    if (act.startsWith("flow-tab:")) {
+      state.flowTab = act.split(":")[1] || "register";
+      render();
+      return;
+    }
+    if (act.startsWith("login-as-buyer:")) {
+      const phone = act.slice("login-as-buyer:".length);
+      const r = Store.buyerLogin(phone, "888888");
+      toast(r.msg);
+      if (r.ok) {
+        state.portal = "buyer";
+        state.roleLogin = "buyer";
+        localStorage.setItem("rr_portal", "buyer");
+        go("buyer-home");
+      } else render();
+      return;
+    }
+    if (act.startsWith("approve-buyer:") || act.startsWith("reject-buyer:")) {
+      const pass = act.startsWith("approve-buyer:");
+      const name = act.slice(act.indexOf(":") + 1);
+      if (!pass) {
+        Store.db.ui.rejectBuyer = name;
+        Store.persist();
+        render();
+        toast("请填写拒绝原因后提交");
+        return;
+      }
+      toast(Store.setBuyerStatus(name, "已通过"));
+      render();
+      return;
+    }
+    if (act.startsWith("brand-audit:")) {
+      const [, brand, val] = act.split(":");
+      toast(Store.setBrandAudit(brand, val === "1"));
+      render();
+      return;
+    }
+    /* ---------- 预约管理 · 审核预约 ---------- */
+    if (act.startsWith("approve-appoint:")) {
+      toast(Store.auditAppointment(act.split(":")[1], true));
+      Store.db.ui.rejectAppoint = "";
+      Store.persist();
+      render();
+      return;
+    }
+    if (act.startsWith("reject-appoint:")) {
+      Store.db.ui.rejectAppoint = act.split(":")[1];
+      Store.persist();
+      render();
+      toast("请填写拒绝原因后提交");
+      return;
+    }
+
+    /* ---------- 订单流程（图2） ---------- */
+    if (act.startsWith("open-order-panel:")) {
+      state.orderAction = act.slice("open-order-panel:".length);
+      const oid = el && el.getAttribute("data-oid");
+      if (oid) state.selectedOrder = Store.db.orders.find(o => o.id === oid) || state.selectedOrder;
+      render();
+      return;
+    }
+    if (act.startsWith("check-pay:")) {
+      const [, idx, verdict] = act.split(":");
+      const oid = (el && el.getAttribute("data-oid")) || (state.selectedOrder && state.selectedOrder.id);
+      const f = readFields();
+      const r = Store.advanceOrder(oid, "checkVoucher", {
+        index: idx, pass: verdict === "pass", note: f.checkNote || ""
+      });
+      toast(r.msg);
+      state.selectedOrder = Store.db.orders.find(o => o.id === oid) || state.selectedOrder;
+      state.orderAction = "";
+      render();
+      return;
+    }
+
     const selId = (el && el.getAttribute("data-sel")) || (state.selectedSel && state.selectedSel.id);
     const orderId = (el && el.getAttribute("data-oid")) || (state.selectedOrder && state.selectedOrder.id);
     const shipId = (el && el.getAttribute("data-ship")) || (state.selectedShip && state.selectedShip.id);
@@ -2780,6 +3250,9 @@
         go(state.portal === "buyer" ? "buyer-home" : "goods-list");
         break;
       case "send-code": {
+        const f = readFields();
+        const r = Store.sendSmsCode(f.regPhone || f.loginPhone || f.queryPhone);
+        if (!r.ok) { toast(r.msg); break; }
         let n = 60;
         el.disabled = true;
         el.textContent = `${n}s`;
@@ -2788,7 +3261,7 @@
           if (n <= 0) { clearInterval(timer); el.disabled = false; el.textContent = "获取验证码"; }
           else el.textContent = `${n}s`;
         }, 1000);
-        toast("验证码已发送：888888");
+        toast(r.msg);
         break;
       }
       case "add-to-order": {
@@ -2829,27 +3302,194 @@
         toast(Store.cancelSelection(selId || Store.db.selections[0].id));
         render();
         break;
+      /* ---- 订单流程动作（图2） ---- */
+      case "platform-confirm-order": {
+        const id = orderId || Store.db.orders[0].id;
+        const r = Store.advanceOrder(id, "platformConfirm");
+        toast(r.msg);
+        state.selectedOrder = Store.db.orders.find(o => o.id === id);
+        state.orderAction = r.ok ? "deposit" : state.orderAction;
+        render();
+        break;
+      }
       case "confirm-deposit": {
         const f = readFields();
         const ratio = Number(String(f.depRatio || "30").replace("%", "")) / 100 || 0.3;
-        const r = Store.advanceOrder(orderId || Store.db.orders[0].id, "depositConfirm", { ratio });
+        const id = orderId || Store.db.orders[0].id;
+        const r = Store.advanceOrder(id, "setDeposit", { ratio });
         toast(r.msg);
-        state.selectedOrder = Store.db.orders.find(o => o.id === (orderId || Store.db.orders[0].id));
+        state.selectedOrder = Store.db.orders.find(o => o.id === id);
         state.orderAction = "";
         render();
         break;
       }
-      case "confirm-final": {
-        const r = Store.advanceOrder(orderId || Store.db.orders[0].id, "finalConfirm");
+      case "set-order-discount": {
+        const f = readFields();
+        const id = orderId || Store.db.orders[0].id;
+        const r = Store.advanceOrder(id, "setDiscount", { discount: Number(f.orderDiscount) });
         toast(r.msg);
-        state.selectedOrder = Store.db.orders.find(o => o.id === (orderId || Store.db.orders[0].id));
+        state.selectedOrder = Store.db.orders.find(o => o.id === id);
+        render();
+        break;
+      }
+      case "buyer-confirm-deposit": {
+        const id = orderId || Store.db.orders[0].id;
+        const r = Store.advanceOrder(id, "buyerConfirmDeposit");
+        toast(r.msg);
+        state.selectedOrder = Store.db.orders.find(o => o.id === id);
+        render();
+        break;
+      }
+      case "submit-pay": {
+        const f = readFields();
+        const id = orderId || Store.db.orders[0].id;
+        const kind = f.payKind || (state.orderAction === "pay-final" ? "尾款" : "定金");
+        const r = Store.advanceOrder(id, "uploadVoucher", { kind, amount: f.payAmt, at: f.payAt });
+        toast(r.msg);
+        state.selectedOrder = Store.db.orders.find(o => o.id === id);
+        state.orderAction = "";
+        render();
+        break;
+      }
+      case "gen-oc": {
+        const id = orderId || Store.db.orders[0].id;
+        const r = Store.advanceOrder(id, "genOc");
+        toast(r.msg);
+        state.selectedOrder = Store.db.orders.find(o => o.id === id);
+        render();
+        break;
+      }
+      case "settle-order": {
+        const id = orderId || Store.db.orders[0].id;
+        const r = Store.advanceOrder(id, "settle");
+        toast(r.msg);
+        state.selectedOrder = Store.db.orders.find(o => o.id === id);
+        render();
+        break;
+      }
+      case "confirm-final": {
+        const id = orderId || Store.db.orders[0].id;
+        const r = Store.advanceOrder(id, "finalConfirm");
+        toast(r.msg);
+        state.selectedOrder = Store.db.orders.find(o => o.id === id);
         render();
         break;
       }
       case "reject-order": {
-        const r = Store.advanceOrder(orderId || Store.db.orders[0].id, "reject");
+        const f = readFields();
+        const id = orderId || Store.db.orders[0].id;
+        const r = Store.advanceOrder(id, "reject", { reason: f.rejReason });
         toast(r.msg);
-        state.selectedOrder = Store.db.orders.find(o => o.id === (orderId || Store.db.orders[0].id));
+        state.selectedOrder = Store.db.orders.find(o => o.id === id);
+        state.orderAction = "";
+        render();
+        break;
+      }
+      case "buyer-cancel-order": {
+        const f = readFields();
+        const id = orderId || Store.db.orders[0].id;
+        const r = Store.advanceOrder(id, "cancel", { reason: f.cancelReason });
+        toast(r.msg);
+        state.selectedOrder = Store.db.orders.find(o => o.id === id);
+        state.orderAction = "";
+        render();
+        break;
+      }
+      /* ---- 注册流程动作（图1） ---- */
+      case "submit-register": {
+        const f = readFields();
+        state.regDraft = f;
+        if (!f.regAgree) { toast("请先勾选同意《平台服务协议》"); render(); break; }
+        const r = Store.submitBuyerRegister({
+          store: f.regStore, phone: f.regPhone, code: f.regCode, contact: f.regContact,
+          city: f.regCity === "请选择" ? "" : f.regCity, addr: f.regAddr,
+          invoiceTitle: f.regInvoice, tax: f.regTax,
+          intent: f.regIntent === "暂不选择" ? "" : f.regIntent
+        });
+        toast(r.msg);
+        if (r.ok) {
+          state.regQueryPhone = f.regPhone;
+          state.regDraft = null;
+          go("register-status");
+        } else render();
+        break;
+      }
+      case "query-reg": {
+        const f = readFields();
+        state.regQueryPhone = f.queryPhone || "";
+        const r = Store.buyerRegStatus(state.regQueryPhone);
+        toast(r.found ? `${r.store}：${r.status}` : "未查询到注册记录");
+        render();
+        break;
+      }
+      case "submit-reject-buyer": {
+        const f = readFields();
+        const name = Store.db.ui.rejectBuyer;
+        toast(Store.setBuyerStatus(name, "已拒绝", f.rejectReason));
+        Store.db.ui.rejectBuyer = "";
+        Store.persist();
+        render();
+        break;
+      }
+      case "cancel-reject-buyer": {
+        Store.db.ui.rejectBuyer = "";
+        Store.persist();
+        render();
+        break;
+      }
+      case "submit-reject-appoint": {
+        const f = readFields();
+        toast(Store.auditAppointment(Store.db.ui.rejectAppoint, false, f.appointReason));
+        Store.db.ui.rejectAppoint = "";
+        Store.persist();
+        render();
+        break;
+      }
+      case "cancel-reject-appoint": {
+        Store.db.ui.rejectAppoint = "";
+        Store.persist();
+        render();
+        break;
+      }
+      case "submit-buyer-appoint": {
+        const f = readFields();
+        if (!f.apPhone) { toast("请填写联系人手机号"); break; }
+        if (!f.apBrand || f.apBrand === "请选择品牌") { toast("请选择品牌"); break; }
+        const fair = (Store.db.orderingFairs || []).find(x => `${x.name}（${x.season}）` === f.apFair);
+        toast(Store.addAppointment({
+          brand: f.apBrand, store: Store.db.buyerSession.store,
+          contact: Store.db.buyerSession.store, phone: f.apPhone,
+          date: String(f.apDate || "").replace("T", " "),
+          season: (fair && fair.season) || (Store.db.buyerSession.season !== "全部" && Store.db.buyerSession.season) || "2026SS",
+          people: f.apPeople
+        }));
+        render();
+        break;
+      }
+      case "add-brand": {
+        const f = readFields();
+        const r = Store.addBrand({
+          name: f.nbName, cat: f.nbCat, style: f.nbStyle === "请选择" ? "" : f.nbStyle,
+          crowd: f.nbCrowd === "请选择" ? "" : f.nbCrowd, about: f.nbAbout,
+          needAudit: !!f.nbAudit, ratio: (Number(String(f.nbRatio).replace("%", "")) || 30) / 100
+        });
+        toast(r.msg);
+        if (r.ok) go("brand-list");
+        break;
+      }
+      case "save-brand-ratio": {
+        const f = readFields();
+        toast(Store.setBrandDepositRatio(f.depBrand, f.depBrandRatio));
+        state.selectedBrand = f.depBrand || state.selectedBrand;
+        render();
+        break;
+      }
+      case "submit-intent": {
+        const f = readFields();
+        const brand = f.intentBrand;
+        if (!brand || brand === "暂无可申请品牌") { toast("当前没有需要申请的品牌"); break; }
+        const r = Store.applyBrandAccess(brand, f.intentNote);
+        toast(r.msg);
         render();
         break;
       }
@@ -3645,15 +4285,15 @@
             <div class="items uk-grid-medium brand-grid-live">
               ${brands.map(b => {
                 const noAuth = b.accept === false;
-                const pending = b.pending || b.access === "pending";
+                const pending = b.pending;
                 return `<div class="item">
                   <div class="item_inner">
-                    ${noAuth ? `<div class="accept_state">${pending ? "申请中" : "暂无权限"}</div>` : ""}
-                    <a href="javascript:;" data-go="${noAuth ? "buyer-replenish" : "buyer-brand"}" data-brand="${b.name}">
+                    ${noAuth ? `<div class="accept_state">${pending ? "申请中" : b.denied ? "申请被拒绝" : "需申请"}</div>` : ""}
+                    <a href="javascript:;" data-go="${noAuth ? "buyer-intent" : "buyer-brand"}" data-brand="${b.name}">
                       <div class="brand-logo-rect">${b.name}</div>
                       <p>${b.name}</p>
                     </a>
-                    ${noAuth && !pending ? `<div class="get_accept" data-act="apply-brand:${b.name}">申请权限</div>` : ""}
+                    ${noAuth && !pending ? `<div class="get_accept" data-act="apply-brand:${b.name}">${b.denied ? "重新申请" : "申请权限"}</div>` : ""}
                     ${pending ? '<div class="get_accept" style="color:#999;cursor:default">已提交申请</div>' : ""}
                   </div>
                 </div>`;
@@ -3665,6 +4305,122 @@
       <div class="public_side_bg"></div>
       ${floatSelTab("我的补货单")}
     </div>`;
+  }
+
+  /* 买手端「意向品牌」：申请品牌 + 已申请通过的品牌列表（思维导图 · 买手采购） */
+  function pageBuyerIntent() {
+    const rows = Store.buyerIntentions();
+    const brands = Store.buyerBrands("全部");
+    const needAudit = brands.filter(b => b.needAudit);
+    const canApply = needAudit.filter(b => !b.accept && !b.pending);
+    const granted = brands.filter(b => b.needAudit && b.accept);
+    const free = brands.filter(b => !b.needAudit);
+    const badge = st => st === "已通过" ? "green" : st === "已拒绝" ? "red" : "";
+    return `<div class="oto-main_container buyer-fe">
+      <div class="oto_container order-container">
+        <div class="public_right-container" style="width:100%">
+          <div class="sub_title"><h4>意向品牌</h4></div>
+          <div class="note">需审核的品牌，提交申请并由平台通过后才能查看商品并下单；免审核品牌可直接选款。</div>
+          <div class="intent-apply">
+            <div class="form-grid">
+              <label>申请品牌</label><div>${field("intentBrand", select(canApply.length ? canApply.map(b => b.name) : ["暂无可申请品牌"], null, canApply[0] ? canApply[0].name : "暂无可申请品牌"))}</div>
+              <label>申请说明</label><div>${field("intentNote", input("门店定位 / 采购计划"))}</div>
+            </div>
+            <div class="action-bar">${btn("提交品牌申请", "btn-primary", "submit-intent")}</div>
+          </div>
+          <div class="sub_title"><h4>我的品牌申请</h4></div>
+          <table class="data-table">
+            <thead><tr><th>品牌</th><th>申请时间</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>${rows.map(r => `<tr>
+              <td>${r.brand}</td><td>${r.date || r.at || "—"}</td>
+              <td><span class="badge ${badge(r.status)}">${r.status}</span></td>
+              <td class="ops">${r.status === "已通过"
+                ? `<a href="javascript:;" data-go="buyer-brand" data-brand="${r.brand}">查看商品</a>`
+                : r.status === "已拒绝" ? `<a href="javascript:;" data-act="apply-brand:${r.brand}">重新申请</a>` : "审核中"}</td>
+            </tr>`).join("") || '<tr><td colspan="4">暂无申请记录</td></tr>'}</tbody>
+          </table>
+          <div class="sub_title"><h4>已申请通过的品牌（${granted.length}）</h4></div>
+          <div class="intent-brand-chips">
+            ${granted.map(b => `<a href="javascript:;" class="chip green" data-go="buyer-brand" data-brand="${b.name}">${b.name}</a>`).join("") || '<span class="note">暂无</span>'}
+          </div>
+          <div class="sub_title"><h4>免审核品牌（${free.length}）· 可直接选款</h4></div>
+          <div class="intent-brand-chips">
+            ${free.map(b => `<a href="javascript:;" class="chip" data-go="buyer-brand" data-brand="${b.name}">${b.name}</a>`).join("")}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function fnode(s) {
+    const kind = s.kind || "node";
+    const inner = `${s.text}${s.hint ? `<em>${s.hint}</em>` : ""}`;
+    return `<div class="fnode ${kind} ${s.page ? "linkable" : ""}" ${s.page ? `data-go="${s.page}"` : ""}>${inner}</div>`;
+  }
+
+  function flowChart(steps) {
+    return `<div class="flow-chart">
+      <div class="flow-head"><span>平台端</span><span>买手端</span></div>
+      ${steps.map((s, i) => `<div class="frow">
+        <div class="fcol">${s.side === "platform" ? fnode(s) : (s.branch && s.branch.side === "platform" ? `<div class="fbranch">${s.branch.label}</div>` : "")}</div>
+        <div class="fcol">${s.side === "buyer" ? fnode(s) : (s.branch && s.branch.side === "buyer" ? `<div class="fbranch">${s.branch.label}</div>` : "")}</div>
+        ${i < steps.length - 1 ? `<div class="fdown ${s.side}">↓</div>` : ""}
+      </div>`).join("")}
+    </div>`;
+  }
+
+  /* 业务流程：注册流程图 / 订单流程图 → 原型页面映射 */
+  function pageFlowMap() {
+    const tab = state.flowTab || "register";
+    const register = [
+      { side: "buyer", kind: "start", text: "开始" },
+      { side: "buyer", text: "买手填写资料注册", hint: "手机号 + 验证码", page: "register" },
+      { side: "buyer", text: "提交申请", hint: "写入平台待审核列表", page: "register" },
+      { side: "platform", kind: "decision", text: "审核买手", hint: "买手管理 · 买手审核", page: "buyer-list", branch: { side: "buyer", label: "审核拒绝 → 退回修改资料后重新提交" } },
+      { side: "buyer", text: "登录买手端", hint: "审核通过才放行", page: "login", branch: { side: "platform", label: "审核通过 → 允许登录" } },
+      { side: "buyer", text: "提交品牌申请", hint: "意向品牌 · 申请品牌", page: "buyer-intent" },
+      { side: "platform", kind: "decision", text: "审核品牌申请", hint: "意向审核", page: "intent-list" },
+      { side: "buyer", text: "查看已审核通过或不需要审核的品牌商品", hint: "品牌列表按权限展示", page: "buyer-home" },
+      { side: "buyer", kind: "end", text: "结束" }
+    ];
+    const order = [
+      { side: "buyer", kind: "start", text: "开始" },
+      { side: "buyer", text: "登录", page: "login" },
+      { side: "buyer", text: "查看订货会，选择已通过或免审核品牌商品加入选款单", page: "buyer-home" },
+      { side: "buyer", text: "修改 / 下载 / 生成选款单", page: "buyer-selection" },
+      { side: "buyer", text: "生成订单", page: "buyer-selection", branch: { side: "platform", label: "买手可取消订单 → 结束" } },
+      { side: "platform", kind: "decision", text: "确认订单", hint: "订单管理", page: "order-list", branch: { side: "buyer", label: "驳回 → 选款单解锁，修改后重新下单" } },
+      { side: "platform", text: "设置定金（可先设置折扣 / 首付比例）", page: "order-list" },
+      { side: "buyer", text: "确认定金", page: "buyer-orders" },
+      { side: "buyer", text: "上传支付凭证", page: "buyer-orders" },
+      { side: "platform", kind: "decision", text: "核对支付凭证", hint: "不通过 → 退回重新上传", page: "order-list" },
+      { side: "platform", text: "生成 OC（可下载）", page: "order-list" },
+      { side: "buyer", text: "上传尾款支付凭证（全额或分批次）", page: "buyer-orders" },
+      { side: "platform", kind: "decision", text: "核对尾款凭证", hint: "不通过 → 退回重新上传", page: "order-list" },
+      { side: "platform", text: "统计付款差额（系统暂不考虑发货）", page: "order-list" },
+      { side: "platform", text: "运营人员手动点击订单完成", page: "order-list" },
+      { side: "platform", kind: "end", text: "订单完成 → 结束" }
+    ];
+    const tabs = [["register", "注册流程图"], ["order", "订单流程图"]];
+    const statusRow = Store.ORDER_FLOW.map((s, i) => `<span class="chip">${i + 1}. ${s}</span>`).join("");
+    return `${subTitle("业务流程（按客户流程图落地）")}
+      <div class="note">点击流程节点可直接跳到对应原型页面；订单状态取值与流程节点一一对应。</div>
+      <ul class="uk-subnav tabs flow-tabs">
+        ${tabs.map(([id, lab]) => `<li class="${tab === id ? "uk-active on" : ""}"><a href="javascript:;" data-act="flow-tab:${id}">${lab}</a></li>`).join("")}
+      </ul>
+      ${flowChart(tab === "register" ? register : order)}
+      ${tab === "order" ? `<div class="flow-status-legend">
+        <h4>订单状态机（10 个节点 + 已驳回 / 已取消）</h4>
+        <div class="chips">${statusRow}</div>
+      </div>` : `<div class="flow-status-legend">
+        <h4>门槛规则</h4>
+        <div class="chips">
+          <span class="chip">买手状态：待审核 → 不可登录</span>
+          <span class="chip">已拒绝 → 提示原因并可改资料重提</span>
+          <span class="chip">品牌需审核 → 未通过不可看商品/下单</span>
+          <span class="chip">品牌免审核 → 直接选款下单</span>
+        </div>
+      </div>`}`;
   }
 
   function pageMP() {
@@ -3689,6 +4445,9 @@
 
   const pages = {
     login: pageLogin,
+    register: pageBuyerRegister,
+    "register-status": pageRegisterStatus,
+    "flow-map": pageFlowMap,
     coverage: pageCoverage,
     "account-center": pageAccount,
     "goods-carry": pageGoodsCarry,
@@ -3700,6 +4459,10 @@
     "goods-look": pageGoodsLook,
     "goods-cat": pageGoodsCat,
     "brand-list": pageBrandList,
+    "brand-add": pageBrandAdd,
+    "appoint-list": pageOrderAppoint,
+    "appoint-audit": pageAppointAudit,
+    "buyer-appoint-apply": pageBuyerFairAppoint,
     "brand-discount": pageBrandDiscount,
     "brand-size": pageBrandSize,
     "brand-fair": pageBrandFair,
@@ -3772,23 +4535,26 @@
     "buyer-order-detail": pageBuyerOrderDetail,
     "buyer-profile": pageBuyerProfile,
     "buyer-message": pageBuyerMessage,
+    "buyer-intent": pageBuyerIntent,
     "buyer-replenish": pageBuyerReplenish,
     "mp-home": pageMP
   };
 
   function render() {
-    if (state.page === "login") {
-      app.innerHTML = toastHtml() + pageLogin();
+    /* 登录 / 注册 / 审核进度：独立全屏页（无端口壳） */
+    if (["login", "register", "register-status"].includes(state.page)) {
+      app.innerHTML = toastHtml() + pages[state.page]();
       bind();
       return;
     }
-    if (state.portal === "mp" && state.page !== "coverage") {
+    if (state.portal === "mp" && !["coverage", "flow-map"].includes(state.page)) {
       app.innerHTML = toastHtml() + pageMP();
       bind();
       return;
     }
-    if (state.page === "coverage") {
-      app.innerHTML = toastHtml() + protoBar() + `<div class="shell full-main"><div class="main">${pageCoverage()}</div></div>` + footer();
+    if (state.page === "coverage" || state.page === "flow-map") {
+      const body = state.page === "flow-map" ? pageFlowMap() : pageCoverage();
+      app.innerHTML = toastHtml() + protoBar() + `<div class="shell full-main"><div class="main">${body}</div></div>` + footer();
       bind();
       return;
     }
@@ -3878,6 +4644,18 @@
     const loginBtn = $("#do-login");
     if (loginBtn) {
       loginBtn.addEventListener("click", () => {
+        /* 买手端：手机号 + 验证码，且须平台审核通过（《注册流程图》） */
+        if (state.roleLogin === "buyer") {
+          const f = readFields();
+          const r = Store.buyerLogin(f.loginPhone, f.loginCode);
+          toast(r.msg);
+          if (!r.ok) {
+            state.regQueryPhone = String(f.loginPhone || "").trim();
+            if (r.code === "unregistered") go("register");
+            else if (["pending", "rejected"].includes(r.code)) go("register-status");
+            return;
+          }
+        }
         state.portal = state.roleLogin;
         localStorage.setItem("rr_portal", state.portal);
         state.page = state.portal === "buyer" ? "buyer-home" : state.portal === "brand" ? "brand-discount" : "goods-list";

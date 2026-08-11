@@ -3,7 +3,8 @@
  * Implements requirement-driven stateful operations (persisted in localStorage).
  */
 (() => {
-  const KEY = "rr_biz_v5";
+  /* v6：订单流程按《订单流程图》重建 + 注册审核链路，旧结构不再兼容 */
+  const KEY = "rr_biz_v6";
 
   const DEFAULT_RULE = () => ({
     minAmount: 30000, cloth: 0.45, accessory: 0.5, lifestyle: 0.55,
@@ -14,7 +15,46 @@
     stairs: [{ amount: 30000, discount: 0.45 }]
   });
 
-  const ORDER_FLOW = ["买手未确认", "买手已确认待品牌确认", "定金确认", "尾款确认", "已完成"];
+  /* 订单流程（对齐《订单流程图》）：
+     生成订单 → 平台确认订单(驳回/确认) → 设置定金(可设折扣) → 买手确认定金
+     → 买手上传定金凭证 → 平台核对定金凭证(不通过退回) → 生成 OC
+     → 买手支付尾款(全额或分批次) → 平台核对尾款凭证(不通过退回)
+     → 统计付款差额 → 平台手动点击完成 → 订单完成 */
+  const ORDER_ST = {
+    confirm: "待平台确认",
+    deposit: "待设置定金",
+    depositAck: "待买手确认定金",
+    depositPay: "待上传定金凭证",
+    depositCheck: "待核对定金凭证",
+    oc: "待生成OC",
+    finalPay: "待支付尾款",
+    finalCheck: "待核对尾款凭证",
+    settle: "待完成结算",
+    done: "已完成",
+    rejected: "已驳回",
+    canceled: "已取消"
+  };
+  const ORDER_FLOW = [
+    ORDER_ST.confirm, ORDER_ST.deposit, ORDER_ST.depositAck, ORDER_ST.depositPay,
+    ORDER_ST.depositCheck, ORDER_ST.oc, ORDER_ST.finalPay, ORDER_ST.finalCheck,
+    ORDER_ST.settle, ORDER_ST.done
+  ];
+  /* 旧状态 → 新流程节点（历史 mock/本地数据兼容） */
+  const LEGACY_STATUS = {
+    "买手未确认": ORDER_ST.confirm,
+    "买手已确认待品牌确认": ORDER_ST.deposit,
+    "定金确认": ORDER_ST.oc,
+    "尾款确认": ORDER_ST.settle
+  };
+  function normStatus(s) {
+    const t = String(s || "").trim();
+    if (LEGACY_STATUS[t]) return LEGACY_STATUS[t];
+    if (ORDER_FLOW.includes(t) || t === ORDER_ST.rejected || t === ORDER_ST.canceled) return t;
+    return ORDER_ST.confirm;
+  }
+  function stageOf(status) {
+    return ORDER_FLOW.indexOf(normStatus(status));
+  }
 
   function uid(prefix) {
     const t = new Date();
@@ -33,6 +73,18 @@
   function clone(v) {
     return JSON.parse(JSON.stringify(v));
   }
+
+  /* syncLegacy 会把 RR.* 指向 db.*，重置必须回到 data.js 原始值，故先快照 */
+  const SEED = {
+    goods: clone(RR.goods || []),
+    selections: clone(RR.selections || []),
+    selectionLines: clone(RR.selectionLines || []),
+    orders: clone(RR.orders || []),
+    buyers: clone(RR.buyers || []),
+    intentions: clone(RR.intentions || []),
+    appointments: clone(RR.appointments || []),
+    roles: clone(RR.roles || [])
+  };
 
   function inferGoodsType(g) {
     if (g.goodsType) return g.goodsType;
@@ -63,7 +115,7 @@
   }
 
   function enrichLine(l, idx) {
-    const g = (RR.goods || []).find(x => x.sku === l.sku) || {};
+    const g = SEED.goods.find(x => x.sku === l.sku) || {};
     const eg = enrichGoods({ ...g, ...l }, idx || 0);
     const sizes = l.sizes || Object.fromEntries((eg.sizes || ["S", "M", "L"]).map(sz => [sz, 0]));
     return {
@@ -80,8 +132,8 @@
   }
 
   function linesForBrand(brand) {
-    const gs = (RR.goods || []).filter(g => g.brand === brand && g.status !== "已删款").slice(0, 5);
-    if (!gs.length) return clone(RR.selectionLines).map((l, i) => enrichLine(l, i));
+    const gs = SEED.goods.filter(g => g.brand === brand && g.status !== "已删款").slice(0, 5);
+    if (!gs.length) return clone(SEED.selectionLines).map((l, i) => enrichLine(l, i));
     return gs.map((g, i) => enrichLine({
       sku: g.sku,
       title: g.title,
@@ -91,39 +143,83 @@
     }, i));
   }
 
+  /* 按流程阶段回填付款凭证/OC/差额，使各状态订单都能演示后续动作 */
+  function seedOrder(o, oi) {
+    const status = normStatus(o.status);
+    const stage = stageOf(status);
+    const amount = parseMoney(o.amount);
+    const deposit = parseMoney(o.deposit) || amount * 0.3;
+    const payments = [];
+    if (stage >= stageOf(ORDER_ST.depositCheck)) {
+      payments.push({
+        kind: "定金", amount: money(deposit), at: "2026-07-20", file: "定金凭证.pdf",
+        status: stage === stageOf(ORDER_ST.depositCheck) ? "待核对" : "已核对", note: ""
+      });
+    }
+    if (stage >= stageOf(ORDER_ST.settle)) {
+      payments.push({ kind: "尾款", amount: money(Math.max(0, amount - deposit)), at: "2026-07-26", file: "尾款凭证.pdf", status: "已核对", note: "" });
+    } else if (stage === stageOf(ORDER_ST.finalCheck)) {
+      payments.push({ kind: "尾款", amount: money(Math.max(0, amount - deposit)), at: "2026-08-06", file: "尾款凭证.pdf", status: "待核对", note: "" });
+    }
+    const okPaid = payments.filter(p => p.status === "已核对").reduce((a, p) => a + parseMoney(p.amount), 0);
+    const depositPaid = payments.filter(p => p.kind === "定金" && p.status === "已核对").reduce((a, p) => a + parseMoney(p.amount), 0);
+    return {
+      ...o,
+      status,
+      whitelist: false,
+      depositRatio: amount ? Number((deposit / amount).toFixed(2)) : 0.3,
+      deposit: money(deposit),
+      payments,
+      paidDeposit: money(depositPaid),
+      paidTotal: money(okPaid),
+      settleDiff: status === ORDER_ST.done ? money(amount - okPaid) : "",
+      ocId: stage >= stageOf(ORDER_ST.finalPay) ? "OC-" + String(o.id || "").replace("ORD-", "") : "",
+      rejectReason: "",
+      cancelReason: "",
+      invoice: stage >= stageOf(ORDER_ST.settle) ? { title: o.store, tax: "", amount: o.amount, type: "普通发票" } : null,
+      voucher: payments[0] ? { amount: payments[0].amount, at: payments[0].at, file: payments[0].file } : null,
+      contractUploaded: stage >= stageOf(ORDER_ST.oc),
+      materialsOk: stage > stageOf(ORDER_ST.confirm),
+      substores: [],
+      returns: [],
+      discountLabel: o.brand === "KHIHO" ? "服饰:4.4折 / 配饰:4.4折" : "服饰:4.5折 / 配饰:5.0折",
+      retailAmount: money(amount / 0.45),
+      lines: linesForBrand(o.brand).map(l => ({
+        sku: l.sku, title: l.title, sizes: clone(l.sizes), price: parseMoney(l.price), discount: 1,
+        retail: parseMoney(l.retail), goodsType: l.goodsType, color: l.color, code: l.code, sampleSize: l.sampleSize
+      })),
+      createdAt: o.createdAt || ["2026-03-20 10:00", "2026-07-29 12:46", "2026-07-15 10:40"][oi % 3],
+      flowLog: [{ at: o.createdAt || "2026-07-01 10:00", text: "买手生成订单，等待平台确认" }]
+    };
+  }
+
   function defaultDb() {
     return {
-      goods: clone(RR.goods).map((g, i) => enrichGoods(g, i)),
-      selections: clone(RR.selections).map((s, i) => ({
+      goods: clone(SEED.goods).map((g, i) => enrichGoods(g, i)),
+      selections: clone(SEED.selections).map((s, i) => ({
         ...s,
         createdAt: s.createdAt || s.date || s.time || "",
         locked: s.status === "已生成订单",
         lines: (s.brand === "IAN HYLTON" && i === 0
-          ? clone(RR.selectionLines)
+          ? clone(SEED.selectionLines)
           : linesForBrand(s.brand)).map((l, j) => enrichLine(l, j))
       })),
-      orders: clone(RR.orders).map((o, oi) => ({
-        ...o,
-        whitelist: false,
-        paidDeposit: o.status === "定金确认" || o.status === "尾款确认" || o.status === "已完成" ? o.deposit : "0.00",
-        paidTotal: o.status === "尾款确认" || o.status === "已完成" ? o.amount : "0.00",
-        invoice: o.status === "尾款确认" || o.status === "已完成" ? { title: o.store, tax: "", amount: o.amount, type: "普通发票" } : null,
-        voucher: o.status === "定金确认" || o.status === "尾款确认" || o.status === "已完成" ? { amount: o.deposit, at: "2026-07-20", file: "付款凭证.pdf" } : null,
-        contractUploaded: o.status === "定金确认" || o.status === "尾款确认" || o.status === "已完成",
-        materialsOk: o.status !== "买手未确认",
+      orders: clone(SEED.orders).map((o, oi) => seedOrder(o, oi)),
+      buyers: clone(SEED.buyers).map((b, i) => ({
+        ...b,
+        balances: { "HAIZHEN WANG": b.name === "Liora Amour" ? 2480 : 0, JUNLI: 0 },
+        addresses: [{ name: "收货人", phone: b.phone, addr: b.city }],
+        invoice: { title: b.name, tax: "" },
         substores: [],
-        returns: [],
-        discountLabel: o.brand === "KHIHO" ? "服饰:4.4折 / 配饰:4.4折" : "服饰:4.5折 / 配饰:5.0折",
-        retailAmount: money(parseMoney(o.amount) / 0.45),
-        lines: linesForBrand(o.brand).map((l, j) => ({
-          sku: l.sku, title: l.title, sizes: clone(l.sizes), price: parseMoney(l.price), discount: 1,
-          retail: parseMoney(l.retail), goodsType: l.goodsType, color: l.color, code: l.code, sampleSize: l.sampleSize
-        })),
-        createdAt: o.createdAt || ["2026-03-20 10:00", "2026-07-29 12:46", "2026-07-15 10:40"][oi % 3]
+        contact: b.contact || "店主",
+        /* 注册流程：待审核=买手手机号注册后提交的申请 */
+        source: b.status === "待审核" ? "手机号注册" : "平台录入",
+        regAt: b.status === "待审核" ? `2026-08-0${(i % 9) + 1} 10:${String(10 + i).slice(-2)}` : "",
+        reason: ""
       })),
-      buyers: clone(RR.buyers).map(b => ({ ...b, balances: { "HAIZHEN WANG": b.name === "Liora Amour" ? 2480 : 0, JUNLI: 0 }, addresses: [{ name: "收货人", phone: b.phone, addr: b.city }], invoice: { title: b.name, tax: "" }, substores: [] })),
-      intentions: clone(RR.intentions),
-      appointments: clone(RR.appointments),
+      intentions: clone(SEED.intentions),
+      /* 预约管理：预约需平台/品牌审核后才算参会名额 */
+      appointments: clone(SEED.appointments).map((a, i) => ({ ...a, status: a.status || (i % 3 === 0 ? "待审核" : "已通过"), reason: "" })),
       contracts: [
         { id: "CT-2026SS-088", orderId: "ORD-20260319-088", brand: "JUNLI", season: "2026SS", status: "已生成" },
         { id: "CT-2026SS-102", orderId: "ORD-20260320-102", brand: "HAIZHEN WANG", season: "2026SS", status: "待生成" },
@@ -187,7 +283,7 @@
         { id: 3, season: "2025AW", title: "Lookbook #3", skus: ["MS26AW012"] },
         { id: 4, season: "2027PS", title: "Lookbook #4", skus: [] }
       ],
-      roles: clone(RR.roles).map(r => ({
+      roles: clone(SEED.roles).map(r => ({
         ...r,
         flags: {
           商品管理: true,
@@ -236,6 +332,14 @@
         { id: "cr7", name: "生活馆" }
       ],
       catsMaster: ["女装", "男装", "男女装", "配饰", "生活方式"],
+      /* 平台端：设置品牌商品下单是否需要审核买手（true=需审核，买手须先提交品牌申请） */
+      brandAudit: Object.fromEntries((RR.brands || []).map(b => [
+        b.name, ["PRIVATE POLICY", "XIMONLEE", "self-portrait", "IAN HYLTON"].includes(b.name)
+      ])),
+      /* 品牌订单首付比例（定金），平台/品牌端可改，下单与设置定金取此默认值 */
+      brandDeposit: Object.fromEntries((RR.brands || []).map((b, i) => [b.name, [0.3, 0.3, 0.5, 0.4][i % 4]])),
+      /* 注册流程：本机最近一次提交的注册申请（用于「审核进度」页） */
+      regSession: { phone: "", store: "", status: "", reason: "", at: "" },
       fairs: Object.fromEntries((RR.seasons || []).map(s => [s, { first: true, replenish: true }])),
       orderingFairs: [
         { id: "FAIR-2027PS", name: "2027 Pre-Spring 订货会", season: "2027PS", cover: true, intro: "春季订货会图文介绍（展示位置待确认）", createdAt: "2026-06-01" },
@@ -297,8 +401,8 @@
         selections: [],
         hasFirstOrderBySeason: { "2026SS": true, "2025AW": true, "2027PS": false },
         openReplenish: {},
-        /* granted | pending | denied — 缺省视为 granted */
-        brandAccess: { "PRIVATE POLICY": "denied", "XIMONLEE": "denied" },
+        /* granted | pending | denied | none —— 仅对「需审核」品牌生效，免审核品牌直接可看可下单 */
+        brandAccess: { "IAN HYLTON": "granted", "PRIVATE POLICY": "pending", "XIMONLEE": "denied" },
         substores: [{ name: "Liora Amour 静安", city: "上海" }]
       },
       kingdee: {
@@ -348,7 +452,22 @@
       if (!merged.catsMaster) merged.catsMaster = base.catsMaster;
       if (!merged.orderingFairs) merged.orderingFairs = clone(base.orderingFairs || []);
       if (!merged.buyerMessages) merged.buyerMessages = clone(base.buyerMessages || []);
+      if (!merged.brandAudit) merged.brandAudit = clone(base.brandAudit);
+      if (!merged.brandDeposit) merged.brandDeposit = clone(base.brandDeposit);
+      if (!merged.regSession) merged.regSession = clone(base.regSession);
+      if (Array.isArray(merged.appointments)) {
+        merged.appointments = merged.appointments.map((a, i) => ({ ...a, status: a.status || (i % 3 === 0 ? "待审核" : "已通过"), reason: a.reason || "" }));
+      }
       if (merged.buyerSession.newOnly == null) merged.buyerSession.newOnly = false;
+      /* 订单：状态归一到新流程节点，并补齐付款凭证等新字段 */
+      if (Array.isArray(merged.orders)) {
+        merged.orders = merged.orders.map((o, i) => {
+          const status = normStatus(o.status);
+          if (o.payments && o.status === status) return o;
+          const seeded = seedOrder({ ...o, status }, i);
+          return { ...seeded, lines: o.lines && o.lines.length ? o.lines : seeded.lines };
+        });
+      }
       if (Array.isArray(merged.goods)) {
         const have = new Set(merged.goods.map(g => g.sku));
         (base.goods || []).forEach(g => {
@@ -688,7 +807,8 @@
 
       const orderId = uid("ORD");
       const amountNum = parseMoney(s.amount);
-      const depositNum = amountNum * 0.3;
+      const brandRatio = Store.brandDepositRatio(s.brand);
+      const depositNum = amountNum * brandRatio;
       db.orders.unshift({
         id: orderId,
         brand: s.brand,
@@ -697,10 +817,16 @@
         type: "首单",
         amount: money(amountNum),
         deposit: money(depositNum),
-        status: "买手未确认",
+        status: ORDER_ST.confirm,
         whitelist: false,
+        depositRatio: brandRatio,
+        payments: [],
         paidDeposit: "0.00",
         paidTotal: "0.00",
+        settleDiff: "",
+        ocId: "",
+        rejectReason: "",
+        cancelReason: "",
         invoice: null,
         voucher: null,
         substores: [],
@@ -709,7 +835,8 @@
           sku: l.sku, title: l.title, sizes: clone(l.sizes), price: parseMoney(l.price), discount: 1
         })),
         createdAt: new Date().toISOString().slice(0, 16).replace("T", " "),
-        fromSelection: s.id
+        fromSelection: s.id,
+        flowLog: [{ at: new Date().toISOString().slice(0, 16).replace("T", " "), text: "买手由选款单生成订单，等待平台确认" }]
       });
       s.status = "已生成订单";
       s.locked = true;
@@ -846,57 +973,268 @@
       save();
       return { ok: true, msg: "数量已更新" };
     },
+    /* ---------- 订单流程（对齐《订单流程图》） ---------- */
+    ORDER_ST,
+    orderStage(o) { return stageOf(o && o.status); },
+    orderFlowNodes(o) {
+      const cur = stageOf(o && o.status);
+      const st = normStatus(o && o.status);
+      const ended = st === ORDER_ST.rejected || st === ORDER_ST.canceled;
+      return ORDER_FLOW.map((name, i) => ({
+        name,
+        done: !ended && i < cur,
+        current: !ended && i === cur,
+        owner: [ORDER_ST.depositAck, ORDER_ST.depositPay, ORDER_ST.finalPay].includes(name) ? "买手端" : "平台端"
+      }));
+    },
+    paymentStats(o) {
+      const total = parseMoney(o && o.amount);
+      const deposit = parseMoney(o && o.deposit);
+      const list = (o && o.payments) || [];
+      const sum = (kind, status) => list
+        .filter(p => (!kind || p.kind === kind) && (!status || p.status === status))
+        .reduce((a, p) => a + parseMoney(p.amount), 0);
+      const confirmed = sum(null, "已核对");
+      return {
+        total, deposit,
+        depositOk: sum("定金", "已核对"),
+        finalDue: Math.max(0, total - deposit),
+        finalOk: sum("尾款", "已核对"),
+        confirmed,
+        pending: sum(null, "待核对"),
+        unpaid: Math.max(0, total - confirmed),
+        /* 付款差额：正=少付，负=多付（订单完成时统计） */
+        diff: total - confirmed
+      };
+    },
+    /* 当前状态下该端可执行的动作（驱动按钮渲染，避免出现流程外按钮） */
+    orderActions(o, side) {
+      const st = normStatus(o && o.status);
+      const platform = side !== "buyer";
+      const A = [];
+      const wait = t => A.push({ label: t, wait: true });
+      if (st === ORDER_ST.confirm) {
+        if (platform) {
+          A.push({ act: "platform-confirm-order", label: "确认订单", primary: true });
+          A.push({ act: "open-order-panel:reject", label: "驳回订单" });
+        } else {
+          A.push({ act: "open-order-panel:cancel", label: "取消订单" });
+          wait("等待平台确认订单");
+        }
+      } else if (st === ORDER_ST.deposit) {
+        if (platform) {
+          A.push({ act: "open-order-panel:deposit", label: "设置定金", primary: true });
+          A.push({ act: "open-order-panel:modify", label: "设置折扣 / 增减款" });
+          A.push({ act: "open-order-panel:reject", label: "驳回订单" });
+        } else wait("等待平台设置定金");
+      } else if (st === ORDER_ST.depositAck) {
+        if (platform) {
+          A.push({ act: "open-order-panel:deposit", label: "修改首付比例定金" });
+          wait("等待买手确认定金");
+        } else A.push({ act: "buyer-confirm-deposit", label: "确认定金", primary: true });
+      } else if (st === ORDER_ST.depositPay) {
+        if (platform) wait("等待买手上传定金付款凭证");
+        else A.push({ act: "open-order-panel:pay-deposit", label: "上传付款凭证", primary: true });
+      } else if (st === ORDER_ST.depositCheck) {
+        if (platform) A.push({ act: "open-order-panel:check", label: "核对定金凭证", primary: true });
+        else wait("等待平台核对定金凭证");
+      } else if (st === ORDER_ST.oc) {
+        if (platform) A.push({ act: "gen-oc", label: "生成 OC", primary: true });
+        else wait("等待平台生成 OC");
+      } else if (st === ORDER_ST.finalPay) {
+        if (platform) wait("等待买手支付尾款（可分批次）");
+        else A.push({ act: "open-order-panel:pay-final", label: "上传尾款付款凭证", primary: true });
+      } else if (st === ORDER_ST.finalCheck) {
+        if (platform) A.push({ act: "open-order-panel:check", label: "核对尾款凭证", primary: true });
+        else wait("等待平台核对尾款凭证");
+      } else if (st === ORDER_ST.settle) {
+        if (platform) A.push({ act: "settle-order", label: "订单完成（统计付款差额）", primary: true });
+        else wait("等待平台确认完成");
+      } else if (st === ORDER_ST.rejected) {
+        if (platform) A.push({ act: "platform-confirm-order", label: "恢复为待确认" });
+        else A.push({ act: "go:buyer-selection", label: "回到选款单重新下单", primary: true });
+      }
+      if (platform && ![ORDER_ST.done, ORDER_ST.canceled].includes(st)) {
+        A.push({ act: "open-order-panel:invoice", label: "发票信息" });
+      }
+      A.push({ act: "download:订单", label: "下载订单" });
+      return A;
+    },
     orderPendingTips(o) {
-      const tips = [];
-      if (!o) return tips;
-      if (o.status === "买手未确认" || o.status.includes("驳回")) tips.push("待买手确认订单");
-      if (o.status === "买手已确认待品牌确认") tips.push("待确认定金和合同");
-      if (!o.materialsOk && o.status !== "已完成") tips.push("待补充材料");
-      if (!o.contractUploaded && !["尾款确认", "已完成"].includes(o.status)) tips.push("待上传合同");
-      if (!o.voucher && !["尾款确认", "已完成"].includes(o.status)) tips.push("待上传付款凭证");
-      if (o.status === "定金确认") tips.push("待确认尾款");
-      return tips;
+      if (!o) return [];
+      const st = normStatus(o.status);
+      const map = {
+        [ORDER_ST.confirm]: ["待平台确认订单（可驳回）"],
+        [ORDER_ST.deposit]: ["待平台设置定金 / 折扣"],
+        [ORDER_ST.depositAck]: ["待买手确认定金"],
+        [ORDER_ST.depositPay]: ["待买手上传定金付款凭证"],
+        [ORDER_ST.depositCheck]: ["待平台核对定金凭证"],
+        [ORDER_ST.oc]: ["待平台生成 OC"],
+        [ORDER_ST.finalPay]: ["待买手支付尾款（全额或分批次）"],
+        [ORDER_ST.finalCheck]: ["待平台核对尾款凭证"],
+        [ORDER_ST.settle]: ["待平台点击订单完成（统计付款差额）"],
+        [ORDER_ST.done]: [],
+        [ORDER_ST.rejected]: ["已驳回：" + (o.rejectReason || "—")],
+        [ORDER_ST.canceled]: ["已取消：" + (o.cancelReason || "买手主动取消")]
+      };
+      return (map[st] || []).slice();
     },
 
     advanceOrder(orderId, action, payload = {}) {
       const o = db.orders.find(x => x.id === orderId);
       if (!o) return { ok: false, msg: "订单不存在" };
+      const st = normStatus(o.status);
+      const stamp = () => new Date().toISOString().slice(0, 16).replace("T", " ");
+      const log = text => {
+        o.flowLog = o.flowLog || [];
+        o.flowLog.unshift({ at: stamp(), text });
+      };
+      const unlockSelection = () => {
+        if (!o.fromSelection) return;
+        const s = db.selections.find(x => x.id === o.fromSelection);
+        if (s) { s.locked = false; s.status = "待确认"; }
+      };
+      /* 旧动作名兼容（历史门禁脚本/页面） */
+      const alias = {
+        buyerConfirm: "platformConfirm", depositConfirm: "setDeposit",
+        finalConfirm: "finalPass", complete: "settle", voucher: "uploadVoucher"
+      };
+      const act = alias[action] || action;
 
-      if (action === "buyerConfirm") {
-        if (o.status !== "买手未确认" && !o.status.includes("驳回")) return { ok: false, msg: "当前状态不可买手确认" };
-        o.status = "买手已确认待品牌确认";
-      } else if (action === "depositConfirm") {
-        if (!o.status.includes("待品牌确认") && o.status !== "买手已确认待品牌确认") return { ok: false, msg: "需买手已确认后才能设定金" };
-        const ratio = Number(payload.ratio || 0.3);
+      if (act === "platformConfirm") {
+        if (![ORDER_ST.confirm, ORDER_ST.rejected].includes(st)) return { ok: false, msg: `当前状态「${st}」不可确认订单` };
+        o.status = ORDER_ST.deposit;
+        o.materialsOk = true;
+        o.rejectReason = "";
+        log("平台确认订单，待设置定金");
+      } else if (act === "reject") {
+        if ([ORDER_ST.done, ORDER_ST.canceled].includes(st)) return { ok: false, msg: "订单已结束，不可驳回" };
+        o.status = ORDER_ST.rejected;
+        o.rejectReason = payload.reason || "订单金额/款式需调整";
+        unlockSelection();
+        log(`平台驳回订单：${o.rejectReason}（买手可回到选款单修改后重新下单）`);
+        Store.pushBuyerMessage("订单被驳回", `订单 ${o.id} 被驳回：${o.rejectReason}`);
+      } else if (act === "cancel") {
+        if (stageOf(st) > stageOf(ORDER_ST.confirm)) return { ok: false, msg: "平台已确认订单，取消需联系平台" };
+        o.status = ORDER_ST.canceled;
+        o.cancelReason = payload.reason || "买手主动取消";
+        unlockSelection();
+        log(`买手取消订单：${o.cancelReason}`);
+      } else if (act === "setDeposit") {
+        if (![ORDER_ST.deposit, ORDER_ST.depositAck].includes(st)) return { ok: false, msg: `当前状态「${st}」不可设置定金` };
+        const ratio = Number(payload.ratio || o.depositRatio || Store.brandDepositRatio(o.brand));
+        o.depositRatio = ratio;
         o.deposit = money(parseMoney(o.amount) * ratio);
-        o.paidDeposit = o.deposit;
-        o.status = "定金确认";
-      } else if (action === "finalConfirm") {
-        if (o.status !== "定金确认") return { ok: false, msg: "需定金确认后才能确认尾款" };
-        o.paidTotal = o.amount;
-        o.status = "尾款确认";
-      } else if (action === "reject") {
-        o.status = "已驳回";
-        if (o.fromSelection) {
-          const s = db.selections.find(x => x.id === o.fromSelection);
-          if (s) { s.locked = false; s.status = "待确认"; }
+        o.status = ORDER_ST.depositAck;
+        log(`平台设置首付比例 ${Math.round(ratio * 100)}%，应收定金 ¥${o.deposit}，待买手确认`);
+        Store.pushBuyerMessage("待确认定金", `订单 ${o.id} 定金 ¥${o.deposit}，请在「我的订单」确认。`);
+      } else if (act === "setDiscount") {
+        if (stageOf(st) > stageOf(ORDER_ST.depositAck)) return { ok: false, msg: "定金已确认，不可再改折扣" };
+        const d = Number(payload.discount || 0);
+        if (!d || d <= 0 || d > 1) return { ok: false, msg: "折扣需在 0~1 之间（如 0.45）" };
+        (o.lines || []).forEach(l => { l.discount = d; });
+        let amount = 0;
+        (o.lines || []).forEach(l => {
+          const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
+          amount += qty * Number(l.price || 0) * Number(l.discount || 1);
+        });
+        o.amount = money(amount);
+        o.deposit = money(amount * Number(o.depositRatio || 0.3));
+        log(`平台设置整单折扣 ${d}，订单金额 ¥${o.amount}`);
+      } else if (act === "buyerConfirmDeposit") {
+        if (st !== ORDER_ST.depositAck) return { ok: false, msg: `当前状态「${st}」不可确认定金` };
+        o.status = ORDER_ST.depositPay;
+        log("买手确认定金，待上传定金付款凭证");
+      } else if (act === "uploadVoucher") {
+        const kind = payload.kind === "尾款" ? "尾款" : "定金";
+        const canDeposit = [ORDER_ST.depositPay, ORDER_ST.depositCheck].includes(st);
+        const canFinal = [ORDER_ST.finalPay, ORDER_ST.finalCheck].includes(st);
+        if (kind === "定金" && !canDeposit) return { ok: false, msg: `当前状态「${st}」无需上传定金凭证` };
+        if (kind === "尾款" && !canFinal) return { ok: false, msg: `当前状态「${st}」无需上传尾款凭证` };
+        const stats = Store.paymentStats(o);
+        const amt = parseMoney(payload.amount) || (kind === "定金" ? parseMoney(o.deposit) : Math.max(0, stats.total - stats.confirmed));
+        if (amt <= 0) return { ok: false, msg: "付款金额需大于 0" };
+        o.payments = o.payments || [];
+        o.payments.push({
+          kind, amount: money(amt), at: payload.at || stamp().slice(0, 10),
+          file: payload.file || `${kind}凭证.pdf`, status: "待核对", note: ""
+        });
+        o.voucher = { amount: money(amt), at: payload.at || stamp().slice(0, 10), file: `${kind}凭证.pdf` };
+        o.status = kind === "定金" ? ORDER_ST.depositCheck : ORDER_ST.finalCheck;
+        log(`买手上传${kind}付款凭证 ¥${money(amt)}，待平台核对`);
+      } else if (act === "checkVoucher") {
+        const list = o.payments || [];
+        const idx = payload.index != null && payload.index !== "" ? Number(payload.index) : list.findIndex(p => p.status === "待核对");
+        const p = list[idx];
+        if (!p) return { ok: false, msg: "没有待核对的付款凭证" };
+        const pass = payload.pass !== false;
+        p.status = pass ? "已核对" : "不通过";
+        p.note = payload.note || (pass ? "" : "凭证与金额不符，请重新上传");
+        const stats = Store.paymentStats(o);
+        o.paidDeposit = money(stats.depositOk);
+        o.paidTotal = money(stats.confirmed);
+        if (p.kind === "定金") {
+          o.status = pass ? ORDER_ST.oc : ORDER_ST.depositPay;
+        } else if (!pass) {
+          o.status = ORDER_ST.finalPay;
+        } else {
+          o.status = stats.confirmed + 0.5 >= stats.total ? ORDER_ST.settle : ORDER_ST.finalPay;
         }
-      } else if (action === "whitelist") {
+        log(pass
+          ? `平台核对${p.kind}凭证通过 ¥${p.amount}${o.status === ORDER_ST.finalPay ? "（尾款分批次，仍有未付金额）" : ""}`
+          : `平台核对${p.kind}凭证不通过：${p.note}`);
+        Store.pushBuyerMessage(pass ? `${p.kind}已核对` : `${p.kind}凭证需重新上传`,
+          `订单 ${o.id}：${pass ? `${p.kind} ¥${p.amount} 已核对通过` : p.note}`);
+      } else if (act === "genOc") {
+        if (st !== ORDER_ST.oc) return { ok: false, msg: `当前状态「${st}」不可生成 OC` };
+        const oc = Store.createOc(o.id);
+        o.ocId = oc.id || o.ocId;
+        o.contractUploaded = true;
+        o.status = ORDER_ST.finalPay;
+        log(`平台生成 OC ${o.ocId}（可下载），待买手支付尾款（全额或分批次）`);
+        Store.pushBuyerMessage("OC 已生成", `订单 ${o.id} 的 OC 已生成，请支付尾款。`);
+      } else if (act === "finalPass") {
+        if (![ORDER_ST.finalPay, ORDER_ST.finalCheck, ORDER_ST.oc].includes(st)) return { ok: false, msg: `当前状态「${st}」不可确认尾款` };
+        const stats = Store.paymentStats(o);
+        const rest = Math.max(0, stats.total - stats.confirmed);
+        o.payments = o.payments || [];
+        o.payments.forEach(p => { if (p.status === "待核对") p.status = "已核对"; });
+        const after = Store.paymentStats(o);
+        if (after.total - after.confirmed > 0.5) {
+          o.payments.push({ kind: "尾款", amount: money(after.total - after.confirmed), at: stamp().slice(0, 10), file: "尾款凭证.pdf", status: "已核对", note: "平台代确认" });
+        }
+        const final = Store.paymentStats(o);
+        o.paidDeposit = money(final.depositOk);
+        o.paidTotal = money(final.confirmed);
+        o.status = ORDER_ST.settle;
+        log(`平台确认尾款 ¥${money(rest)}，待完成结算`);
+      } else if (act === "settle") {
+        if (st !== ORDER_ST.settle) return { ok: false, msg: `当前状态「${st}」不可完成订单` };
+        const stats = Store.paymentStats(o);
+        o.settleDiff = money(stats.diff);
+        o.status = ORDER_ST.done;
+        if (stats.diff < 0) {
+          const b = db.buyers.find(x => x.name === o.store);
+          if (b) {
+            b.balances = b.balances || {};
+            b.balances[o.brand] = (b.balances[o.brand] || 0) + Math.abs(stats.diff);
+          }
+        }
+        log(`平台手动完成订单（系统暂不考虑发货），付款差额 ¥${o.settleDiff}`);
+        Store.pushBuyerMessage("订单已完成", `订单 ${o.id} 已完成，付款差额 ¥${o.settleDiff}。`);
+      } else if (act === "whitelist") {
         o.whitelist = true;
+        save(); syncLegacy();
         return { ok: true, msg: "已设为白名单，允许低于起订量继续流转" };
-      } else if (action === "invoice") {
+      } else if (act === "invoice") {
         o.invoice = { title: payload.title || o.store, tax: payload.tax || "", amount: o.amount, type: payload.type || "普通发票", at: new Date().toISOString() };
-      } else if (action === "voucher") {
-        o.voucher = { amount: payload.amount || o.deposit, at: payload.at || new Date().toISOString().slice(0, 10), file: "付款凭证.pdf" };
-        if (o.status === "定金确认" || o.status === "买手已确认待品牌确认") {
-          o.paidDeposit = payload.amount || o.deposit;
-        }
-      } else if (action === "substore") {
+      } else if (act === "substore") {
         o.substores = payload.rows || [];
-      } else if (action === "return") {
+      } else if (act === "return") {
         o.returns = o.returns || [];
         o.returns.push({ type: payload.type || "退货", sku: payload.sku, qty: Number(payload.qty || 1), reason: payload.reason || "", at: new Date().toISOString() });
-      } else if (action === "modify") {
+      } else if (act === "modify") {
+        if (stageOf(st) > stageOf(ORDER_ST.depositAck)) return { ok: false, msg: "定金已确认，订单不可再改款" };
         o.lines = payload.lines || o.lines;
         let amount = 0;
         o.lines.forEach(l => {
@@ -904,9 +1242,8 @@
           amount += qty * Number(l.price || 0) * Number(l.discount || 1);
         });
         o.amount = money(amount);
-        o.deposit = money(amount * 0.3);
-      } else if (action === "complete") {
-        o.status = "已完成";
+        o.deposit = money(amount * Number(o.depositRatio || 0.3));
+        log(`平台修改订单，金额调整为 ¥${o.amount}`);
       } else {
         return { ok: false, msg: "未知操作" };
       }
@@ -967,24 +1304,186 @@
     },
 
     // ----- buyers / intentions -----
+    pushBuyerMessage(title, body) {
+      db.buyerMessages = db.buyerMessages || [];
+      db.buyerMessages.unshift({
+        id: "m" + Date.now() + Math.floor(Math.random() * 100),
+        title, body,
+        time: new Date().toISOString().slice(0, 16).replace("T", " "),
+        read: false
+      });
+      db.buyerMessages = db.buyerMessages.slice(0, 40);
+      save();
+    },
+
+    /* ---------- 注册流程（对齐《注册流程图》） ---------- */
+    sendSmsCode(phone) {
+      if (!/^1\d{10}$/.test(String(phone || "").trim())) return { ok: false, msg: "请输入 11 位手机号" };
+      db.regSession = db.regSession || {};
+      db.regSession.lastCodeAt = new Date().toISOString().slice(0, 16).replace("T", " ");
+      save();
+      return { ok: true, code: "888888", msg: `验证码已发送至 ${phone}（原型固定 888888）` };
+    },
+    /* 买手填写资料注册 → 提交申请（平台端「买手审核」出现待审核记录） */
+    submitBuyerRegister(payload = {}) {
+      const phone = String(payload.phone || "").trim();
+      const store = String(payload.store || "").trim();
+      if (!store) return { ok: false, msg: "请填写店铺名" };
+      if (!/^1\d{10}$/.test(phone)) return { ok: false, msg: "请输入 11 位手机号" };
+      if (String(payload.code || "").trim() !== "888888") return { ok: false, msg: "验证码错误（原型固定 888888）" };
+      const dup = db.buyers.find(b => b.phone === phone || b.name === store);
+      if (dup && dup.status === "已通过") return { ok: false, msg: `该手机号/店铺已注册并通过审核，请直接登录` };
+      const at = new Date().toISOString().slice(0, 16).replace("T", " ");
+      const record = {
+        name: store,
+        phone,
+        city: payload.city || "",
+        province: String(payload.city || "").split("/")[0].trim(),
+        contact: payload.contact || "",
+        level: "—",
+        status: "待审核",
+        source: "手机号注册",
+        regAt: at,
+        reason: "",
+        intent: payload.intent || "",
+        balances: {},
+        addresses: [{ name: payload.contact || "收货人", phone, addr: payload.addr || payload.city || "" }],
+        invoice: { title: payload.invoiceTitle || store, tax: payload.tax || "" },
+        substores: []
+      };
+      if (dup) Object.assign(dup, record);
+      else db.buyers.unshift(record);
+      db.regSession = { phone, store, status: "待审核", reason: "", at };
+      save(); syncLegacy();
+      return { ok: true, msg: `注册资料已提交，等待平台审核（${store}）` };
+    },
+    /* 审核进度：买手端按手机号查询 */
+    buyerRegStatus(phone) {
+      const p = String(phone || db.regSession && db.regSession.phone || "").trim();
+      const b = db.buyers.find(x => x.phone === p);
+      if (!b) return { found: false, phone: p };
+      return { found: true, phone: p, store: b.name, status: b.status, reason: b.reason || "", at: b.regAt || "", buyer: b };
+    },
+    /* 登录门槛：审核通过才可进入买手端 */
+    buyerLogin(phone, code) {
+      const p = String(phone || "").trim();
+      if (!/^1\d{10}$/.test(p)) return { ok: false, msg: "请输入 11 位手机号" };
+      if (String(code || "").trim() !== "888888") return { ok: false, msg: "验证码错误（原型固定 888888）" };
+      const b = db.buyers.find(x => x.phone === p);
+      if (!b) return { ok: false, code: "unregistered", msg: "该手机号未注册，请先提交注册资料" };
+      if (b.status === "待审核") return { ok: false, code: "pending", msg: `「${b.name}」资料审核中，通过后才能登录买手端`, buyer: b };
+      if (b.status === "已拒绝") return { ok: false, code: "rejected", msg: `审核被拒绝：${b.reason || "资料不符合要求"}，请修改资料后重新提交`, buyer: b };
+      if (b.status === "已关闭") return { ok: false, code: "closed", msg: "账号权限已关闭，请联系平台", buyer: b };
+      /* 审核通过：切换买手会话到该账号 */
+      db.buyerSession.store = b.name;
+      db.buyerSession.phone = b.phone;
+      db.buyerSession.city = b.city || db.buyerSession.city;
+      db.buyerSession.level = b.level || "—";
+      if (b.invoice) db.buyerSession.invoice = { ...b.invoice };
+      if (b.addresses && b.addresses.length) db.buyerSession.addresses = clone(b.addresses);
+      save(); syncLegacy();
+      return { ok: true, msg: `登录成功：${b.name}`, buyer: b };
+    },
     setIntention(store, brand, status) {
       const i = db.intentions.find(x => x.store === store && x.brand === brand);
       if (!i) return "意向不存在";
       i.status = status;
-      if (store === db.buyerSession.store || store === "Liora Amour") {
+      i.auditAt = new Date().toISOString().slice(0, 16).replace("T", " ");
+      if (store === db.buyerSession.store) {
         db.buyerSession.brandAccess = db.buyerSession.brandAccess || {};
         if (status === "已通过") db.buyerSession.brandAccess[brand] = "granted";
         if (status === "已拒绝") db.buyerSession.brandAccess[brand] = "denied";
+        Store.pushBuyerMessage(`品牌申请${status}`, `「${brand}」品牌申请${status}${status === "已通过" ? "，可查看并下单该品牌商品。" : "。"}`);
       }
       save(); syncLegacy();
       return `意向已${status}`;
     },
-    setBuyerStatus(name, status) {
+    /* 平台审核买手：通过 / 拒绝（拒绝需原因，买手可改资料重新提交） */
+    setBuyerStatus(name, status, reason) {
       const b = db.buyers.find(x => x.name === name);
       if (!b) return "买手不存在";
       b.status = status;
+      if (status === "已拒绝" || status === "已关闭") b.reason = reason || "资料不完整，请补充后重新提交";
+      if (status === "已通过") {
+        b.reason = "";
+        if (!b.level || b.level === "—") b.level = "C";
+      }
+      b.auditAt = new Date().toISOString().slice(0, 16).replace("T", " ");
+      if (db.regSession && db.regSession.phone === b.phone) {
+        db.regSession.status = status;
+        db.regSession.reason = b.reason || "";
+      }
+      if (db.buyerSession.store === b.name || db.regSession && db.regSession.phone === b.phone) {
+        Store.pushBuyerMessage(`买手审核${status}`, status === "已通过"
+          ? `「${b.name}」审核通过，可登录买手端并提交品牌申请。`
+          : `「${b.name}」审核未通过：${b.reason}`);
+      }
       save(); syncLegacy();
       return `买手「${name}」→ ${status}`;
+    },
+    /* ---------- 品牌是否需审核买手（平台端品牌列表设置） ---------- */
+    brandNeedAudit(brand) {
+      db.brandAudit = db.brandAudit || {};
+      return !!db.brandAudit[brand];
+    },
+    setBrandAudit(brand, need) {
+      db.brandAudit = db.brandAudit || {};
+      db.brandAudit[brand] = !!need;
+      save();
+      return `「${brand}」下单${need ? "需" : "无需"}审核买手`;
+    },
+    /* 品牌订单首付比例（定金）：下单与「设置定金」的默认值 */
+    brandDepositRatio(brand) {
+      db.brandDeposit = db.brandDeposit || {};
+      return Number(db.brandDeposit[brand] || 0.3);
+    },
+    setBrandDepositRatio(brand, ratio) {
+      const v = Number(String(ratio).replace("%", "")) || 0;
+      const r = v > 1 ? v / 100 : v;
+      if (!brand) return "请选择品牌";
+      if (r <= 0 || r > 1) return "首付比例需在 1%~100% 之间";
+      db.brandDeposit = db.brandDeposit || {};
+      db.brandDeposit[brand] = Number(r.toFixed(2));
+      save();
+      return `「${brand}」订单首付比例已设为 ${Math.round(r * 100)}%`;
+    },
+    /* 平台端「品牌管理 · 添加品牌」 */
+    addBrand(payload) {
+      const name = String(payload.name || "").trim();
+      if (!name) return { ok: false, msg: "请填写品牌名称" };
+      if ((RR.brands || []).some(b => b.name === name)) return { ok: false, msg: "该品牌已存在" };
+      RR.brands.unshift({
+        name,
+        cat: payload.cat || "女装",
+        style: payload.style || "",
+        crowd: payload.crowd || "",
+        about: payload.about || `${name} 品牌介绍`
+      });
+      db.brandAudit = db.brandAudit || {};
+      db.brandAudit[name] = !!payload.needAudit;
+      db.brandDeposit = db.brandDeposit || {};
+      db.brandDeposit[name] = Number(payload.ratio || 0.3);
+      save(); syncLegacy();
+      return { ok: true, msg: `品牌「${name}」已添加`, name };
+    },
+    /* 预约管理：审核预约 */
+    auditAppointment(index, pass, reason) {
+      const a = db.appointments[Number(index)];
+      if (!a) return "预约记录不存在";
+      a.status = pass ? "已通过" : "已拒绝";
+      a.reason = pass ? "" : (reason || "名额已满");
+      a.auditAt = new Date().toISOString().slice(0, 16).replace("T", " ");
+      save(); syncLegacy();
+      return `预约已${a.status}`;
+    },
+    /* 买手能否查看/下单该品牌：免审核直接可下单；需审核则看申请状态 */
+    brandOrderable(brand) {
+      if (!Store.brandNeedAudit(brand)) return { ok: true, auditFree: true, msg: "免审核品牌" };
+      const st = (db.buyerSession.brandAccess || {})[brand] || "none";
+      if (st === "granted") return { ok: true, msg: "品牌申请已通过" };
+      if (st === "pending") return { ok: false, pending: true, msg: `「${brand}」品牌申请审核中，通过后可查看商品并下单` };
+      if (st === "denied") return { ok: false, denied: true, msg: `「${brand}」品牌申请被拒绝，可重新提交申请` };
+      return { ok: false, msg: `「${brand}」下单需先提交品牌申请` };
     },
     saveBuyerBalance(name, brand, amount) {
       const b = db.buyers.find(x => x.name === name);
@@ -1004,12 +1503,19 @@
       return { ok: true, msg: "买手已添加，待审核" };
     },
     addAppointment(payload) {
+      const at = new Date().toISOString().slice(0, 16).replace("T", " ");
       db.appointments.unshift({
         brand: payload.brand, store: payload.store, contact: payload.contact,
-        phone: payload.phone, date: payload.date, season: payload.season || "2026SS"
+        phone: payload.phone, date: payload.date, season: payload.season || "2026SS",
+        people: Number(payload.people) || 1, submitAt: at, status: "待审核", reason: ""
       });
       save(); syncLegacy();
-      return "预约已提交并同步至预约列表";
+      return "预约已提交，等待平台/品牌审核";
+    },
+    /* 买手端「预约申请」：申请线下参加订货会 */
+    buyerAppointments() {
+      const store = db.buyerSession.store;
+      return (db.appointments || []).map((a, i) => ({ ...a, index: i })).filter(a => a.store === store);
     },
 
     // ----- roles -----
@@ -1050,25 +1556,52 @@
       const c = map[cat || db.buyerSession.cat];
       const access = db.buyerSession.brandAccess || {};
       return RR.brands.filter(b => !c || b.cat === c).map(b => {
-        const st = access[b.name] || "granted";
-        return { ...b, access: st, accept: st === "granted", pending: st === "pending" };
+        const need = Store.brandNeedAudit(b.name);
+        /* 免审核品牌直接可看可下单；需审核品牌按申请状态 */
+        const st = need ? (access[b.name] || "none") : "granted";
+        return {
+          ...b,
+          needAudit: need,
+          access: st,
+          accept: st === "granted",
+          pending: st === "pending",
+          denied: st === "denied"
+        };
       });
     },
     applyBrandAccess(brand, note) {
       if (!brand) return { ok: false, msg: "请选择品牌" };
+      if (!Store.brandNeedAudit(brand)) return { ok: false, msg: `「${brand}」无需审核，可直接选款下单` };
       db.buyerSession.brandAccess = db.buyerSession.brandAccess || {};
-      const cur = db.buyerSession.brandAccess[brand] || "granted";
+      const cur = db.buyerSession.brandAccess[brand] || "none";
       if (cur === "granted") return { ok: false, msg: "已有该品牌权限" };
+      if (cur === "pending") return { ok: false, msg: "申请审核中，请等待平台审核" };
       db.buyerSession.brandAccess[brand] = "pending";
       db.intentions = db.intentions || [];
+      const at = new Date().toISOString().slice(0, 16).replace("T", " ");
       if (!db.intentions.some(i => i.store === db.buyerSession.store && i.brand === brand && i.status === "待审核")) {
         db.intentions.unshift({
           store: db.buyerSession.store, brand, status: "待审核",
-          note: note || "买手申请品牌权限", at: new Date().toISOString().slice(0, 16).replace("T", " ")
+          note: note || "买手申请品牌权限", at, date: at.slice(0, 10)
         });
       }
       save(); syncLegacy();
-      return { ok: true, msg: `已提交「${brand}」权限申请` };
+      return { ok: true, msg: `已提交「${brand}」品牌申请，等待平台审核` };
+    },
+    /* 买手端「意向品牌」：申请中 / 已通过 / 已拒绝 */
+    buyerIntentions() {
+      const store = db.buyerSession.store;
+      const access = db.buyerSession.brandAccess || {};
+      const rows = (db.intentions || []).filter(i => i.store === store).map(i => ({ ...i }));
+      Object.keys(access).forEach(brand => {
+        if (rows.some(r => r.brand === brand)) return;
+        const st = access[brand];
+        rows.push({
+          store, brand, date: "—",
+          status: st === "granted" ? "已通过" : st === "pending" ? "待审核" : "已拒绝"
+        });
+      });
+      return rows;
     },
     upsertDraftSelection(sku, sizes) {
       const g = db.goods.find(x => x.sku === sku);
@@ -1169,7 +1702,8 @@
       if (type === "补货单" && !db.buyerSession.hasFirstOrderBySeason[season]) {
         return { ok: false, msg: "本季未下过首单，不允许下补货单" };
       }
-      const openRep = db.orders.find(o => o.store === db.buyerSession.store && o.brand === brand && o.type === "补货单" && !["尾款确认", "已完成", "已取消"].includes(o.status));
+      const closed = [ORDER_ST.done, ORDER_ST.canceled, ORDER_ST.rejected];
+      const openRep = db.orders.find(o => o.store === db.buyerSession.store && o.brand === brand && o.type === "补货单" && !closed.includes(normStatus(o.status)));
       if (type === "补货单" && openRep) return { ok: false, msg: "上一补货单未完成，不可新开" };
       return { ok: true };
     },
@@ -1224,8 +1758,10 @@
         if (o.store !== store && store !== "Liora Amour") {
           // demo: show all for Liora, else filter
         }
-        if (tab === "未完成") return !["尾款确认", "已完成"].includes(o.status);
-        if (tab === "已完成") return ["尾款确认", "已完成"].includes(o.status);
+        const st = normStatus(o.status);
+        const finished = [ORDER_ST.done, ORDER_ST.canceled];
+        if (tab === "未完成") return !finished.includes(st);
+        if (tab === "已完成") return finished.includes(st);
         return true;
       }).filter(o => o.store === store || true);
     },
@@ -1246,8 +1782,8 @@
         if (f.type && f.type !== "全部" && o.type !== f.type) return false;
         if (f.status && f.status !== "全部") {
           if (f.status === "已确认") {
-            if (["买手未确认", "已驳回"].includes(o.status)) return false;
-          } else if (o.status !== f.status) return false;
+            if ([ORDER_ST.confirm, ORDER_ST.rejected, ORDER_ST.canceled].includes(normStatus(o.status))) return false;
+          } else if (normStatus(o.status) !== f.status) return false;
         }
         if (f.start && (o.createdAt || "") < f.start) return false;
         if (f.end && (o.createdAt || "").slice(0, 10) > f.end) return false;

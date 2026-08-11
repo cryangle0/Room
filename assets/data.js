@@ -157,18 +157,22 @@ window.RR = {
     { sku: "IH27PS048", title: "针织开衫", sizes: { S: 2, M: 2 }, price: "1,791.00" }
   ],
   orders: [
-    { id: "ORD-20260320-102", brand: "HAIZHEN WANG", season: "2026SS", store: "Liora Amour", type: "首单", amount: "128,600.00", deposit: "38,580.00", status: "买手已确认待品牌确认" },
-    { id: "ORD-20260319-088", brand: "JUNLI", season: "2026SS", store: "B1OCK", type: "首单", amount: "96,400.00", deposit: "28,920.00", status: "定金确认" },
-    { id: "ORD-20260315-044", brand: "ANGEL CHEN", season: "2026SS", store: "Felix", type: "补货单", amount: "41,200.00", deposit: "12,360.00", status: "尾款确认" },
-    { id: "ORD-20260310-021", brand: "Ms MIN", season: "2025AW", store: "山鹿素行", type: "首单", amount: "72,800.00", deposit: "21,840.00", status: "买手未确认" },
-    { id: "ORD-20260715-040", brand: "IAN HYLTON", season: "2027PS", store: "IAN HYLTON POP-UP", type: "首单", amount: "1,027,120.00", deposit: "308,136.00", status: "定金确认" },
-    { id: "ORD-20260714-003", brand: "IAN HYLTON", season: "2027PS", store: "IAN HYLTON 品牌号", type: "首单", amount: "816,000.00", deposit: "244,800.00", status: "买手已确认待品牌确认" },
-    { id: "ORD-20260628-077", brand: "SUSAN FANG", season: "2026SS", store: "MELTINCY", type: "首单", amount: "156,800.00", deposit: "47,040.00", status: "尾款确认" },
-    { id: "ORD-20260620-055", brand: "GOEN.J", season: "2026SS", store: "BeautyFM", type: "补货单", amount: "38,640.00", deposit: "11,592.00", status: "定金确认" },
-    { id: "ORD-20260612-033", brand: "PRIVATE POLICY", season: "2026SS", store: "heco", type: "首单", amount: "64,200.00", deposit: "19,260.00", status: "买手未确认" },
+    /* 状态取值对齐《订单流程图》各节点，便于逐节点演示 */
+    { id: "ORD-20260805-121", brand: "HAIZHEN WANG", season: "2026SS", store: "Liora Amour", type: "首单", amount: "62,400.00", deposit: "18,720.00", status: "待平台确认" },
+    { id: "ORD-20260320-102", brand: "HAIZHEN WANG", season: "2026SS", store: "Liora Amour", type: "首单", amount: "128,600.00", deposit: "38,580.00", status: "待买手确认定金" },
+    { id: "ORD-20260319-088", brand: "JUNLI", season: "2026SS", store: "B1OCK", type: "首单", amount: "96,400.00", deposit: "28,920.00", status: "待核对定金凭证" },
+    { id: "ORD-20260315-044", brand: "ANGEL CHEN", season: "2026SS", store: "Felix", type: "补货单", amount: "41,200.00", deposit: "12,360.00", status: "待完成结算" },
+    { id: "ORD-20260310-021", brand: "Ms MIN", season: "2025AW", store: "山鹿素行", type: "首单", amount: "72,800.00", deposit: "21,840.00", status: "待平台确认" },
+    { id: "ORD-20260715-040", brand: "IAN HYLTON", season: "2027PS", store: "IAN HYLTON POP-UP", type: "首单", amount: "1,027,120.00", deposit: "308,136.00", status: "待生成OC" },
+    { id: "ORD-20260714-003", brand: "IAN HYLTON", season: "2027PS", store: "IAN HYLTON 品牌号", type: "首单", amount: "816,000.00", deposit: "244,800.00", status: "待设置定金" },
+    { id: "ORD-20260628-077", brand: "SUSAN FANG", season: "2026SS", store: "MELTINCY", type: "首单", amount: "156,800.00", deposit: "47,040.00", status: "待核对尾款凭证" },
+    { id: "ORD-20260620-055", brand: "GOEN.J", season: "2026SS", store: "BeautyFM", type: "补货单", amount: "38,640.00", deposit: "11,592.00", status: "待支付尾款" },
+    { id: "ORD-20260612-033", brand: "PRIVATE POLICY", season: "2026SS", store: "heco", type: "首单", amount: "64,200.00", deposit: "19,260.00", status: "已驳回" },
     { id: "ORD-20260530-019", brand: "RENLI SU", season: "2026SS", store: "识季", type: "首单", amount: "88,900.00", deposit: "26,670.00", status: "已完成" },
-    { id: "ORD-20260518-011", brand: "XIMONLEE", season: "2026SS", store: "B1OCK", type: "补货单", amount: "29,400.00", deposit: "8,820.00", status: "买手已确认待品牌确认" },
-    { id: "ORD-20260501-008", brand: "self-portrait", season: "2026SS", store: "Liora Amour", type: "首单", amount: "112,500.00", deposit: "33,750.00", status: "定金确认" }
+    { id: "ORD-20260518-011", brand: "XIMONLEE", season: "2026SS", store: "B1OCK", type: "补货单", amount: "29,400.00", deposit: "8,820.00", status: "待上传定金凭证" },
+    { id: "ORD-20260501-008", brand: "self-portrait", season: "2026SS", store: "Liora Amour", type: "首单", amount: "112,500.00", deposit: "33,750.00", status: "待支付尾款" },
+    { id: "ORD-20260806-133", brand: "GOEN.J", season: "2026SS", store: "BeautyFM", type: "首单", amount: "53,900.00", deposit: "16,170.00", status: "待平台确认" },
+    { id: "ORD-20260807-140", brand: "SUSAN FANG", season: "2026SS", store: "Felix", type: "补货单", amount: "27,600.00", deposit: "8,280.00", status: "待平台确认" }
   ],
   buyers: [
     { name: "Liora Amour", city: "北京市 / 北京市", phone: "13681383088", level: "B", status: "已通过" },
