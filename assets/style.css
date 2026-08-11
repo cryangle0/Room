@@ -643,9 +643,9 @@ h1.title_underline {
 }
 a.oto_btn, .oto_btn {
   display: inline-flex; align-items: center; justify-content: center;
-  min-width: 110px; height: 36px; padding: 0 14px;
+  min-width: 110px; height: 36px; padding: 0 14px; box-sizing: border-box;
   border: 1px solid var(--rr-purple); color: var(--rr-purple) !important;
-  background: #fff; font-size: 13px; text-align: center;
+  background: #fff; font-size: 13px; text-align: center; line-height: 1;
 }
 a.oto_btn:hover { background: var(--rr-purple-soft); }
 .pagination { margin: 24px 0 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -779,7 +779,15 @@ a.oto_btn:hover { background: var(--rr-purple-soft); }
 .buyer-order-detail .order-info-main .row span { display: inline-block; min-width: 72px; color: #888; }
 .buyer-order-detail .order-info-side { text-align: right; }
 .buyer-order-detail .order-info-side .status { color: var(--rr-purple); font-weight: 600; margin-bottom: 10px; }
-.buyer-order-detail .order-info-side a { display: block; margin: 6px 0; }
+.buyer-order-detail .order-info-side a {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin: 6px 0; line-height: 1; vertical-align: middle;
+}
+.buyer-order-detail .order-info-side a.oto_btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 36px; padding: 0 14px; box-sizing: border-box;
+  line-height: 1;
+}
 .buyer-order-detail .block-head {
   display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: 600;
 }

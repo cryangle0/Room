@@ -159,7 +159,7 @@ window.RR = {
   orders: [
     /* 状态取值对齐《订单流程图》各节点，便于逐节点演示 */
     { id: "ORD-20260805-121", brand: "HAIZHEN WANG", season: "2026SS", store: "Liora Amour", type: "首单", amount: "62,400.00", deposit: "18,720.00", status: "待平台确认" },
-    { id: "ORD-20260320-102", brand: "HAIZHEN WANG", season: "2026SS", store: "Liora Amour", type: "首单", amount: "128,600.00", deposit: "38,580.00", status: "待买手确认定金" },
+    { id: "ORD-20260320-102", brand: "HAIZHEN WANG", season: "2026SS", store: "Liora Amour", type: "首单", amount: "128,600.00", deposit: "38,580.00", status: "待确认定金" },
     { id: "ORD-20260319-088", brand: "JUNLI", season: "2026SS", store: "B1OCK", type: "首单", amount: "96,400.00", deposit: "28,920.00", status: "待核对定金凭证" },
     { id: "ORD-20260315-044", brand: "ANGEL CHEN", season: "2026SS", store: "Felix", type: "补货单", amount: "41,200.00", deposit: "12,360.00", status: "待完成结算" },
     { id: "ORD-20260310-021", brand: "Ms MIN", season: "2025AW", store: "山鹿素行", type: "首单", amount: "72,800.00", deposit: "21,840.00", status: "待平台确认" },

@@ -1353,6 +1353,7 @@
   function renderSelectionLines(lines, opts = {}) {
     const locked = !!opts.locked;
     const draft = !!opts.draft;
+    const hideSpecs = !!opts.hideSpecs;
     const qtyAttr = draft ? "data-draft-qty" : "data-line-qty";
     return (lines || []).map(l => {
       const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
@@ -1364,7 +1365,9 @@
           <div class="thumb ph">IMG</div>
           <div>
             <div class="sel-line-title">${l.title}</div>
-            <div class="sel-line-meta">颜色：${l.color || "—"} · 样衣尺码：${l.sampleSize || "—"} · 编号：${l.code || "—"}</div>
+            ${hideSpecs
+              ? `<div class="sel-line-meta">${l.sku} · 已选 ${qty} 件</div>`
+              : `<div class="sel-line-meta">颜色：${l.color || "—"} · 样衣尺码：${l.sampleSize || "—"} · 编号：${l.code || "—"}</div>
             <div class="sel-line-meta">SKU：${l.sku}${l.goodsType ? " · " + l.goodsType : ""}</div>
             <div class="size-editor">
               ${sizeKeys.map(sz => `
@@ -1376,14 +1379,14 @@
                     <button type="button" ${qtyAttr}="${l.sku}" data-size="${sz}" data-d="1" ${locked ? "disabled" : ""}>+</button>
                   </div>
                 </div>`).join("")}
-            </div>
+            </div>`}
           </div>
         </div>
         <div class="sel-line-right">
           <div class="sel-line-amt">¥${Store.money(retail || price * qty)}</div>
           <div class="sel-line-meta">吊牌价：¥${Store.money(l.retail || price / 0.45)}</div>
           <div class="sel-line-meta">买手价：¥${Store.money(price)}</div>
-          <div class="sel-line-meta">已选 ${qty} 件</div>
+          ${!hideSpecs ? `<div class="sel-line-meta">已选 ${qty} 件</div>` : ""}
           ${locked ? "" : `<button type="button" class="btn btn-outline btn-sm" data-act="${draft ? "delete-draft-line:" + l.sku : "delete-sel-line:" + l.sku}">删除</button>`}
         </div>
       </div>`;
@@ -1425,8 +1428,8 @@
         </div>
         <div class="action-bar">${btn("关闭", "btn-outline", "toggle-sel-add")}</div>
       </div>` : ""}
-      <div class="sel-lines">${renderSelectionLines(lines, { locked: s.locked })}</div>
-      <p style="color:#999;font-size:12px;margin-top:12px">生成订单后选款单锁定；若需再改，需后台驳回订单后重选。平台端与买手端详情展示一致。</p>`;
+      <div class="sel-lines">${renderSelectionLines(lines, { locked: s.locked, hideSpecs: !!opts.hideSpecs })}</div>
+      <p style="color:#999;font-size:12px;margin-top:12px">${opts.hideSpecs ? "买手端选款单按款式记录，不展示颜色/尺码等规格明细。" : "生成订单后选款单锁定；若需再改，需后台驳回订单后重选。平台端与买手端详情展示一致。"}</p>`;
   }
 
   function pageSelectionDetail() {
@@ -1627,7 +1630,7 @@
         <div class="action-bar">${btn("提交退换货")}</div>
         ${(o.returns || []).map(r => `<div class="note">${r.type} ${r.sku}×${r.qty} · ${r.reason || ""}</div>`).join("")}</div>`,
       deposit: `<div class="modal-panel"><h3>设置定金 · 首付比例</h3>
-        <div class="note">按品牌首付比例设置应收定金，提交后进入「待买手确认定金」。</div>
+        <div class="note">按品牌首付比例设置应收定金，提交后进入「待确认定金」。</div>
         <div class="form-grid"><label>订单金额</label><div>¥${o.amount}</div>
         <label>首付比例</label><div>${field("depRatio", select(RR.depositRatios, null, Math.round(Number(o.depositRatio || 0.3) * 100) + "%"))}</div>
         <label>应收定金</label><div>¥${o.deposit}（按比例自动计算）</div></div>
@@ -2469,7 +2472,7 @@
           </div>
           ${(q.types || []).map(t => `<p class="drawer-disc">${t.name} 已选${t.pieces} · 已享受${t.discountLabel}${t.nextGap > 0 ? ` · 距离${t.nextDiscountLabel}还差${Store.money(t.nextGap)}元(吊牌价)` : ""}</p>`).join("")}
           <div class="rr-drawer-body">
-            ${renderSelectionLines(lines, { draft: true }) || '<p style="color:#999;padding:24px 0;text-align:center">暂无选款，请先点红心</p>'}
+            ${renderSelectionLines(lines, { draft: true, hideSpecs: true }) || '<p style="color:#999;padding:24px 0;text-align:center">暂无选款，请先点红心</p>'}
           </div>
           <div class="rr-drawer-foot">
             <a href="javascript:;" class="oto_btn" data-act="go:buyer-selection">查看选款单</a>
@@ -2534,7 +2537,8 @@
       backAct: "go:buyer-selection",
       showGen: false,
       showConfirm: true,
-      showCancel: false
+      showCancel: false,
+      hideSpecs: true
     });
   }
 

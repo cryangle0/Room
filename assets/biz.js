@@ -23,7 +23,7 @@
   const ORDER_ST = {
     confirm: "待平台确认",
     deposit: "待设置定金",
-    depositAck: "待买手确认定金",
+    depositAck: "待确认定金",
     depositPay: "待上传定金凭证",
     depositCheck: "待核对定金凭证",
     oc: "待生成OC",
@@ -43,6 +43,7 @@
   const LEGACY_STATUS = {
     "买手未确认": ORDER_ST.confirm,
     "买手已确认待品牌确认": ORDER_ST.deposit,
+    "待买手确认定金": ORDER_ST.depositAck,
     "定金确认": ORDER_ST.oc,
     "尾款确认": ORDER_ST.settle
   };
@@ -1092,7 +1093,7 @@
       } else if (st === ORDER_ST.depositAck) {
         if (platform) {
           A.push({ act: "open-order-panel:deposit", label: "修改首付比例定金" });
-          wait("等待买手确认定金");
+          wait("等待确认定金");
         } else A.push({ act: "buyer-confirm-deposit", label: "确认定金", primary: true });
       } else if (st === ORDER_ST.depositPay) {
         if (platform) wait("等待买手上传定金付款凭证");
@@ -1128,7 +1129,7 @@
       const map = {
         [ORDER_ST.confirm]: ["待平台确认订单（可驳回）"],
         [ORDER_ST.deposit]: ["待平台设置定金 / 折扣"],
-        [ORDER_ST.depositAck]: ["待买手确认定金"],
+        [ORDER_ST.depositAck]: ["待确认定金"],
         [ORDER_ST.depositPay]: ["待买手上传定金付款凭证"],
         [ORDER_ST.depositCheck]: ["待平台核对定金凭证"],
         [ORDER_ST.oc]: ["待平台生成 OC"],
