@@ -976,15 +976,27 @@ header.oto-nav.buyer-oto-nav .login_area .nav-ico {
 
 .buyer-fe .brand_list-container,
 .buyer-fe .selection-container,
-.buyer-fe .order-container,
-.buyer-fe .mine-container {
+.buyer-fe .order-container {
   display: flex; gap: 32px; align-items: flex-start;
   max-width: 1200px; margin: 0 auto; padding: 24px 24px 48px;
 }
-/* 买手端表单/列表子页：统一内容宽度，避免横向铺满 */
-.buyer-fe > .oto_container:not(.brand_list-container):not(.selection-container):not(.order-container):not(.mine-container),
+/* 个人中心 / 消息通知：与其它子页统一内容宽度，不横向铺满 */
+.buyer-fe .mine-container,
+.buyer-fe .message-container,
 .buyer-fe .oto_container.content-page {
-  max-width: 960px; margin: 0 auto; padding: 24px 24px 48px; width: 100%; box-sizing: border-box;
+  display: flex; gap: 32px; align-items: flex-start;
+  max-width: 960px; margin: 0 auto; padding: 24px 24px 48px;
+  width: 100%; box-sizing: border-box;
+}
+.buyer-fe .message-container { display: block; }
+.buyer-fe .mine-container .public_right-container,
+.buyer-fe .message-container .public_right-container {
+  flex: 1; min-width: 0; max-width: 720px;
+}
+.buyer-fe .mine-container .form-grid,
+.buyer-fe .mine_info-container .form-grid {
+  max-width: 640px;
+  grid-template-columns: 100px minmax(160px, 280px) 100px minmax(160px, 280px);
 }
 .buyer-fe .intent-apply,
 .buyer-fe .form-section {
@@ -1217,7 +1229,6 @@ header.oto-nav.buyer-oto-nav .login_area .nav-ico {
 .buyer-fe .goods_info .meta { color: #666; margin-bottom: 16px; }
 .buyer-fe .goods_info .price_wholesale strong { color: var(--rr-purple); }
 .buyer-fe .goods_info .size_list { margin: 16px 0; }
-.buyer-fe .message-container { max-width: 960px; margin: 0 auto; padding: 24px; }
 .buyer-fe .message_list .item {
   border-bottom: 1px solid var(--rr-border); padding: 16px 0;
 }

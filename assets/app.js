@@ -74,6 +74,8 @@
   };
 
   function isRootNavEl(el) {
+    /* 顶栏铃铛/个人中心属于子页入口，不当作顶层导航 */
+    if (el && el.closest(".login_area, .bell_tip, .nav_person")) return false;
     return !!(el && el.closest(".mine_side, .uk-navbar-nav, .proto-bar, .nav_menu, .logo_area, .ots_order-nav > .topnav-inner > .logo"));
   }
 
@@ -4340,9 +4342,9 @@
     const msgs = Store.db.buyerMessages || [];
     Store.markMessagesRead();
     return `<div class="oto-main_container buyer-fe">
-      <div class="oto_container message-container">
+      <div class="oto_container message-container content-page">
         <div class="public_right-container" style="width:100%">
-          <div class="sub_title">消息通知</div>
+          ${subTitle("消息通知")}
           <div class="message_list">
             <div class="items">
               ${msgs.map(m => `
@@ -4365,7 +4367,7 @@
     const s = Store.db.buyerSession;
     const tab = Store.db.ui.buyerMineTab || "info";
     return `<div class="oto-main_container buyer-fe">
-      <div class="oto_container mine-container">
+      <div class="oto_container mine-container content-page">
         <div class="public_left-container">
           <ul class="mine_side">
             <li class="${tab === "info" ? "active" : ""}"><a href="javascript:;" data-act="buyer-mine-tab:info">个人信息</a></li>
