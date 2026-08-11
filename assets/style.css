@@ -871,6 +871,8 @@ a.ots_order-btn { color: #fff; }
 .sale_info .sale_info-head h5 { margin: 0; font-size: 13px; color: #666; }
 .bank_payment .items .item { margin-bottom: 16px; max-width: 560px; }
 .bank_payment .items h6 { margin: 0 0 8px; font-size: 14px; font-weight: 500; }
+.bank_payment-container .sub_title { margin: 0 0 16px; }
+.bank_payment-container .sub_title h4 { margin: 0; font-size: 22px; font-weight: 700; }
 .bank_payment .item_long input { max-width: 100%; }
 .contact_edit-container .sub_title { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
 .contact_edit .season_filter ul {

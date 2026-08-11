@@ -1064,7 +1064,7 @@
     const ratio = Math.round(Store.brandDepositRatio(brand) * 100) + "%";
     return `<div class="bank_payment-container">
       <div class="bank_payment uk-width-1-1">
-        <h6 class="sub_title">收款信息</h6>
+        ${subTitle("收款信息")}
         <div class="note">「订单首付比例（定金）」为该品牌下单后平台设置定金的默认比例（《功能点思维导图》品牌设置 / 平台品牌管理）。</div>
         <div class="items">
           <div class="item"><h6>品牌</h6>${field("depBrand", select(RR.brands.map(b => b.name), null, brand))}</div>
