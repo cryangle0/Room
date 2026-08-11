@@ -389,10 +389,8 @@
         `<a href="javascript:;" class="${state.portal === id ? "on" : ""}" data-portal="${id}">${lab}</a>`
       ).join("")}
       <span>|</span>
-      <a href="javascript:;" class="${state.page === "flow-map" ? "on" : ""}" data-go="flow-map">业务流程</a>
       <a href="javascript:;" class="${state.page === "coverage" ? "on" : ""}" data-go="coverage">覆盖核对</a>
       <a href="javascript:;" class="${state.page === "login" ? "on" : ""}" data-go="login">登录/注册</a>
-      <span style="margin-left:12px;opacity:.6">注册流程 / 订单流程见「业务流程」</span>
     </div>`;
   }
 

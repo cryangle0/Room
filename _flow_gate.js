@@ -292,18 +292,6 @@ async () => {
     { name: "audit-toggle", ok: !!toggle && Store.brandNeedAudit(brandName) !== before }
   ]);
 
-  /* 业务流程图页 */
-  await click(byGo("flow-map"));
-  await click(byAct("flow-tab:register"));
-  const regChart = has("注册流程图") && has("审核买手") && has("提交品牌申请");
-  await click(byAct("flow-tab:order"));
-  const ordChart = has("订单流程图") && has("核对尾款凭证") && has("统计付款差额");
-  add("P2", "业务流程图页（注册/订单）", [
-    { name: "register-chart", ok: regChart },
-    { name: "order-chart", ok: ordChart },
-    { name: "nodes-linkable", ok: qa(".fnode.linkable").length > 5 }
-  ]);
-
   /* ---------------- 思维导图补充功能点 ---------------- */
   await click(qa("[data-portal]").find((e) => e.getAttribute("data-portal") === "platform"));
   await goto("brand-list");
