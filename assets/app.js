@@ -541,6 +541,7 @@
     const group = topGroup(state.page);
     const firstPage = {
       brand: state.portal === "brand" ? "brand-discount" : "brand-list",
+      fair: "fair-list",
       goods: "goods-list",
       order: "order-selection",
       ship: "ship-list",
