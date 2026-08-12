@@ -913,6 +913,8 @@ a.ots_order-btn { color: #fff; }
 .contact_edit .season_filter li.uk-active a { color: var(--rr-purple); font-weight: 600; }
 .contact_edit .item { margin-bottom: 16px; max-width: 480px; }
 .contact_edit .item > label { display: block; margin-bottom: 8px; font-size: 13px; color: #666; }
+.contact_edit .action_area { margin-top: 24px; display: flex; gap: 12px; flex-wrap: wrap; }
+.contact_edit .action_area .oto_btn { min-width: 96px; text-align: center; }
 .invoice_type { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
 .invoice_type a {
   display: inline-flex; height: 32px; align-items: center; padding: 0 14px;
