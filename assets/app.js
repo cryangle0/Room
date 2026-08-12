@@ -63,8 +63,10 @@
     "buyer-sub": "buyer-list",
     "buyer-add-brand": "buyer-list",
     "buyer-appoint": "buyer-list",
-    "role-perm": "role-list",
-    "account-center": "goods-list",
+    "role-perm": "account-list",
+    "account-center": "account-list",
+    "account-list": "account-list",
+    "role-list": "account-list",
     "buyer-brand": "buyer-home",
     "buyer-brand-about": "buyer-brand",
     "buyer-detail": "buyer-brand",
@@ -159,7 +161,8 @@
         { id: "appoint", label: "预约管理" },
         { id: "intent", label: "意向审核" },
         { id: "buyer", label: "买手管理" },
-        { id: "role", label: "角色权限" }
+        /* #17 角色权限 + 账户中心 → 账号权限 */
+        { id: "account", label: "账号权限" }
       ],
       side: {
         brand: [
@@ -218,12 +221,13 @@
           { id: "buyer-add-brand", label: "添加品牌" },
           { id: "buyer-appoint", label: "添加预约" }
         ],
-        role: [
-          { id: "role-list", label: "角色管理" },
-          { id: "role-perm", label: "权限管理" }
-        ],
         account: [
-          { id: "account-center", label: "账号管理" }
+          { id: "account-list", label: "账号列表" },
+          { id: "role-perm", label: "权限设置" }
+        ],
+        role: [
+          { id: "account-list", label: "账号列表" },
+          { id: "role-perm", label: "权限设置" }
         ]
       },
       defaultPage: "brand-list"
@@ -233,10 +237,10 @@
         { id: "brand", label: "品牌设置" },
         { id: "goods", label: "商品管理" },
         { id: "order", label: "订单管理" },
-        /* #8 品牌端同步隐藏发货 */
+        /* #8/#19 品牌端隐藏发货 */
         { id: "intent", label: "意向审核" }
       ],
-      defaultPage: "brand-discount"
+      defaultPage: "brand-list"
     },
     buyer: {
       top: [
@@ -256,7 +260,7 @@
     state.navStack = [];
     if (p === "mp") state.page = "mp-home";
     else if (p === "buyer") state.page = "buyer-home";
-    else if (p === "brand") state.page = "brand-discount";
+    else if (p === "brand") state.page = "brand-list";
     else if (p === "audit") state.page = "coverage";
     else state.page = "brand-list";
     state.cartOpen = false;
@@ -294,7 +298,7 @@
   }
 
   function topGroup(page) {
-    if (page === "coverage" || page === "account-center") return "account";
+    if (page === "coverage" || page.startsWith("account") || page.startsWith("role")) return "account";
     if (page.startsWith("appoint")) return "appoint";
     if (page.startsWith("fair")) return "fair";
     if (page.startsWith("brand")) return "brand";
@@ -303,7 +307,7 @@
     if (page.startsWith("ship")) return "ship";
     if (page.startsWith("intent")) return "intent";
     if (page.startsWith("buyer-") && state.portal !== "buyer") return "buyer";
-    if (page.startsWith("role")) return "role";
+    if (page.startsWith("role") || page.startsWith("account")) return "account";
     return "brand";
   }
 
@@ -541,7 +545,7 @@
     const cfg = portal === "brand" ? routes.brand : routes.platform;
     const group = topGroup(state.page);
     const firstPage = {
-      brand: state.portal === "brand" ? "brand-discount" : "brand-list",
+      brand: "brand-list",
       fair: "fair-list",
       goods: "goods-list",
       order: "order-selection",
@@ -549,9 +553,10 @@
       appoint: "appoint-list",
       intent: "intent-list",
       buyer: "buyer-list",
-      role: "role-list"
+      account: "account-list",
+      role: "account-list"
     };
-    /* 原站：nav#ots_order-nav.ots_order-nav > .ots_order-width.nav-bar > logo + ul.uk-navbar-nav + 账户中心 */
+    /* #17 顶栏合并为账号权限，右侧不再单独放账户中心 */
     return `<nav class="topnav ots_order-nav" id="ots_order-nav"><div class="topnav-inner ots_order-width nav-bar">
       <a class="logo" href="javascript:;" data-go="${cfg.defaultPage}">ROOMROOM</a>
       <ul class="nav-links uk-navbar-nav">${cfg.top.map(t =>
@@ -559,7 +564,9 @@
       ).join("")}</ul>
       <div class="nav-right ots_order-nav_person">
         <span class="avatar">管</span>
-        <a class="uk-button" href="javascript:;" data-go="account-center">账户中心</a>
+        ${state.portal === "platform"
+          ? `<a class="uk-button" href="javascript:;" data-go="account-list">账号权限</a>`
+          : `<a class="uk-button" href="javascript:;" data-go="brand-edit">品牌资料</a>`}
       </div>
     </div></nav>`;
   }
@@ -587,8 +594,8 @@
     if (state.portal === "brand") {
       if (group === "buyer" || group === "role" || group === "account") items = [];
       if (group === "brand") {
-        // 品牌端无「全品牌列表 / 添加品牌」，直接进本品牌配置
-        items = items.filter(i => !["brand-list", "brand-add"].includes(i.id) && !/^brand-master-/.test(i.id));
+        /* #18 品牌端店铺设置用品牌列表行样式，侧栏隐藏，仅当前品牌 */
+        items = [];
       }
       if (group === "order") {
         items = items.filter(i => !["order-recon", "order-appoint"].includes(i.id));
@@ -963,11 +970,15 @@
   }
 
   function pageBrandList() {
-    /* #2 列表去掉订货会设置；#3 首付比例/审核改为二级页链接（同合同设置） */
+    /* #2 列表去掉订货会设置；#3 首付比例/审核改为二级页链接；#18 品牌端仅当前账号品牌、行样式同列表 */
     const isPlatform = state.portal === "platform";
+    const mine = state.selectedBrand || (RR.brands[0] && RR.brands[0].name) || "HAIZHEN WANG";
+    const brands = isPlatform ? RR.brands : RR.brands.filter(b => b.name === mine);
     return `<div class="brand_goodsList-container edit_boduan brand-list-v2">
-      ${subTitle("品牌列表")}
-      <div class="note">「下单需审核买手」开启后，买手须在意向品牌提交申请并由平台通过，才能查看该品牌商品并下单。</div>
+      ${subTitle(isPlatform ? "品牌列表" : "店铺设置")}
+      <div class="note">${isPlatform
+        ? "「下单需审核买手」开启后，买手须在意向品牌提交申请并由平台通过，才能查看该品牌商品并下单。"
+        : `当前账号品牌：<strong>${mine}</strong>。点击右侧链接进入优惠 / 尺码 / 收款 / 合同等设置。`}</div>
       <div class="action-bar" style="margin-bottom:12px">
         ${isPlatform ? `<a href="javascript:;" class="oto_btn" data-go="brand-add">添加品牌</a>` : ""}
       </div>
@@ -977,7 +988,7 @@
         </div>
       </div>
       <div class="edit_boduan-list">
-        ${RR.brands.map(b => {
+        ${brands.map(b => {
           const need = Store.brandNeedAudit(b.name);
           const ratio = Math.round(Store.brandDepositRatio(b.name) * 100) + "%";
           return `
@@ -995,7 +1006,7 @@
           </div>`;
         }).join("")}
       </div>
-      ${state.portal === "platform" ? `<div class="note" style="margin-top:24px">平台主数据：
+      ${isPlatform ? `<div class="note" style="margin-top:24px">平台主数据：
         <a href="javascript:;" data-go="brand-master-style">风格资料维护</a> ·
         <a href="javascript:;" data-go="brand-master-crowd">适用人群维护</a> ·
         <a href="javascript:;" data-go="brand-master-size">平台标准尺码</a>
@@ -1787,9 +1798,6 @@
           <span class="muted">其他操作：</span>
           <button class="btn btn-outline" data-act="open-order-panel:voucher" data-oid="${o.id}">上传付款凭证</button>
           <button class="btn btn-outline" data-act="open-order-panel:substore" data-oid="${o.id}">分配子店铺</button>
-          <button class="btn btn-outline" data-act="open-order-panel:return" data-oid="${o.id}">退换货</button>
-          <button class="btn btn-outline" data-act="open-order-panel:whitelist" data-oid="${o.id}">白名单</button>
-          <button class="btn btn-outline" data-act="create-contract" data-oid="${o.id}">生成合同</button>
           ${o.ocId ? `<button class="btn btn-outline" data-act="download:OC-${o.ocId}">下载 OC ${o.ocId}</button>` : ""}
         </div>
         ${action ? panels[action] || "" : '<div class="note">按流程图，仅展示当前节点允许的动作；其他操作见上方「其他操作」。</div>'}
@@ -2247,15 +2255,18 @@
   }
 
   function pageIntent() {
-    /* #11 按品牌筛选 + 时间倒序；#12 申请说明列 */
-    const brandFilter = (Store.db.ui && Store.db.ui.intentBrand) || "全部";
+    /* #11 按品牌筛选 + 时间倒序；#12 申请说明列；#20 品牌端仅当前品牌 */
+    const mine = state.selectedBrand || (RR.brands[0] && RR.brands[0].name);
+    const isBrand = state.portal === "brand";
+    const brandFilter = isBrand ? mine : ((Store.db.ui && Store.db.ui.intentBrand) || "全部");
     let rows = (Store.db.intentions || []).slice();
     if (brandFilter && brandFilter !== "全部") rows = rows.filter(i => i.brand === brandFilter);
     rows.sort((a, b) => String(b.date || b.at || "").localeCompare(String(a.date || a.at || "")));
-    return `${subTitle("意向申请 · 审核买手提交的品牌申请")}
-      <div class="note">审核通过后买手才能查看并下单该品牌商品；「免审核」品牌无需申请，买手可直接选款。
-        品牌是否需审核在 <a href="javascript:;" data-go="brand-list">品牌列表</a> 设置。列表按申请时间<strong>倒序</strong>。</div>
-      ${filterPanel([
+    return `${subTitle(isBrand ? `意向申请 · ${mine}` : "意向申请 · 审核买手提交的品牌申请")}
+      <div class="note">${isBrand
+        ? `仅显示申请当前账号品牌「${mine}」的记录。`
+        : `审核通过后买手才能查看并下单该品牌商品；「免审核」品牌无需申请，买手可直接选款。品牌是否需审核在 <a href="javascript:;" data-go="brand-list">品牌列表</a> 设置。列表按申请时间<strong>倒序</strong>。`}</div>
+      ${isBrand ? "" : filterPanel([
         ["选择品牌:", field("intentFilterBrand", select(RR.brands.map(b => b.name), "全部", brandFilter))]
       ], "", "筛选", "intent-filter")}
       <table class="data-table">
@@ -2374,25 +2385,12 @@
       <div style="margin-top:20px">${btn("保存")}</div>`;
   }
 
-  function pageRoleList() {
-    return `${subTitle("角色管理")}
-      <div class="note">创建自定义角色；预设角色见下表（需求清单）</div>
-      ${btn("创建角色", "btn-outline")}
-      <table class="data-table" style="margin-top:16px">
-        <thead><tr><th>角色</th><th>品牌范围</th><th>权限概要</th><th>操作</th></tr></thead>
-        <tbody>${RR.roles.map(r => `<tr>
-          <td>${r.name}</td><td>${r.scope}</td><td>${r.perms}</td>
-          <td><a href="javascript:;" data-go="role-perm" data-role-name="${r.name}">配置权限</a></td>
-        </tr>`).join("")}</tbody>
-      </table>`;
-  }
-
   function pageRolePerm() {
     const perms = ["商品管理", "订单确认", "定金确认", "意向审核", "买手管理", "发票", "结佣", "财务审核"];
     const roleName = state.selectedRole || (Store.db.roles[0] && Store.db.roles[0].name);
     const role = Store.db.roles.find(r => r.name === roleName) || Store.db.roles[0];
-    return `${subTitle("权限管理")}
-      <div class="note">为指定角色开关功能权限</div>
+    return `${subTitle("权限设置")}
+      <div class="note">为指定角色开关功能权限；账号在「账号列表」中关联角色。</div>
       <div class="form-grid">
         <label>选择角色</label><div>${field("roleName", select(Store.db.roles.map(r => r.name), null, role.name))}</div>
       </div>
@@ -2951,13 +2949,39 @@
   }
 
   function pageAccount() {
-    return `${subTitle("账号管理")}
-      <div class="form-grid">
-        <label>登录手机</label><div>13800000000</div>
-        <label>角色</label><div>${state.portal === "brand" ? "品牌管理员" : "高级管理员"}</div>
-        <label>修改手机</label><div>${input()}</div>
-        <label></label><div>${btn("保存", "btn-outline")}</div>
-      </div>`;
+    /* #17 账号列表：添加账号 + 列表，账号关联权限角色 */
+    const accounts = Store.db.accounts || [
+      { phone: "13800000000", name: "平台管理员", role: "高级管理员", status: "启用" },
+      { phone: "13900000001", name: "运营小王", role: "订单管理员", status: "启用" },
+      { phone: "13700000002", name: "财务小李", role: "财务管理员", status: "启用" }
+    ];
+    Store.db.accounts = accounts;
+    const roles = (Store.db.roles || []).map(r => r.name);
+    return `${subTitle("账号列表")}
+      <div class="note">「账号权限」模块：本页添加/查看账号；侧栏「权限设置」配置角色权限，账号关联角色。</div>
+      <div class="form-section">
+        <h3>添加账号</h3>
+        <div class="form-grid">
+          <label>姓名</label><div>${field("accName", input("姓名"))}</div>
+          <label>手机号 *</label><div>${field("accPhone", input("登录手机号"))}</div>
+          <label>关联权限</label><div>${field("accRole", select(roles.length ? roles : ["高级管理员"], null, roles[0] || "高级管理员"))}</div>
+        </div>
+        <div class="action-bar">${btn("添加账号", "btn-primary", "add-account")}</div>
+      </div>
+      <table class="data-table" style="margin-top:16px">
+        <thead><tr><th>姓名</th><th>手机号</th><th>关联权限</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>${accounts.map((a, i) => `<tr>
+          <td>${a.name}</td><td>${a.phone}</td><td>${a.role}</td>
+          <td><span class="badge green">${a.status || "启用"}</span></td>
+          <td class="ops"><a href="javascript:;" data-go="role-perm" data-role-name="${a.role}">查看权限</a>
+            <a href="javascript:;" data-act="disable-account:${i}">停用</a></td>
+        </tr>`).join("")}</tbody>
+      </table>`;
+  }
+
+  function pageRoleList() {
+    /* 兼容旧入口：跳转到账号列表说明 */
+    return pageAccount();
   }
 
   function readFilterPanel() {
@@ -3288,6 +3312,16 @@
       Store.db.buyerSession.season = act.slice("season:".length);
       state.listPage = 1;
       Store.persist();
+      render();
+      return;
+    }
+    if (act.startsWith("disable-account:")) {
+      const i = Number(act.split(":")[1]);
+      if (Store.db.accounts && Store.db.accounts[i]) {
+        Store.db.accounts[i].status = "停用";
+        Store.persist();
+        toast("账号已停用");
+      }
       render();
       return;
     }
@@ -4269,6 +4303,21 @@
       case "add-substore":
         toast("已新增子店铺草稿");
         break;
+      case "add-account": {
+        const f = readFields();
+        if (!String(f.accPhone || "").trim()) { toast("请填写手机号"); break; }
+        Store.db.accounts = Store.db.accounts || [];
+        Store.db.accounts.unshift({
+          name: f.accName || "未命名",
+          phone: String(f.accPhone).trim(),
+          role: f.accRole || "高级管理员",
+          status: "启用"
+        });
+        Store.persist();
+        toast("账号已添加");
+        render();
+        break;
+      }
       case "add-buyer": {
         const f = readFields();
         const r = Store.addBuyer({ name: f.buyerName, phone: f.buyerPhone, city: f.buyerCity, level: f.buyerLevel });
@@ -4855,6 +4904,8 @@
     "flow-map": pageFlowMap,
     coverage: pageCoverage,
     "account-center": pageAccount,
+    "account-list": pageAccount,
+    "role-list": pageAccount,
     "goods-carry": pageGoodsCarry,
     "goods-list": pageGoodsList,
     "goods-add": pageGoodsAdd,
@@ -4933,7 +4984,6 @@
       <label>季节</label><div>${field("mpSeason", select(RR.seasons.slice(-8), null, "2026SS"))}</div>
       <label>时间</label><div>${field("mpDate", datetimeInput("2026-04-08T14:00"))}</div>
       <label>人数 *</label><div>${field("mpPeople", input("到场人数", "1"))}</div>`),
-    "role-list": pageRoleList,
     "role-perm": pageRolePerm,
     "buyer-home": pageBuyerHome,
     "buyer-brand": pageBuyerBrand,
@@ -5069,7 +5119,7 @@
         }
         state.portal = state.roleLogin;
         localStorage.setItem("rr_portal", state.portal);
-        state.page = state.portal === "buyer" ? "buyer-home" : state.portal === "brand" ? "brand-discount" : "brand-list";
+        state.page = state.portal === "buyer" ? "buyer-home" : state.portal === "brand" ? "brand-list" : "brand-list";
         render();
       });
     }
@@ -5202,11 +5252,12 @@
       });
     });
     app.querySelectorAll(".nav-right a").forEach(a => {
-      if ((a.textContent || "").includes("账户中心")) {
+      if ((a.textContent || "").includes("账号权限") || (a.textContent || "").includes("账户中心") || (a.textContent || "").includes("品牌资料")) {
         a.addEventListener("click", (e) => {
           e.preventDefault();
           if (state.portal === "buyer") go("buyer-profile");
-          else go("account-center");
+          else if (state.portal === "brand") go("brand-edit");
+          else go("account-list");
         });
       }
     });
