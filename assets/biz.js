@@ -4,7 +4,7 @@
  */
 (() => {
   /* v6：订单流程按《订单流程图》重建 + 注册审核链路，旧结构不再兼容 */
-  const KEY = "rr_biz_v6";
+  const KEY = "rr_biz_v7";
 
   const DEFAULT_RULE = () => ({
     minAmount: 30000, cloth: 0.45, accessory: 0.5, lifestyle: 0.55,
@@ -21,36 +21,51 @@
      → 买手支付尾款(全额或分批次) → 平台核对尾款凭证(不通过退回)
      → 统计付款差额 → 平台手动点击完成 → 订单完成 */
   const ORDER_ST = {
-    confirm: "待平台确认",
-    deposit: "待设置定金",
-    depositAck: "待确认定金",
-    depositPay: "待上传定金凭证",
-    depositCheck: "待核对定金凭证",
-    oc: "待生成OC",
-    finalPay: "待支付尾款",
-    finalCheck: "待核对尾款凭证",
-    settle: "待完成结算",
+    /* #15 订单状态顺序 */
+    confirm: "待确认订单",
+    discount: "待确认折扣",
+    deposit: "待确认定金",
+    depositAck: "待买手确认定金",
+    depositPay: "待买手上传支付凭证",
+    depositCheck: "待平台确认定金",
+    finalPay: "待买手上传尾款",
     done: "已完成",
     rejected: "已驳回",
-    canceled: "已取消"
+    canceled: "已取消",
+    /* 兼容旧节点名（映射用） */
+    oc: "待生成OC",
+    finalCheck: "待核对尾款凭证",
+    settle: "待完成结算"
   };
   const ORDER_FLOW = [
-    ORDER_ST.confirm, ORDER_ST.deposit, ORDER_ST.depositAck, ORDER_ST.depositPay,
-    ORDER_ST.depositCheck, ORDER_ST.oc, ORDER_ST.finalPay, ORDER_ST.finalCheck,
-    ORDER_ST.settle, ORDER_ST.done
+    ORDER_ST.confirm, ORDER_ST.discount, ORDER_ST.deposit, ORDER_ST.depositAck,
+    ORDER_ST.depositPay, ORDER_ST.depositCheck, ORDER_ST.finalPay, ORDER_ST.done
   ];
   /* 旧状态 → 新流程节点（历史 mock/本地数据兼容） */
   const LEGACY_STATUS = {
     "买手未确认": ORDER_ST.confirm,
-    "买手已确认待品牌确认": ORDER_ST.deposit,
+    "待平台确认": ORDER_ST.confirm,
+    "买手已确认待品牌确认": ORDER_ST.discount,
+    "待设置定金": ORDER_ST.discount,
+    "待确认定金": ORDER_ST.depositAck,
     "待买手确认定金": ORDER_ST.depositAck,
-    "定金确认": ORDER_ST.oc,
-    "尾款确认": ORDER_ST.settle
+    "待上传定金凭证": ORDER_ST.depositPay,
+    "待核对定金凭证": ORDER_ST.depositCheck,
+    "定金确认": ORDER_ST.depositCheck,
+    "待生成OC": ORDER_ST.depositCheck,
+    "待支付尾款": ORDER_ST.finalPay,
+    "待核对尾款凭证": ORDER_ST.finalPay,
+    "待完成结算": ORDER_ST.finalPay,
+    "尾款确认": ORDER_ST.finalPay
   };
   function normStatus(s) {
     const t = String(s || "").trim();
     if (LEGACY_STATUS[t]) return LEGACY_STATUS[t];
     if (ORDER_FLOW.includes(t) || t === ORDER_ST.rejected || t === ORDER_ST.canceled) return t;
+    if ([ORDER_ST.oc, ORDER_ST.finalCheck, ORDER_ST.settle].includes(t)) {
+      if (t === ORDER_ST.oc) return ORDER_ST.depositCheck;
+      return ORDER_ST.finalPay;
+    }
     return ORDER_ST.confirm;
   }
   function stageOf(status) {
@@ -165,9 +180,9 @@
         status: stage === stageOf(ORDER_ST.depositCheck) ? "待核对" : "已核对", note: ""
       });
     }
-    if (stage >= stageOf(ORDER_ST.settle)) {
+    if (stage >= stageOf(ORDER_ST.done)) {
       payments.push({ kind: "尾款", amount: money(Math.max(0, amount - deposit)), at: "2026-07-26", file: "尾款凭证.pdf", status: "已核对", note: "" });
-    } else if (stage === stageOf(ORDER_ST.finalCheck)) {
+    } else if (stage >= stageOf(ORDER_ST.finalPay) && status === ORDER_ST.finalPay) {
       payments.push({ kind: "尾款", amount: money(Math.max(0, amount - deposit)), at: "2026-08-06", file: "尾款凭证.pdf", status: "待核对", note: "" });
     }
     const okPaid = payments.filter(p => p.status === "已核对").reduce((a, p) => a + parseMoney(p.amount), 0);
@@ -185,9 +200,9 @@
       ocId: stage >= stageOf(ORDER_ST.finalPay) ? "OC-" + String(o.id || "").replace("ORD-", "") : "",
       rejectReason: "",
       cancelReason: "",
-      invoice: stage >= stageOf(ORDER_ST.settle) ? { title: o.store, tax: "", amount: o.amount, type: "普通发票" } : null,
+      invoice: stage >= stageOf(ORDER_ST.finalPay) ? { title: o.store, tax: "", amount: o.amount, type: "普通发票" } : null,
       voucher: payments[0] ? { amount: payments[0].amount, at: payments[0].at, file: payments[0].file } : null,
-      contractUploaded: stage >= stageOf(ORDER_ST.oc),
+      contractUploaded: stage >= stageOf(ORDER_ST.depositCheck),
       materialsOk: stage > stageOf(ORDER_ST.confirm),
       substores: [],
       returns: [],
@@ -535,6 +550,12 @@
     ORDER_FLOW,
     money,
     parseMoney,
+    goodsL1Cat(cat) {
+      const c = String(cat || "");
+      if (/配饰/.test(c)) return "配饰";
+      if (/生活/.test(c)) return "生活方式";
+      return "服饰";
+    },
     get db() { return db; },
     reset() { db = defaultDb(); save(); syncLegacy(); },
     persist() { save(); syncLegacy(); },
@@ -1125,35 +1146,37 @@
           A.push({ act: "open-order-panel:cancel", label: "取消订单" });
           wait("等待平台确认订单");
         }
+      } else if (st === ORDER_ST.discount) {
+        if (platform) {
+          A.push({ act: "open-order-panel:modify", label: "设置折扣 / 增减款", primary: true });
+          A.push({ act: "confirm-discount", label: "确认折扣" });
+          A.push({ act: "open-order-panel:reject", label: "驳回订单" });
+        } else wait("等待平台确认折扣");
       } else if (st === ORDER_ST.deposit) {
         if (platform) {
           A.push({ act: "open-order-panel:deposit", label: "设置定金", primary: true });
           A.push({ act: "open-order-panel:modify", label: "设置折扣 / 增减款" });
           A.push({ act: "open-order-panel:reject", label: "驳回订单" });
-        } else wait("等待平台设置定金");
+        } else wait("等待平台确认定金");
       } else if (st === ORDER_ST.depositAck) {
         if (platform) {
           A.push({ act: "open-order-panel:deposit", label: "修改首付比例定金" });
-          wait("等待确认定金");
+          wait("等待买手确认定金");
         } else A.push({ act: "buyer-confirm-deposit", label: "确认定金", primary: true });
       } else if (st === ORDER_ST.depositPay) {
-        if (platform) wait("等待买手上传定金付款凭证");
+        if (platform) wait("等待买手上传支付凭证");
         else A.push({ act: "open-order-panel:pay-deposit", label: "上传付款凭证", primary: true });
       } else if (st === ORDER_ST.depositCheck) {
-        if (platform) A.push({ act: "open-order-panel:check", label: "核对定金凭证", primary: true });
-        else wait("等待平台核对定金凭证");
-      } else if (st === ORDER_ST.oc) {
-        if (platform) A.push({ act: "gen-oc", label: "生成 OC", primary: true });
-        else wait("等待平台生成 OC");
+        if (platform) {
+          A.push({ act: "open-order-panel:check", label: "确认定金凭证", primary: true });
+          A.push({ act: "gen-oc", label: "生成 OC" });
+        } else wait("等待平台确认定金");
       } else if (st === ORDER_ST.finalPay) {
-        if (platform) wait("等待买手支付尾款（可分批次）");
-        else A.push({ act: "open-order-panel:pay-final", label: "上传尾款付款凭证", primary: true });
-      } else if (st === ORDER_ST.finalCheck) {
-        if (platform) A.push({ act: "open-order-panel:check", label: "核对尾款凭证", primary: true });
-        else wait("等待平台核对尾款凭证");
-      } else if (st === ORDER_ST.settle) {
-        if (platform) A.push({ act: "settle-order", label: "订单完成（统计付款差额）", primary: true });
-        else wait("等待平台确认完成");
+        if (platform) {
+          A.push({ act: "open-order-panel:check", label: "确认尾款凭证" });
+          A.push({ act: "gen-oc", label: "生成 OC" });
+          A.push({ act: "settle-order", label: "订单完成", primary: true });
+        } else A.push({ act: "open-order-panel:pay-final", label: "上传尾款凭证", primary: true });
       } else if (st === ORDER_ST.rejected) {
         if (platform) A.push({ act: "platform-confirm-order", label: "恢复为待确认" });
         else A.push({ act: "go:buyer-selection", label: "回到选款单重新下单", primary: true });
@@ -1168,15 +1191,13 @@
       if (!o) return [];
       const st = normStatus(o.status);
       const map = {
-        [ORDER_ST.confirm]: ["待平台确认订单（可驳回）"],
-        [ORDER_ST.deposit]: ["待平台设置定金 / 折扣"],
-        [ORDER_ST.depositAck]: ["待确认定金"],
-        [ORDER_ST.depositPay]: ["待买手上传定金付款凭证"],
-        [ORDER_ST.depositCheck]: ["待平台核对定金凭证"],
-        [ORDER_ST.oc]: ["待平台生成 OC"],
-        [ORDER_ST.finalPay]: ["待买手支付尾款（全额或分批次）"],
-        [ORDER_ST.finalCheck]: ["待平台核对尾款凭证"],
-        [ORDER_ST.settle]: ["待平台点击订单完成（统计付款差额）"],
+        [ORDER_ST.confirm]: ["待确认订单（可驳回）"],
+        [ORDER_ST.discount]: ["待确认折扣（设置折扣后点击确认）"],
+        [ORDER_ST.deposit]: ["待确认定金（设置定金后点击确认）"],
+        [ORDER_ST.depositAck]: ["待买手确认定金"],
+        [ORDER_ST.depositPay]: ["待买手上传支付凭证"],
+        [ORDER_ST.depositCheck]: ["待平台确认定金（确认后可生成 OC）"],
+        [ORDER_ST.finalPay]: ["待买手上传尾款（可多次确认；平台可点订单完成）"],
         [ORDER_ST.done]: [],
         [ORDER_ST.rejected]: ["已驳回：" + (o.rejectReason || "—")],
         [ORDER_ST.canceled]: ["已取消：" + (o.cancelReason || "买手主动取消")]
@@ -1207,10 +1228,14 @@
 
       if (act === "platformConfirm") {
         if (![ORDER_ST.confirm, ORDER_ST.rejected].includes(st)) return { ok: false, msg: `当前状态「${st}」不可确认订单` };
-        o.status = ORDER_ST.deposit;
+        o.status = ORDER_ST.discount;
         o.materialsOk = true;
         o.rejectReason = "";
-        log("平台确认订单，待设置定金");
+        log("平台确认订单，进入待确认折扣");
+      } else if (act === "confirmDiscount") {
+        if (st !== ORDER_ST.discount) return { ok: false, msg: `当前状态「${st}」不可确认折扣` };
+        o.status = ORDER_ST.deposit;
+        log("平台确认折扣，进入待确认定金");
       } else if (act === "reject") {
         if ([ORDER_ST.done, ORDER_ST.canceled].includes(st)) return { ok: false, msg: "订单已结束，不可驳回" };
         o.status = ORDER_ST.rejected;
@@ -1225,18 +1250,37 @@
         unlockSelection();
         log(`买手取消订单：${o.cancelReason}`);
       } else if (act === "setDeposit") {
-        if (![ORDER_ST.deposit, ORDER_ST.depositAck].includes(st)) return { ok: false, msg: `当前状态「${st}」不可设置定金` };
+        if (![ORDER_ST.deposit, ORDER_ST.depositAck, ORDER_ST.discount].includes(st)) return { ok: false, msg: `当前状态「${st}」不可设置定金` };
         const ratio = Number(payload.ratio || o.depositRatio || Store.brandDepositRatio(o.brand));
         o.depositRatio = ratio;
         o.deposit = money(parseMoney(o.amount) * ratio);
         o.status = ORDER_ST.depositAck;
-        log(`平台设置首付比例 ${Math.round(ratio * 100)}%，应收定金 ¥${o.deposit}，待买手确认`);
-        Store.pushBuyerMessage("待确认定金", `订单 ${o.id} 定金 ¥${o.deposit}，请在「我的订单」确认。`);
+        log(`平台设置首付比例 ${Math.round(ratio * 100)}%，应收定金 ¥${o.deposit}，待买手确认定金`);
+        Store.pushBuyerMessage("待买手确认定金", `订单 ${o.id} 定金 ¥${o.deposit}，请在「我的订单」确认。`);
       } else if (act === "setDiscount") {
-        if (stageOf(st) > stageOf(ORDER_ST.depositAck)) return { ok: false, msg: "定金已确认，不可再改折扣" };
-        const d = Number(payload.discount || 0);
-        if (!d || d <= 0 || d > 1) return { ok: false, msg: "折扣需在 0~1 之间（如 0.45）" };
-        (o.lines || []).forEach(l => { l.discount = d; });
+        if (stageOf(st) > stageOf(ORDER_ST.depositAck)) return { ok: false, msg: "买手已确认定金，不可再改折扣" };
+        if (payload.catDiscount) {
+          const cd = payload.catDiscount;
+          o.catDiscount = {
+            cloth: Number(cd.cloth || 0.45),
+            accessory: Number(cd.accessory || 0.5),
+            lifestyle: Number(cd.lifestyle || 0.55)
+          };
+          (o.lines || []).forEach(l => {
+            const g = findGoods(l.sku);
+            const l1 = Store.goodsL1Cat((g && g.cat) || l.l1Cat);
+            l.l1Cat = l1;
+            l.discount = l1 === "配饰" ? o.catDiscount.accessory
+              : l1 === "生活方式" ? o.catDiscount.lifestyle
+              : o.catDiscount.cloth;
+          });
+          log(`平台设置本单分类折扣 服饰${o.catDiscount.cloth}/配饰${o.catDiscount.accessory}/生活${o.catDiscount.lifestyle}`);
+        } else {
+          const d = Number(payload.discount || 0);
+          if (!d || d <= 0 || d > 1) return { ok: false, msg: "折扣需在 0~1 之间（如 0.45）" };
+          (o.lines || []).forEach(l => { l.discount = d; });
+          log(`平台设置整单折扣 ${d}`);
+        }
         let amount = 0;
         (o.lines || []).forEach(l => {
           const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
@@ -1244,15 +1288,15 @@
         });
         o.amount = money(amount);
         o.deposit = money(amount * Number(o.depositRatio || 0.3));
-        log(`平台设置整单折扣 ${d}，订单金额 ¥${o.amount}`);
+        log(`订单金额更新为 ¥${o.amount}`);
       } else if (act === "buyerConfirmDeposit") {
         if (st !== ORDER_ST.depositAck) return { ok: false, msg: `当前状态「${st}」不可确认定金` };
         o.status = ORDER_ST.depositPay;
-        log("买手确认定金，待上传定金付款凭证");
+        log("买手确认定金，待上传支付凭证");
       } else if (act === "uploadVoucher") {
         const kind = payload.kind === "尾款" ? "尾款" : "定金";
         const canDeposit = [ORDER_ST.depositPay, ORDER_ST.depositCheck].includes(st);
-        const canFinal = [ORDER_ST.finalPay, ORDER_ST.finalCheck].includes(st);
+        const canFinal = st === ORDER_ST.finalPay;
         if (kind === "定金" && !canDeposit) return { ok: false, msg: `当前状态「${st}」无需上传定金凭证` };
         if (kind === "尾款" && !canFinal) return { ok: false, msg: `当前状态「${st}」无需上传尾款凭证` };
         const stats = Store.paymentStats(o);
@@ -1264,8 +1308,8 @@
           file: payload.file || `${kind}凭证.pdf`, status: "待核对", note: ""
         });
         o.voucher = { amount: money(amt), at: payload.at || stamp().slice(0, 10), file: `${kind}凭证.pdf` };
-        o.status = kind === "定金" ? ORDER_ST.depositCheck : ORDER_ST.finalCheck;
-        log(`买手上传${kind}付款凭证 ¥${money(amt)}，待平台核对`);
+        if (kind === "定金") o.status = ORDER_ST.depositCheck;
+        log(`买手上传${kind}付款凭证 ¥${money(amt)}，待平台确认`);
       } else if (act === "checkVoucher") {
         const list = o.payments || [];
         const idx = payload.index != null && payload.index !== "" ? Number(payload.index) : list.findIndex(p => p.status === "待核对");
@@ -1278,27 +1322,25 @@
         o.paidDeposit = money(stats.depositOk);
         o.paidTotal = money(stats.confirmed);
         if (p.kind === "定金") {
-          o.status = pass ? ORDER_ST.oc : ORDER_ST.depositPay;
-        } else if (!pass) {
-          o.status = ORDER_ST.finalPay;
+          o.status = pass ? ORDER_ST.finalPay : ORDER_ST.depositPay;
         } else {
-          o.status = stats.confirmed + 0.5 >= stats.total ? ORDER_ST.settle : ORDER_ST.finalPay;
+          o.status = ORDER_ST.finalPay;
         }
         log(pass
-          ? `平台核对${p.kind}凭证通过 ¥${p.amount}${o.status === ORDER_ST.finalPay ? "（尾款分批次，仍有未付金额）" : ""}`
-          : `平台核对${p.kind}凭证不通过：${p.note}`);
-        Store.pushBuyerMessage(pass ? `${p.kind}已核对` : `${p.kind}凭证需重新上传`,
-          `订单 ${o.id}：${pass ? `${p.kind} ¥${p.amount} 已核对通过` : p.note}`);
+          ? `平台确认${p.kind}凭证通过 ¥${p.amount}`
+          : `平台确认${p.kind}凭证不通过：${p.note}`);
+        Store.pushBuyerMessage(pass ? `${p.kind}已确认` : `${p.kind}凭证需重新上传`,
+          `订单 ${o.id}：${pass ? `${p.kind} ¥${p.amount} 已确认通过` : p.note}`);
       } else if (act === "genOc") {
-        if (st !== ORDER_ST.oc) return { ok: false, msg: `当前状态「${st}」不可生成 OC` };
+        if (![ORDER_ST.depositCheck, ORDER_ST.finalPay].includes(st)) return { ok: false, msg: `当前状态「${st}」不可生成 OC` };
         const oc = Store.createOc(o.id);
         o.ocId = oc.id || o.ocId;
         o.contractUploaded = true;
-        o.status = ORDER_ST.finalPay;
-        log(`平台生成 OC ${o.ocId}（可下载），待买手支付尾款（全额或分批次）`);
+        if (st === ORDER_ST.depositCheck) o.status = ORDER_ST.finalPay;
+        log(`平台生成 OC ${o.ocId}（可下载）`);
         Store.pushBuyerMessage("OC 已生成", `订单 ${o.id} 的 OC 已生成，请支付尾款。`);
       } else if (act === "finalPass") {
-        if (![ORDER_ST.finalPay, ORDER_ST.finalCheck, ORDER_ST.oc].includes(st)) return { ok: false, msg: `当前状态「${st}」不可确认尾款` };
+        if (st !== ORDER_ST.finalPay) return { ok: false, msg: `当前状态「${st}」不可确认尾款` };
         const stats = Store.paymentStats(o);
         const rest = Math.max(0, stats.total - stats.confirmed);
         o.payments = o.payments || [];
@@ -1310,10 +1352,9 @@
         const final = Store.paymentStats(o);
         o.paidDeposit = money(final.depositOk);
         o.paidTotal = money(final.confirmed);
-        o.status = ORDER_ST.settle;
-        log(`平台确认尾款 ¥${money(rest)}，待完成结算`);
+        log(`平台确认尾款 ¥${money(rest)}（可继续分批或点订单完成）`);
       } else if (act === "settle") {
-        if (st !== ORDER_ST.settle) return { ok: false, msg: `当前状态「${st}」不可完成订单` };
+        if (st !== ORDER_ST.finalPay && st !== ORDER_ST.settle) return { ok: false, msg: `当前状态「${st}」不可完成订单` };
         const stats = Store.paymentStats(o);
         o.settleDiff = money(stats.diff);
         o.status = ORDER_ST.done;

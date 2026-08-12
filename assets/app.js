@@ -197,7 +197,7 @@
           { id: "order-all-sel", label: "总选款单管理" },
           { id: "order-all", label: "总订单管理" },
           { id: "order-analysis", label: "订单分析" },
-          { id: "order-appoint", label: "预约列表" },
+          /* #14 订单管理下去掉预约列表 */
           { id: "order-recon", label: "对账管理" },
           { id: "order-kingdee", label: "金蝶同步" }
         ],
@@ -1694,20 +1694,33 @@
           <label>付款时间</label><div>${field("payAt", dateInput(new Date().toISOString().slice(0, 10)))}</div>
         </div>
         <div class="action-bar">${btn("提交凭证", "btn-primary", "submit-pay")}</div></div>`,
-      modify: `<div class="modal-panel"><h3>修改订单 · 增减款 / 设置折扣</h3>
-        <table class="data-table"><thead><tr><th>SKU</th><th>尺码</th><th>数量合计</th><th>单款折扣</th><th></th></tr></thead>
+      modify: (() => {
+        /* #13 订单折扣按一级分类（服饰/配饰/生活方式），仅对本单生效 */
+        const catDisc = o.catDiscount || { cloth: 0.45, accessory: 0.5, lifestyle: 0.55 };
+        return `<div class="modal-panel"><h3>修改订单 · 增减款 / 设置分类折扣</h3>
+        <div class="note">分类折扣仅对<strong>本订单</strong>生效，不影响品牌店铺设置里的分类折扣。</div>
+        <div class="form-grid">
+          <label>服饰统一折扣</label><div>${field("odCloth", input("如 0.45", String(catDisc.cloth)))}</div>
+          <label>配饰统一折扣</label><div>${field("odAccessory", input("如 0.5", String(catDisc.accessory)))}</div>
+          <label>生活方式统一折扣</label><div>${field("odLifestyle", input("如 0.55", String(catDisc.lifestyle)))}</div>
+        </div>
+        <div class="action-bar" style="margin:12px 0">${btn("应用分类折扣到本单", "btn-primary", "set-order-cat-discount")}</div>
+        <table class="data-table"><thead><tr><th>SKU</th><th>一级分类</th><th>尺码</th><th>数量合计</th><th>本单折扣</th><th></th></tr></thead>
         <tbody>
           ${lines.map((l, i) => {
             const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
+            const g = (Store.db.goods || []).find(x => (x.skc || x.sku) === l.sku || x.sku === l.sku);
+            const l1 = Store.goodsL1Cat(g && g.cat) || l.l1Cat || "服饰";
             return `<tr data-line="${i}">
-              <td>${l.sku}</td><td>${Object.keys(l.sizes || {}).join("/")}</td>
+              <td>${l.sku}</td><td>${l1}</td><td>${Object.keys(l.sizes || {}).join("/")}</td>
               <td>${field("qty-" + i, input("", String(qty)))}</td>
-              <td>${field("disc-" + i, input("", String(l.discount || 1)))}</td>
+              <td>${l.discount || 1}</td>
               <td>${link("删款", "remove-order-line:" + i)}</td>
             </tr>`;
           }).join("")}
         </tbody></table>
-        <div class="action-bar">${btn("添加款式", "btn-outline")}${btn("保存修改", "btn-primary", "save-order-modify")}</div></div>`,
+        <div class="action-bar">${btn("添加款式", "btn-outline")}${btn("保存修改", "btn-primary", "save-order-modify")}</div></div>`;
+      })(),
       invoice: `<div class="modal-panel"><h3>申请发票</h3>
         <div class="form-grid"><label>抬头</label><div>${field("invTitle", input("", (o.invoice && o.invoice.title) || o.store))}</div>
         <label>税号</label><div>${field("invTax", input("", (o.invoice && o.invoice.tax) || ""))}</div>
@@ -1736,7 +1749,7 @@
         <div class="action-bar">${btn("提交退换货")}</div>
         ${(o.returns || []).map(r => `<div class="note">${r.type} ${r.sku}×${r.qty} · ${r.reason || ""}</div>`).join("")}</div>`,
       deposit: `<div class="modal-panel"><h3>设置定金 · 首付比例</h3>
-        <div class="note">按品牌首付比例设置应收定金，提交后进入「待确认定金」。</div>
+        <div class="note">按品牌首付比例设置应收定金，提交后进入「待买手确认定金」。</div>
         <div class="form-grid"><label>订单金额</label><div>¥${o.amount}</div>
         <label>首付比例</label><div>${field("depRatio", select(RR.depositRatios, null, Math.round(Number(o.depositRatio || 0.3) * 100) + "%"))}</div>
         <label>应收定金</label><div>¥${o.deposit}（按比例自动计算）</div></div>
@@ -2234,18 +2247,26 @@
   }
 
   function pageIntent() {
-    /* 《注册流程图》平台端：审核买手提交的品牌申请 */
+    /* #11 按品牌筛选 + 时间倒序；#12 申请说明列 */
+    const brandFilter = (Store.db.ui && Store.db.ui.intentBrand) || "全部";
+    let rows = (Store.db.intentions || []).slice();
+    if (brandFilter && brandFilter !== "全部") rows = rows.filter(i => i.brand === brandFilter);
+    rows.sort((a, b) => String(b.date || b.at || "").localeCompare(String(a.date || a.at || "")));
     return `${subTitle("意向申请 · 审核买手提交的品牌申请")}
       <div class="note">审核通过后买手才能查看并下单该品牌商品；「免审核」品牌无需申请，买手可直接选款。
-        品牌是否需审核在 <a href="javascript:;" data-go="brand-list">品牌列表</a> 设置。</div>
+        品牌是否需审核在 <a href="javascript:;" data-go="brand-list">品牌列表</a> 设置。列表按申请时间<strong>倒序</strong>。</div>
+      ${filterPanel([
+        ["选择品牌:", field("intentFilterBrand", select(RR.brands.map(b => b.name), "全部", brandFilter))]
+      ], "", "筛选", "intent-filter")}
       <table class="data-table">
-        <thead><tr><th>店铺名</th><th>申请品牌</th><th>申请日期</th><th>品牌下单要求</th><th>状态</th><th>操作</th></tr></thead>
-        <tbody>${Store.db.intentions.map(i => `<tr>
+        <thead><tr><th>店铺名</th><th>申请品牌</th><th>申请日期</th><th>申请说明</th><th>品牌下单要求</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>${rows.map(i => `<tr>
           <td>${i.store}</td><td>${i.brand}</td><td>${i.date || (i.at || "").slice(0, 10) || "—"}</td>
+          <td>${i.note || "—"}</td>
           <td>${Store.brandNeedAudit(i.brand) ? '<span class="badge">需审核买手</span>' : '<span class="badge green">免审核</span>'}</td>
           <td><span class="badge ${i.status === "已通过" ? "green" : i.status === "已拒绝" ? "red" : ""}">${i.status}</span></td>
           <td class="ops">${i.status === "待审核" ? `${btn("通过", "btn-outline btn-sm")}${btn("拒绝", "btn-outline btn-sm")}` : "—"}</td>
-        </tr>`).join("")}</tbody>
+        </tr>`).join("") || '<tr><td colspan="7">暂无意向申请</td></tr>'}</tbody>
       </table>`;
   }
 
@@ -3496,6 +3517,7 @@
         Store.setGoodsFilter({ carry: "全部", linesheet: "", sku: "", cat: "全部", subcat: "全部", brand: "全部", title: "", season: "全部" });
         Store.setOrderFilter({ brand: "全部", season: "全部", type: "全部", status: "全部", store: "", id: "" });
         Store.db.ui.selectionFilter = { brand: "全部", season: "全部", store: "" };
+        Store.db.ui.intentBrand = "全部";
         Store.persist();
         render();
         toast("已清空筛选条件");
@@ -3569,8 +3591,40 @@
         const r = Store.advanceOrder(id, "platformConfirm");
         toast(r.msg);
         state.selectedOrder = Store.db.orders.find(o => o.id === id);
-        state.orderAction = r.ok ? "deposit" : state.orderAction;
+        state.orderAction = r.ok ? "modify" : state.orderAction;
         render();
+        break;
+      }
+      case "confirm-discount": {
+        const id = orderId || Store.db.orders[0].id;
+        const r = Store.advanceOrder(id, "confirmDiscount");
+        toast(r.msg);
+        state.selectedOrder = Store.db.orders.find(o => o.id === id);
+        state.orderAction = r.ok ? "deposit" : "";
+        render();
+        break;
+      }
+      case "set-order-cat-discount": {
+        const f = readFields();
+        const id = orderId || (state.selectedOrder && state.selectedOrder.id) || Store.db.orders[0].id;
+        const r = Store.advanceOrder(id, "setDiscount", {
+          catDiscount: {
+            cloth: f.odCloth,
+            accessory: f.odAccessory,
+            lifestyle: f.odLifestyle
+          }
+        });
+        toast(r.msg);
+        state.selectedOrder = Store.db.orders.find(o => o.id === id);
+        render();
+        break;
+      }
+      case "intent-filter": {
+        const f = readFields();
+        Store.db.ui.intentBrand = f.intentFilterBrand || "全部";
+        Store.persist();
+        render();
+        toast(Store.db.ui.intentBrand === "全部" ? "已显示全部品牌" : `已筛选：${Store.db.ui.intentBrand}`);
         break;
       }
       case "confirm-deposit": {

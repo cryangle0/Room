@@ -199,16 +199,16 @@ window.RR = {
     { name: "LMDS", city: "四川省 / 成都市", phone: "13600136004", level: "C", status: "已通过" }
   ],
   intentions: [
-    { store: "识季", brand: "HAIZHEN WANG", date: "2026-03-12", status: "待审核" },
-    { store: "MELTINCY", brand: "JUNLI", date: "2026-03-11", status: "已通过" },
-    { store: "璨琳Candlyn", brand: "Ms MIN", date: "2026-03-10", status: "已拒绝" },
-    { store: "LIMMOOZ生活方式", brand: "ROOMROOM", date: "2026-03-09", status: "待审核" },
-    { store: "KOOH boutique", brand: "KHIHO", date: "2026-07-11", status: "待审核" },
-    { store: "PARTY XUE", brand: "IAN HYLTON", date: "2026-07-10", status: "已通过" },
-    { store: "LMDS", brand: "IAN HYLTON", date: "2026-07-09", status: "已通过" },
-    { store: "等等韩国正品集合店", brand: "GOEN.J", date: "2026-07-08", status: "待审核" },
-    { store: "IFS意蜂尚", brand: "SUSAN FANG", date: "2026-07-07", status: "已拒绝" },
-    { store: "名君岛", brand: "ANGEL CHEN", date: "2026-07-06", status: "待审核" }
+    { store: "识季", brand: "HAIZHEN WANG", date: "2026-03-12", status: "待审核", note: "独立买手店，主推先锋女装" },
+    { store: "MELTINCY", brand: "JUNLI", date: "2026-03-11", status: "已通过", note: "集合店扩品牌线" },
+    { store: "璨琳Candlyn", brand: "Ms MIN", date: "2026-03-10", status: "已拒绝", note: "门店定位不符" },
+    { store: "LIMMOOZ生活方式", brand: "ROOMROOM", date: "2026-03-09", status: "待审核", note: "生活方式馆引入" },
+    { store: "KOOH boutique", brand: "KHIHO", date: "2026-07-11", status: "待审核", note: "韩系买手店补货申请" },
+    { store: "PARTY XUE", brand: "IAN HYLTON", date: "2026-07-10", status: "已通过", note: "设计师店首单意向" },
+    { store: "LMDS", brand: "IAN HYLTON", date: "2026-07-09", status: "已通过", note: "多品牌联营" },
+    { store: "等等韩国正品集合店", brand: "GOEN.J", date: "2026-07-08", status: "待审核", note: "想补齐男装线" },
+    { store: "IFS意蜂尚", brand: "SUSAN FANG", date: "2026-07-07", status: "已拒绝", note: "资料不完整" },
+    { store: "名君岛", brand: "ANGEL CHEN", date: "2026-07-06", status: "待审核", note: "线下看款后申请" }
   ],
   appointments: [
     { brand: "HAIZHEN WANG", store: "Liora Amour", contact: "王女士", phone: "13681383088", date: "2026-04-08 14:00", season: "2026SS" },
