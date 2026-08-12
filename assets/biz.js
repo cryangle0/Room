@@ -41,13 +41,13 @@
     ORDER_ST.confirm, ORDER_ST.discount, ORDER_ST.deposit, ORDER_ST.depositAck,
     ORDER_ST.depositPay, ORDER_ST.depositCheck, ORDER_ST.finalPay, ORDER_ST.done
   ];
-  /* 旧状态 → 新流程节点（历史 mock/本地数据兼容） */
+  /* 旧状态 → 新流程节点（历史 mock/本地数据兼容）
+     注意：勿把现行正式状态名（如「待确认定金」）放进此表，否则会覆盖 ORDER_FLOW */
   const LEGACY_STATUS = {
     "买手未确认": ORDER_ST.confirm,
     "待平台确认": ORDER_ST.confirm,
     "买手已确认待品牌确认": ORDER_ST.discount,
-    "待设置定金": ORDER_ST.discount,
-    "待确认定金": ORDER_ST.depositAck,
+    "待设置定金": ORDER_ST.deposit,
     "待买手确认定金": ORDER_ST.depositAck,
     "待上传定金凭证": ORDER_ST.depositPay,
     "待核对定金凭证": ORDER_ST.depositCheck,
@@ -56,12 +56,15 @@
     "待支付尾款": ORDER_ST.finalPay,
     "待核对尾款凭证": ORDER_ST.finalPay,
     "待完成结算": ORDER_ST.finalPay,
-    "尾款确认": ORDER_ST.finalPay
+    "尾款确认": ORDER_ST.finalPay,
+    /* 旧版曾用「待确认定金」表示买手确认节点；现行 #15 该文案=平台设定金节点，由 ORDER_FLOW 优先识别 */
+    "待品牌确认定金": ORDER_ST.depositAck
   };
   function normStatus(s) {
     const t = String(s || "").trim();
-    if (LEGACY_STATUS[t]) return LEGACY_STATUS[t];
+    /* 现行正式状态优先，避免被 LEGACY 误伤 */
     if (ORDER_FLOW.includes(t) || t === ORDER_ST.rejected || t === ORDER_ST.canceled) return t;
+    if (LEGACY_STATUS[t]) return LEGACY_STATUS[t];
     if ([ORDER_ST.oc, ORDER_ST.finalCheck, ORDER_ST.settle].includes(t)) {
       if (t === ORDER_ST.oc) return ORDER_ST.depositCheck;
       return ORDER_ST.finalPay;
@@ -1153,6 +1156,7 @@
           A.push({ act: "open-order-panel:reject", label: "驳回订单" });
         } else wait("等待平台确认折扣");
       } else if (st === ORDER_ST.deposit) {
+        /* #15：待确认定金 — 平台设置定金并确认后进入待买手确认定金 */
         if (platform) {
           A.push({ act: "open-order-panel:deposit", label: "设置定金", primary: true });
           A.push({ act: "open-order-panel:modify", label: "设置折扣 / 增减款" });
