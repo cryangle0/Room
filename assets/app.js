@@ -307,7 +307,6 @@
     if (page.startsWith("ship")) return "ship";
     if (page.startsWith("intent")) return "intent";
     if (page.startsWith("buyer-") && state.portal !== "buyer") return "buyer";
-    if (page.startsWith("role") || page.startsWith("account")) return "account";
     return "brand";
   }
 
@@ -1606,7 +1605,6 @@
                 <span class="muted">订单号：${o.id}</span>
               </div>
               <div class="order-live-toplinks">
-                <a href="javascript:;" data-order-action="return" data-go="order-detail" data-oid="${o.id}">退换货</a>
                 <a href="javascript:;" data-act="download:订单">下载订单</a>
                 <a href="javascript:;" data-go="order-detail" data-oid="${o.id}">查看详情</a>
                 <a href="javascript:;" data-go="order-detail" data-oid="${o.id}">修改订单</a>
