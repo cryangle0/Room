@@ -1460,10 +1460,13 @@ header.oto-nav.buyer-oto-nav .login_area .nav-ico {
   .spec-row .spec-ops { text-align: left; }
 }
 
-/* 品牌列表新增「订单首付比例(定金)」列后为 9 列 */
+/* 品牌列表：去掉订货会列后为 8 列；首付/审核为二级页链接 */
 .brand_goodsList-container.edit_boduan .item_boduan-row,
 .brand_goodsList-container.edit_boduan .edit_boduan-list .item {
-  grid-template-columns: 1.3fr repeat(5, 1fr) 1.1fr 1fr 0.6fr;
+  grid-template-columns: 1.3fr repeat(4, 1fr) 1.1fr 1fr 0.6fr;
+}
+.brand_goodsList-container.edit_boduan .muted-mini {
+  font-size: 12px; color: #999; margin-top: 4px; font-weight: 400;
 }
 .dep-ratio { font-weight: 600; color: #222; margin-right: 6px; }
 .oto_btn.sm { font-size: 12px; padding: 2px 8px; }

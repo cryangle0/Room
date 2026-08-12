@@ -351,8 +351,8 @@
       regSession: { phone: "", store: "", status: "", reason: "", at: "" },
       fairs: Object.fromEntries((RR.seasons || []).map(s => [s, { first: true, replenish: true }])),
       orderingFairs: [
-        { id: "FAIR-2027PS", name: "2027 Pre-Spring 订货会", season: "2027PS", cover: true, intro: "春季订货会图文介绍（展示位置待确认）", createdAt: "2026-06-01" },
-        { id: "FAIR-2026SS", name: "2026 Spring/Summer 订货会", season: "2026SS", cover: true, intro: "夏季订货会说明", createdAt: "2025-11-12" }
+        { id: "FAIR-2027PS", name: "2027 Pre-Spring 订货会", season: "2027PS", brands: ["HAIZHEN WANG", "JUNLI", "ANGEL CHEN"], cover: true, intro: "春季订货会图文介绍（展示位置待确认）", createdAt: "2026-06-01" },
+        { id: "FAIR-2026SS", name: "2026 Spring/Summer 订货会", season: "2026SS", brands: ["HAIZHEN WANG", "JUNLI", "Ms MIN", "SUSAN FANG"], cover: true, intro: "夏季订货会说明", createdAt: "2025-11-12" }
       ],
       buyerMessages: [
         { id: "m1", title: "订单状态更新", time: "2026-07-28 10:20", body: "您的选款单已生成订单，请及时确认。", read: false },
@@ -369,9 +369,12 @@
           styles: String(b.style || "").split(/[/／、,，]/).map(x => x.trim()).filter(Boolean),
           crowds: String(b.crowd || "").split(/[/／、,，]/).map(x => x.trim()).filter(Boolean),
           designer: b.designer || "",
-          about: b.about || ""
+          about: b.about || "",
+          contact: b.contact || "品牌联系人",
+          phone: b.phone || "13800000001"
         };
       })(),
+      brandProfiles: {},
       recon: {
         rate: { brand: "JUNLI", season: "2026SS", base: "5%", stair: "满100万→4%" },
         bills: [
@@ -804,12 +807,15 @@
       const name = String(payload.name || "").trim();
       if (!name) return { ok: false, msg: "请填写订货会名称" };
       const season = payload.season || (RR.seasons && RR.seasons[RR.seasons.length - 1]) || "";
+      const brands = Array.isArray(payload.brands) ? payload.brands.filter(Boolean) : [];
+      if (!brands.length) return { ok: false, msg: "请选择参与品牌" };
       const id = uid("FAIR");
       db.orderingFairs = db.orderingFairs || [];
       db.orderingFairs.unshift({
         id,
         name,
         season,
+        brands,
         first: payload.first !== false,
         replenish: payload.replenish !== false,
         cover: !!payload.cover,
@@ -827,7 +833,7 @@
       save();
       return {
         ok: true,
-        msg: `已创建订货会 ${name}（${season} · 首单${payload.first !== false ? "开" : "关"} / 补货${payload.replenish !== false ? "开" : "关"}）`,
+        msg: `已创建订货会 ${name}（${season} · ${brands.length} 个品牌）`,
         id
       };
     },
@@ -844,17 +850,47 @@
       const cats = info.cats || db.brandProfile.cats || [];
       const styles = info.styles || db.brandProfile.styles || [];
       const crowds = info.crowds || db.brandProfile.crowds || [];
+      const name = info.name || db.brandProfile.name;
       Object.assign(db.brandProfile, info, {
         cats, styles, crowds,
         cat: cats[0] || info.cat || db.brandProfile.cat,
         style: styles.join(" / "),
         crowd: crowds.join(" / ")
       });
+      db.brandProfiles = db.brandProfiles || {};
+      db.brandProfiles[name] = { ...(db.brandProfiles[name] || {}), ...db.brandProfile };
+      if (info.ratio != null) {
+        db.brandDeposit = db.brandDeposit || {};
+        db.brandDeposit[name] = Number(info.ratio) || 0.3;
+      }
+      if (typeof info.needAudit === "boolean") {
+        db.brandAudit = db.brandAudit || {};
+        db.brandAudit[name] = !!info.needAudit;
+      }
       // sync into RR.brands for buyer about
-      const rb = RR.brands.find(x => x.name === db.brandProfile.name);
-      if (rb) Object.assign(rb, { about: db.brandProfile.about, cat: db.brandProfile.cat, style: db.brandProfile.style, crowd: db.brandProfile.crowd });
+      const rb = RR.brands.find(x => x.name === name);
+      if (rb) Object.assign(rb, {
+        about: db.brandProfile.about, cat: db.brandProfile.cat,
+        style: db.brandProfile.style, crowd: db.brandProfile.crowd,
+        contact: info.contact || rb.contact, phone: info.phone || rb.phone
+      });
       save();
       return "品牌资料已保存";
+    },
+    getBrandProfile(name) {
+      db.brandProfiles = db.brandProfiles || {};
+      if (name && db.brandProfiles[name]) return db.brandProfiles[name];
+      if (name && db.brandProfile && db.brandProfile.name === name) return db.brandProfile;
+      const rb = (RR.brands || []).find(x => x.name === name);
+      if (!rb) return db.brandProfile;
+      return {
+        ...rb,
+        cats: [rb.cat].filter(Boolean),
+        styles: String(rb.style || "").split(/[/／、,，]/).map(x => x.trim()).filter(Boolean),
+        crowds: String(rb.crowd || "").split(/[/／、,，]/).map(x => x.trim()).filter(Boolean),
+        contact: rb.contact || "",
+        phone: rb.phone || ""
+      };
     },
 
     // ----- selections / orders -----
@@ -1514,20 +1550,43 @@
     addBrand(payload) {
       const name = String(payload.name || "").trim();
       if (!name) return { ok: false, msg: "请填写品牌名称" };
+      if (!String(payload.contact || "").trim()) return { ok: false, msg: "请填写联系人" };
+      if (!String(payload.phone || "").trim()) return { ok: false, msg: "请填写联系手机" };
       if ((RR.brands || []).some(b => b.name === name)) return { ok: false, msg: "该品牌已存在" };
+      const cats = payload.cats || [payload.cat || "女装"].filter(Boolean);
+      const styles = payload.styles || (payload.style ? [payload.style] : []);
+      const crowds = payload.crowds || (payload.crowd ? [payload.crowd] : []);
       RR.brands.unshift({
         name,
-        cat: payload.cat || "女装",
-        style: payload.style || "",
-        crowd: payload.crowd || "",
-        about: payload.about || `${name} 品牌介绍`
+        cat: cats[0] || "女装",
+        style: styles.join(" / "),
+        crowd: crowds.join(" / "),
+        about: payload.about || `${name} 品牌介绍`,
+        contact: payload.contact,
+        phone: payload.phone,
+        year: payload.year || 2015,
+        site: payload.site || "",
+        shipAt: payload.shipAt || "",
+        abbr: payload.abbr || "",
+        currency: payload.currency || "CNY",
+        textColor: payload.textColor || "黑色"
       });
       db.brandAudit = db.brandAudit || {};
       db.brandAudit[name] = !!payload.needAudit;
       db.brandDeposit = db.brandDeposit || {};
       db.brandDeposit[name] = Number(payload.ratio || 0.3);
+      db.brandProfiles = db.brandProfiles || {};
+      db.brandProfiles[name] = {
+        name, cats, styles, crowds,
+        cat: cats[0], style: styles.join(" / "), crowd: crowds.join(" / "),
+        about: payload.about || `${name} 品牌介绍`,
+        designer: payload.designer || "",
+        contact: payload.contact, phone: payload.phone,
+        year: payload.year || 2015, site: payload.site || "", shipAt: payload.shipAt || "",
+        abbr: payload.abbr || "", currency: payload.currency || "CNY", textColor: payload.textColor || "黑色"
+      };
       save(); syncLegacy();
-      return { ok: true, msg: `品牌「${name}」已添加`, name };
+      return { ok: true, msg: `品牌「${name}」已添加（登录手机 ${payload.phone}）`, name };
     },
     /* 预约管理：审核预约 */
     auditAppointment(index, pass, reason) {

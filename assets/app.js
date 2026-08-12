@@ -39,9 +39,12 @@
     "brand-size": "brand-list",
     "brand-pay": "brand-list",
     "brand-contract": "brand-list",
+    "brand-deposit": "brand-list",
+    "brand-audit-set": "brand-list",
     "brand-edit": "brand-list",
-    "brand-fair": "brand-list",
-    "brand-fair-new": "brand-list",
+    "brand-fair": "fair-list",
+    "brand-fair-new": "fair-list",
+    "fair-add": "fair-list",
     "brand-master-style": "brand-list",
     "brand-master-crowd": "brand-list",
     "brand-master-size": "brand-list",
@@ -149,7 +152,8 @@
     platform: {
       top: [
         { id: "brand", label: "品牌管理" },
-        { id: "goods", label: "商品管理" },
+        { id: "fair", label: "订货会管理" },
+        /* #5 平台端隐藏「商品管理」顶栏入口 */
         { id: "order", label: "订单管理" },
         { id: "ship", label: "发货管理" },
         { id: "appoint", label: "预约管理" },
@@ -163,13 +167,18 @@
           { id: "brand-add", label: "添加品牌" },
           { id: "brand-discount", label: "设置优惠规则" },
           { id: "brand-size", label: "设置尺寸别名" },
-          { id: "brand-fair-new", label: "创建新订货会" },
           { id: "brand-pay", label: "收款设置" },
           { id: "brand-contract", label: "合同设置" },
+          { id: "brand-deposit", label: "订单首付比例" },
+          { id: "brand-audit-set", label: "下单需审核买手" },
           { id: "brand-edit", label: "品牌信息编辑" },
           { id: "brand-master-style", label: "风格资料维护" },
           { id: "brand-master-crowd", label: "适用人群维护" },
           { id: "brand-master-size", label: "平台标准尺码" }
+        ],
+        fair: [
+          { id: "fair-list", label: "订货会列表" },
+          { id: "fair-add", label: "添加订货会" }
         ],
         goods: [
           { id: "goods-restock", label: "补货/隐藏商品" },
@@ -216,7 +225,7 @@
           { id: "account-center", label: "账号管理" }
         ]
       },
-      defaultPage: "goods-list"
+      defaultPage: "brand-list"
     },
     brand: {
       top: [
@@ -248,7 +257,7 @@
     else if (p === "buyer") state.page = "buyer-home";
     else if (p === "brand") state.page = "brand-discount";
     else if (p === "audit") state.page = "coverage";
-    else state.page = "goods-list";
+    else state.page = "brand-list";
     state.cartOpen = false;
     state.orderAction = "";
     render();
@@ -261,8 +270,8 @@
       Store.db.ui.restockKind = "";
       Store.persist();
     }
-    /* 原「季节控制」已并入创建订货会 */
-    if (page === "brand-fair") page = "brand-fair-new";
+    /* 原「季节控制」/品牌下订货会入口 → 订货会管理模块 */
+    if (page === "brand-fair" || page === "brand-fair-new") page = "fair-add";
     if (page === "goods-add") { state.goodsSpecs = null; state.goodsDraft = null; }
 
     if (opts.replace) {
@@ -286,6 +295,7 @@
   function topGroup(page) {
     if (page === "coverage" || page === "account-center") return "account";
     if (page.startsWith("appoint")) return "appoint";
+    if (page.startsWith("fair")) return "fair";
     if (page.startsWith("brand")) return "brand";
     if (page.startsWith("goods")) return "goods";
     if (page.startsWith("order") || page.startsWith("selection") || page.startsWith("contract") || page.startsWith("oc-")) return "order";
@@ -293,7 +303,7 @@
     if (page.startsWith("intent")) return "intent";
     if (page.startsWith("buyer-") && state.portal !== "buyer") return "buyer";
     if (page.startsWith("role")) return "role";
-    return "goods";
+    return "brand";
   }
 
   function btn(label, cls = "btn-primary", act = "") {
@@ -556,7 +566,8 @@
     // 原站：品牌列表 + 品牌设置子页均为 no-sidebars（从品牌行链接进入）
     const brandNoSide = [
       "brand-list", "brand-discount", "brand-size",
-      "brand-pay", "brand-contract", "brand-edit",
+      "brand-pay", "brand-contract", "brand-deposit", "brand-audit-set", "brand-edit",
+      "brand-add",
       "buyer-list", "ship-list"
     ];
     if (brandNoSide.includes(state.page)) return "";
@@ -940,18 +951,17 @@
   }
 
   function pageBrandList() {
-    /* 原站：edit_boduan > head item_boduan-row + edit_boduan-list > item（无左侧 mine_side、非 table） */
+    /* #2 列表去掉订货会设置；#3 首付比例/审核改为二级页链接（同合同设置） */
     const isPlatform = state.portal === "platform";
-    return `<div class="brand_goodsList-container edit_boduan">
+    return `<div class="brand_goodsList-container edit_boduan brand-list-v2">
       ${subTitle("品牌列表")}
       <div class="note">「下单需审核买手」开启后，买手须在意向品牌提交申请并由平台通过，才能查看该品牌商品并下单。</div>
       <div class="action-bar" style="margin-bottom:12px">
         ${isPlatform ? `<a href="javascript:;" class="oto_btn" data-go="brand-add">添加品牌</a>` : ""}
-        <a href="javascript:;" class="oto_btn" data-go="brand-fair-new">创建新订货会</a>
       </div>
       <div class="items head_items">
         <div class="item_boduan-row">
-          <h4>品牌名称</h4><h4>阶梯优惠规则</h4><h4>尺寸别名</h4><h4>订货会设置</h4><h4>收款设置</h4><h4>合同设置</h4><h4>订单首付比例(定金)</h4><h4>下单需审核买手</h4><h4>编辑</h4>
+          <h4>品牌名称</h4><h4>阶梯优惠规则</h4><h4>尺寸别名</h4><h4>收款设置</h4><h4>合同设置</h4><h4>订单首付比例(定金)</h4><h4>下单需审核买手</h4><h4>编辑</h4>
         </div>
       </div>
       <div class="edit_boduan-list">
@@ -963,14 +973,12 @@
             <div class="g-name"><h4>${b.name}</h4></div>
             <h4><a href="javascript:;" data-go="brand-discount" data-brand="${b.name}">设置优惠规则</a></h4>
             <h4><a href="javascript:;" data-go="brand-size" data-brand="${b.name}">设置尺寸别名</a></h4>
-            <h4><a href="javascript:;" data-go="brand-fair-new" data-brand="${b.name}">订货会设置</a></h4>
             <h4><a href="javascript:;" data-go="brand-pay" data-brand="${b.name}">收款设置</a></h4>
             <h4><a href="javascript:;" data-go="brand-contract" data-brand="${b.name}">合同设置</a></h4>
-            <h4><span class="dep-ratio" data-brand-ratio="${b.name}">${ratio}</span>
-              ${isPlatform ? `<a href="javascript:;" class="oto_btn sm" data-go="brand-pay" data-brand="${b.name}">修改</a>` : ""}</h4>
-            <h4>${isPlatform
-              ? `<a href="javascript:;" class="audit-toggle ${need ? "on" : ""}" data-act="brand-audit:${b.name}:${need ? "0" : "1"}">${need ? "需审核" : "免审核"}</a>`
-              : `<span class="badge ${need ? "" : "green"}">${need ? "需审核" : "免审核"}</span>`}</h4>
+            <h4><a href="javascript:;" data-go="brand-deposit" data-brand="${b.name}">设置首付比例</a>
+              <div class="muted-mini">${ratio}</div></h4>
+            <h4><a href="javascript:;" data-go="brand-audit-set" data-brand="${b.name}">设置审核</a>
+              <div class="muted-mini">${need ? "需审核" : "免审核"}</div></h4>
             <h4><a href="javascript:;" data-go="brand-edit" data-brand="${b.name}">编辑</a></h4>
           </div>`;
         }).join("")}
@@ -983,23 +991,104 @@
     </div>`;
   }
 
+  function brandProfileForm(mode) {
+    /* #2 添加/编辑字段一致；#3 可设首付与审核；#4 联系人/联系手机必填 */
+    const isAdd = mode === "add";
+    const name = state.selectedBrand || (RR.brands[0] && RR.brands[0].name);
+    const raw = isAdd ? {} : (Store.getBrandProfile(name) || Store.db.brandProfile || {});
+    const b = {
+      name: isAdd ? "" : (raw.name || name || ""),
+      year: raw.year || "2015",
+      cats: raw.cats || [raw.cat].filter(Boolean),
+      site: raw.site || "",
+      shipAt: raw.shipAt || "",
+      styles: raw.styles || [],
+      crowds: raw.crowds || [],
+      designer: raw.designer || "",
+      about: raw.about || "",
+      abbr: raw.abbr || "",
+      currency: raw.currency || "CNY",
+      textColor: raw.textColor || "黑色",
+      contact: raw.contact || "",
+      phone: raw.phone || ""
+    };
+    const cats = Store.db.catsMaster || ["女装", "男装", "男女装", "配饰", "生活方式"];
+    const ratio = Math.round(Store.brandDepositRatio(b.name || name) * 100) + "%";
+    const need = b.name ? Store.brandNeedAudit(b.name) : false;
+    const title = isAdd ? "添加品牌" : "店铺信息";
+    const saveAct = isAdd ? "add-brand" : "save-brand-profile";
+    return `<div class="ots_order-form ots_order-form-column brand-edit-form">
+      <h1 class="title_underline">${title}</h1>
+      <div class="note">${isAdd
+        ? "添加与编辑品牌字段一致；联系手机将作为品牌端登录账号。"
+        : "与添加品牌字段一致；可同时调整首付比例与下单审核。"}</div>
+      <div class="form_item-long"><label class="req">品牌名 *</label><div>${field("name", input("品牌名称", b.name))}</div></div>
+      <div class="form_item-long"><label class="req">联系人 *</label><div>${field("contact", input("联系人姓名", b.contact))}</div></div>
+      <div class="form_item-long"><label class="req">联系手机 *</label><div>${field("phone", `<input type="tel" placeholder="品牌端登录手机号" value="${b.phone || ""}" data-field="phone" />`)}</div></div>
+      <div class="form_item-long"><label>成立年份</label><div>${field("year", select(RR.years, null, String(b.year || "2015")))}</div></div>
+      <div class="form_item-long"><h5>品类 *</h5><div>${checkGroup("cats", cats, b.cats)}</div></div>
+      <div class="form_item-long"><label>官网</label><div>${field("site", input("官网", b.site))}</div></div>
+      <div class="form_item-long"><label>预计发货时间</label><div>${field("shipAt", input("预计发货时间", b.shipAt))}</div></div>
+      <div class="form_item-long"><h5>风格</h5><div>${checkGroup("styles", Store.db.stylesMaster || [], b.styles)}</div></div>
+      <div class="form_item-long"><h5>适用人群</h5><div>${checkGroup("crowds", Store.db.crowdsMaster || [], b.crowds)}</div></div>
+      <div class="form_item-long"><label>设计师文字介绍</label><div><textarea data-field="designer">${b.designer || ""}</textarea></div></div>
+      <div class="form_item-long"><label>品牌故事</label><div><textarea data-field="about">${b.about || ""}</textarea></div></div>
+      <div class="form_item-long"><label>品牌Logo</label><div class="upload-box"><div class="plus">+</div>Logo</div></div>
+      <div class="form_item-long"><label>LookBook</label><div class="upload-box"><div class="plus">+</div>宣传图</div></div>
+      <div class="form_item-long"><label>缩写</label><div>${field("abbr", input("缩写", b.abbr))}</div></div>
+      <div class="form_item-long"><label class="req">货币 *</label><div>${field("currency", select(["CNY", "USD", "EUR", "HKD"], null, b.currency || "CNY"))}</div></div>
+      <div class="form_item-long"><label>文字颜色</label><div>${field("textColor", select(["黑色", "白色", "品牌色"], null, b.textColor || "黑色"))}</div></div>
+      <div class="form_item-long"><label>订单首付比例(定金)</label><div>${field("nbRatio", select(RR.depositRatios, null, ratio))}</div></div>
+      <div class="form_item-long"><label>下单需审核买手</label><div><label class="check-inline"><input type="checkbox" data-field="nbAudit" ${need ? "checked" : ""} /> 开启后买手需先提交品牌申请</label></div></div>
+      <div class="submit_area">
+        <a href="javascript:;" class="oto_btn" data-act="${saveAct}">${isAdd ? "保存并加入品牌列表" : "保存"}</a>
+        <a href="javascript:;" class="oto_btn" data-go="brand-list">返回品牌列表</a>
+      </div>
+    </div>`;
+  }
+
   /* 《平台运营后台》品牌管理 · 添加品牌 */
   function pageBrandAdd() {
-    return `${subTitle("添加品牌")}
-      <div class="note">新增品牌后即出现在品牌列表，可继续设置优惠规则 / 尺寸别名 / 订货会 / 收款（含首付比例）/ 合同。</div>
-      <div class="form-section">
-        <div class="form-grid">
-          <label class="req">品牌名称 *</label><div>${field("nbName", input("品牌名称，如 ROOMROOM STUDIO"))}</div>
-          <label>品类</label><div>${field("nbCat", select(Store.db.catsMaster || ["女装", "男装", "男女装", "配饰", "生活方式"], null, "女装"))}</div>
-          <label>风格</label><div>${field("nbStyle", select((Store.db.stylesMaster || []).map(s => s.name), "请选择"))}</div>
-          <label>适用人群</label><div>${field("nbCrowd", select((Store.db.crowdsMaster || []).map(c => c.name), "请选择"))}</div>
-          <label>订单首付比例(定金)</label><div>${field("nbRatio", select(RR.depositRatios, null, "30%"))}</div>
-          <label>下单需审核买手</label><div><label class="check-inline"><input type="checkbox" data-field="nbAudit" /> 开启后买手需先提交品牌申请</label></div>
-          <label>品牌介绍</label><div>${field("nbAbout", input("品牌简介"))}</div>
+    return brandProfileForm("add");
+  }
+
+  function pageBrandDeposit() {
+    /* #3 二级页仅设首付比例，不含收款/收货信息 */
+    const brand = state.selectedBrand || RR.brands[0].name;
+    const ratio = Math.round(Store.brandDepositRatio(brand) * 100) + "%";
+    return `<div class="bank_payment-container">
+      ${subTitle("订单首付比例(定金)")}
+      <div class="note">仅设置该品牌默认定金比例；收款账户请在「收款设置」维护，本页不出现收货/公章等内容。</div>
+      <div class="form-grid" style="max-width:560px">
+        <label>品牌</label><div>${field("depBrand", select(RR.brands.map(b => b.name), null, brand))}</div>
+        <label class="req">订单首付比例(定金)</label><div>${field("depBrandRatio", select(RR.depositRatios, null, ratio))}</div>
+      </div>
+      <div class="action-bar" style="margin-top:16px">
+        ${btn("保存比例", "btn-primary", "save-brand-ratio")}
+        ${btn("返回品牌列表", "btn-outline", "go:brand-list")}
+      </div>
+    </div>`;
+  }
+
+  function pageBrandAuditSet() {
+    /* #3 二级页仅设审核开关 */
+    const brand = state.selectedBrand || RR.brands[0].name;
+    const need = Store.brandNeedAudit(brand);
+    return `<div class="bank_payment-container">
+      ${subTitle("下单需审核买手")}
+      <div class="note">开启后买手须在意向品牌提交申请并由平台通过，才能查看该品牌商品并下单。本页不出现收货设置。</div>
+      <div class="form-grid" style="max-width:560px">
+        <label>品牌</label><div>${field("auditBrand", select(RR.brands.map(b => b.name), null, brand))}</div>
+        <label>当前状态</label><div><span class="badge ${need ? "" : "green"}">${need ? "需审核" : "免审核"}</span></div>
+        <label>设置</label><div>
+          <label class="check-inline"><input type="checkbox" data-field="auditNeed" ${need ? "checked" : ""} /> 下单需审核买手</label>
         </div>
-        <div class="action-bar">${btn("保存并加入品牌列表", "btn-primary", "add-brand")}
-          ${btn("返回品牌列表", "btn-outline", "go:brand-list")}</div>
-      </div>`;
+      </div>
+      <div class="action-bar" style="margin-top:16px">
+        ${btn("保存", "btn-primary", "save-brand-audit-set")}
+        ${btn("返回品牌列表", "btn-outline", "go:brand-list")}
+      </div>
+    </div>`;
   }
 
   function pageBrandDiscount() {
@@ -1116,16 +1205,18 @@
   }
 
   function pageBrandFairNew() {
-    /* 创建订货会时设置该季「首单 / 补货」开关；原「季节控制」页已并入此处 */
+    /* #1 订货会管理·添加：选择参与品牌 */
     const list = Store.db.orderingFairs || [];
     const defaultSeason = RR.seasons[RR.seasons.length - 1];
     const curFair = Store.db.fairs[defaultSeason] || { first: true, replenish: true };
+    const brandNames = RR.brands.map(b => b.name);
     return `<div class="boduan-container fair-create-page">
-      ${subTitle("创建新订货会")}
-      <div class="note">创建时选择关联季节，并设置该季是否开放<strong>首单</strong> / <strong>补货</strong>（关闭后买手仍可见商品，但对应类型不可下单）。</div>
+      ${subTitle("添加订货会")}
+      <div class="note">创建时选择关联季节、参与品牌，并设置该季是否开放<strong>首单</strong> / <strong>补货</strong>。</div>
       <div class="form-grid">
         <label class="req">订货会名称</label><div>${field("fairName", input("例如：2028SS 订货会"))}</div>
         <label>关联季节</label><div>${field("fairSeason", select(RR.seasons, null, defaultSeason))}</div>
+        <label class="req">参与品牌</label><div class="span2">${checkGroup("fairBrands", brandNames, brandNames.slice(0, 3))}</div>
         <label>首单</label><div><label class="check-inline"><input type="checkbox" data-field="fairFirst" ${curFair.first !== false ? "checked" : ""} /> 开放该季首单下单</label></div>
         <label>补货</label><div><label class="check-inline"><input type="checkbox" data-field="fairReplenish" ${curFair.replenish !== false ? "checked" : ""} /> 开放该季补货下单</label></div>
         <label>封面/宣传图</label><div class="span2"><div class="file_area upload-box" data-act="toast:已选择宣传图（示意）"><div class="plus">+</div>上传图文封面</div></div>
@@ -1133,47 +1224,51 @@
       </div>
       <div class="action-bar" style="margin-top:16px">
         ${btn("创建订货会", "btn-primary", "create-ordering-fair")}
-        ${btn("清空", "btn-outline", "toast:已清空表单")}
+        ${btn("返回列表", "btn-outline", "go:fair-list")}
       </div>
-      <div class="sub_title" style="margin-top:32px"><h4>已创建订货会</h4></div>
+    </div>`;
+  }
+
+  function pageFairList() {
+    /* #1 订货会列表 */
+    const list = Store.db.orderingFairs || [];
+    return `<div class="boduan-container">
+      ${subTitle("订货会列表")}
+      <div class="action-bar" style="margin-bottom:12px">
+        <a href="javascript:;" class="oto_btn" data-go="fair-add">添加订货会</a>
+      </div>
       <table class="data-table">
-        <thead><tr><th>名称</th><th>季节</th><th>首单</th><th>补货</th><th>封面</th><th>介绍</th><th>创建时间</th><th>操作</th></tr></thead>
+        <thead><tr><th>名称</th><th>季节</th><th>参与品牌</th><th>首单</th><th>补货</th><th>介绍</th><th>创建时间</th><th>操作</th></tr></thead>
         <tbody>
           ${list.map(f => {
             const fair = Store.db.fairs[f.season] || { first: true, replenish: true };
+            const brands = (f.brands && f.brands.length) ? f.brands.join("、") : "全部";
             return `<tr>
             <td>${f.name}</td><td>${f.season || "—"}</td>
+            <td>${brands}</td>
             <td><span class="badge ${fair.first !== false ? "green" : "red"}">${fair.first !== false ? "开" : "关"}</span></td>
             <td><span class="badge ${fair.replenish !== false ? "green" : "red"}">${fair.replenish !== false ? "开" : "关"}</span></td>
-            <td>${f.cover ? goodsThumb("sm") : "—"}</td>
-            <td>${(f.intro || "—").slice(0, 40)}${(f.intro || "").length > 40 ? "…" : ""}</td>
+            <td>${(f.intro || "—").slice(0, 36)}${(f.intro || "").length > 36 ? "…" : ""}</td>
             <td>${f.createdAt || "—"}</td>
             <td class="ops">
               <a href="javascript:;" data-act="toggle-fair:${f.season}:first">${fair.first !== false ? "关首单" : "开首单"}</a>
               <a href="javascript:;" data-act="toggle-fair:${f.season}:replenish">${fair.replenish !== false ? "关补货" : "开补货"}</a>
             </td>
           </tr>`;
-          }).join("") || '<tr><td colspan="8">暂无订货会</td></tr>'}
+          }).join("") || '<tr><td colspan="8">暂无订货会，请先添加</td></tr>'}
         </tbody>
       </table>
     </div>`;
   }
 
   function pageBrandPay() {
-    /* 原站：bank_payment · 公司名称/收款账户名称/开户行/账号/支行/地址 + 双公章 */
+    /* 收款设置：仅银行账户/公章，首付比例改走 brand-deposit 二级页 */
     const p = Store.db.payInfo || {};
-    const brand = state.selectedBrand || RR.brands[0].name;
-    const ratio = Math.round(Store.brandDepositRatio(brand) * 100) + "%";
     return `<div class="bank_payment-container">
       <div class="bank_payment uk-width-1-1">
         ${subTitle("收款信息")}
-        <div class="note">「订单首付比例（定金）」为该品牌下单后平台设置定金的默认比例（《功能点思维导图》品牌设置 / 平台品牌管理）。</div>
+        <div class="note">本页仅维护收款账户与公章。订单首付比例请在品牌列表「设置首付比例」进入二级页配置。</div>
         <div class="items">
-          <div class="item"><h6>品牌</h6>${field("depBrand", select(RR.brands.map(b => b.name), null, brand))}</div>
-          <div class="item"><h6>订单首付比例(定金)</h6>
-            <div class="row">${field("depBrandRatio", select(RR.depositRatios, null, ratio))}
-              <a href="javascript:;" class="oto_btn" data-act="save-brand-ratio">保存比例</a></div>
-          </div>
           <div class="item"><h6>公司名称</h6>${field("company", input("请输入公司名称", p.company || p.account || ""))}</div>
           <div class="item"><h6>收款账户名称</h6>${field("account", input("请输入开户名称", p.account || ""))}</div>
           <div class="item"><h6>开户行</h6>${field("bank", input("请输入开户行", p.bank || ""))}</div>
@@ -1245,27 +1340,7 @@
   }
 
   function pageBrandEdit() {
-    /* 原站：店铺信息 · 品类/风格/人群 checkbox · 成立年份 · Logo/LookBook */
-    const b = Store.db.brandProfile || RR.brands[0];
-    const cats = Store.db.catsMaster || ["女装", "男装", "男女装", "配饰", "生活方式"];
-    return `<div class="ots_order-form ots_order-form-column brand-edit-form">
-      <h1 class="title_underline">店铺信息</h1>
-      <div class="form_item-long"><label class="req">品牌名 *</label><div>${field("name", input("品牌名称", b.name))}</div></div>
-      <div class="form_item-long"><label>成立年份</label><div>${field("year", select(RR.years, null, String(b.year || "2015")))}</div></div>
-      <div class="form_item-long"><h5>品类 *</h5><div>${checkGroup("cats", cats, b.cats || [b.cat].filter(Boolean))}</div></div>
-      <div class="form_item-long"><label>官网</label><div>${field("site", input("官网", b.site || ""))}</div></div>
-      <div class="form_item-long"><label>预计发货时间</label><div>${field("shipAt", input("预计发货时间", b.shipAt || ""))}</div></div>
-      <div class="form_item-long"><h5>风格</h5><div>${checkGroup("styles", Store.db.stylesMaster || [], b.styles || [])}</div></div>
-      <div class="form_item-long"><h5>适用人群</h5><div>${checkGroup("crowds", Store.db.crowdsMaster || [], b.crowds || [])}</div></div>
-      <div class="form_item-long"><label>设计师文字介绍</label><div><textarea data-field="designer">${b.designer || ""}</textarea></div></div>
-      <div class="form_item-long"><label>品牌故事</label><div><textarea data-field="about">${b.about || ""}</textarea></div></div>
-      <div class="form_item-long"><label>品牌Logo</label><div class="upload-box"><div class="plus">+</div>Logo</div></div>
-      <div class="form_item-long"><label>LookBook</label><div class="upload-box"><div class="plus">+</div>宣传图</div></div>
-      <div class="form_item-long"><label>缩写</label><div>${field("abbr", input("缩写", b.abbr || ""))}</div></div>
-      <div class="form_item-long"><label class="req">货币 *</label><div>${field("currency", select(["CNY", "USD", "EUR", "HKD"], null, b.currency || "CNY"))}</div></div>
-      <div class="form_item-long"><label>文字颜色</label><div>${field("textColor", select(["黑色", "白色", "品牌色"], null, b.textColor || "黑色"))}</div></div>
-      <div class="submit_area"><a href="javascript:;" class="oto_btn" data-act="save-brand-profile">保存</a></div>
-    </div>`;
+    return brandProfileForm("edit");
   }
 
   function pageMaster(kind) {
@@ -3644,13 +3719,38 @@
       }
       case "add-brand": {
         const f = readFields();
+        const cats = [...app.querySelectorAll('[data-check="cats"]:checked')].map(x => x.value);
+        const styles = [...app.querySelectorAll('[data-check="styles"]:checked')].map(x => x.value);
+        const crowds = [...app.querySelectorAll('[data-check="crowds"]:checked')].map(x => x.value);
+        if (!String(f.contact || "").trim()) { toast("请填写联系人"); break; }
+        if (!String(f.phone || "").trim()) { toast("请填写联系手机"); break; }
         const r = Store.addBrand({
-          name: f.nbName, cat: f.nbCat, style: f.nbStyle === "请选择" ? "" : f.nbStyle,
-          crowd: f.nbCrowd === "请选择" ? "" : f.nbCrowd, about: f.nbAbout,
-          needAudit: !!f.nbAudit, ratio: (Number(String(f.nbRatio).replace("%", "")) || 30) / 100
+          name: f.name,
+          cat: cats[0] || "女装",
+          cats, styles, crowds,
+          year: Number(f.year || 0),
+          site: f.site || "",
+          shipAt: f.shipAt || "",
+          designer: f.designer || "",
+          about: f.about || "",
+          abbr: f.abbr || "",
+          currency: f.currency || "CNY",
+          textColor: f.textColor || "黑色",
+          contact: f.contact,
+          phone: f.phone,
+          needAudit: !!f.nbAudit,
+          ratio: (Number(String(f.nbRatio).replace("%", "")) || 30) / 100
         });
         toast(r.msg);
         if (r.ok) go("brand-list");
+        break;
+      }
+      case "save-brand-audit-set": {
+        const f = readFields();
+        const brand = f.auditBrand || state.selectedBrand;
+        state.selectedBrand = brand;
+        toast(Store.setBrandAudit(brand, !!f.auditNeed));
+        render();
         break;
       }
       case "save-brand-ratio": {
@@ -3966,9 +4066,16 @@
         const cats = [...app.querySelectorAll('[data-check="cats"]:checked')].map(x => x.value);
         const styles = [...app.querySelectorAll('[data-check="styles"]:checked')].map(x => x.value);
         const crowds = [...app.querySelectorAll('[data-check="crowds"]:checked')].map(x => x.value);
+        if (!String(f.contact || "").trim()) { toast("请填写联系人"); break; }
+        if (!String(f.phone || "").trim()) { toast("请填写联系手机"); break; }
         toast(Store.saveBrandProfile({
           name: f.name, year: Number(f.year || 0), designer: f.designer || "", about: f.about || "",
-          cats, styles, crowds
+          site: f.site || "", shipAt: f.shipAt || "", abbr: f.abbr || "",
+          currency: f.currency || "CNY", textColor: f.textColor || "黑色",
+          contact: f.contact, phone: f.phone,
+          cats, styles, crowds,
+          needAudit: !!f.nbAudit,
+          ratio: (Number(String(f.nbRatio).replace("%", "")) || 30) / 100
         }));
         render();
         break;
@@ -4073,16 +4180,19 @@
       }
       case "create-ordering-fair": {
         const f = readFields();
+        const brands = [...app.querySelectorAll('[data-check="fairBrands"]:checked')].map(x => x.value);
+        if (!brands.length) { toast("请至少选择一个参与品牌"); break; }
         const r = Store.createOrderingFair({
           name: f.fairName,
           season: f.fairSeason,
           intro: f.fairIntro,
           cover: true,
           first: !!f.fairFirst,
-          replenish: !!f.fairReplenish
+          replenish: !!f.fairReplenish,
+          brands
         });
         toast(r.msg || r);
-        if (r.ok) render();
+        if (r.ok) go("fair-list");
         break;
       }
       case "add-address": {
@@ -4683,8 +4793,12 @@
     "brand-size": pageBrandSize,
     "brand-fair": pageBrandFair,
     "brand-fair-new": pageBrandFairNew,
+    "fair-list": pageFairList,
+    "fair-add": pageBrandFairNew,
     "brand-pay": pageBrandPay,
     "brand-contract": pageBrandContract,
+    "brand-deposit": pageBrandDeposit,
+    "brand-audit-set": pageBrandAuditSet,
     "brand-edit": pageBrandEdit,
     "brand-master-style": () => pageMaster("styles"),
     "brand-master-crowd": () => pageMaster("crowds"),
