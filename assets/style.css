@@ -967,7 +967,16 @@ header.oto-nav.buyer-oto-nav .nav-container {
 }
 header.oto-nav.buyer-oto-nav .logo_area a {
   color: #fff; font-weight: 700; letter-spacing: 0.12em; font-size: 18px;
+  display: inline-flex; align-items: center; gap: 8px;
 }
+/* #24 小程序标识 */
+header.oto-nav.buyer-oto-nav .mp-tag {
+  display: inline-block; font-weight: 500; letter-spacing: 0;
+  font-size: 11px; line-height: 1; padding: 3px 6px;
+  border: 1px solid rgba(255,255,255,0.45); border-radius: 2px;
+  color: #fff; opacity: 0.9;
+}
+.ots_order-outer-container.mp-shell { min-height: calc(100vh - 96px); }
 header.oto-nav.buyer-oto-nav .nav_menu {
   display: flex; list-style: none; margin: 0; padding: 0; gap: 0; flex: 1;
 }

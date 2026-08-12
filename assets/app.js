@@ -258,7 +258,7 @@
     state.portal = p;
     localStorage.setItem("rr_portal", p);
     state.navStack = [];
-    if (p === "mp") state.page = "mp-home";
+    if (p === "mp") state.page = "buyer-home";
     else if (p === "buyer") state.page = "buyer-home";
     else if (p === "brand") state.page = "brand-list";
     else if (p === "audit") state.page = "coverage";
@@ -497,7 +497,8 @@
       ["platform", "平台端"],
       ["brand", "品牌端"],
       ["buyer", "买手端"],
-      ["mp", "预约小程序"]
+      /* #24 预约小程序 → 小程序（内容与买手端一致） */
+      ["mp", "小程序"]
     ];
     return `<div class="proto-bar">
       <strong>ROOMROOM 原型确认</strong>
@@ -512,19 +513,19 @@
   }
 
   function topnav(portal) {
-    if (portal === "buyer") {
-      /* 原站：header.oto-nav > nav-container > logo_area + ul.nav_menu + login_area(铃铛/人) */
+    if (portal === "buyer" || portal === "mp") {
+      /* #22 预约申请挪到补货后边；#24 小程序顶栏与买手端一致 */
       const items = [
         ["buyer-home", "品牌", state.page === "buyer-home" || state.page.startsWith("buyer-brand") || state.page === "buyer-detail"],
         ["buyer-replenish", "补货", state.page === "buyer-replenish"],
+        ["buyer-appoint-apply", "预约申请", state.page === "buyer-appoint-apply"],
         ["buyer-selection", "我的选款单", state.page.startsWith("buyer-selection")],
         ["buyer-orders", "我的订单", state.page.startsWith("buyer-order")],
-        ["buyer-intent", "意向品牌", state.page === "buyer-intent"],
-        ["buyer-appoint-apply", "预约申请", state.page === "buyer-appoint-apply"]
+        ["buyer-intent", "意向品牌", state.page === "buyer-intent"]
       ];
       return `<header class="oto-nav buyer-oto-nav" id="navTop">
         <div class="oto_container nav-container">
-          <div class="logo_area"><a href="javascript:;" data-go="buyer-home">ROOMROOM</a></div>
+          <div class="logo_area"><a href="javascript:;" data-go="buyer-home">ROOMROOM${portal === "mp" ? `<span class="mp-tag">小程序</span>` : ""}</a></div>
           <ul class="nav_menu">
             ${items.map(([id, lab, on]) => `<li class="${on ? "active" : ""}"><a href="javascript:;" data-go="${id}">${lab}</a></li>`).join("")}
           </ul>
@@ -555,7 +556,7 @@
       account: "account-list",
       role: "account-list"
     };
-    /* #17 顶栏合并为账号权限，右侧不再单独放账户中心 */
+    /* #17 平台账号权限；#21 品牌端去掉账户中心/账号权限入口 */
     return `<nav class="topnav ots_order-nav" id="ots_order-nav"><div class="topnav-inner ots_order-width nav-bar">
       <a class="logo" href="javascript:;" data-go="${cfg.defaultPage}">ROOMROOM</a>
       <ul class="nav-links uk-navbar-nav">${cfg.top.map(t =>
@@ -565,7 +566,7 @@
         <span class="avatar">管</span>
         ${state.portal === "platform"
           ? `<a class="uk-button" href="javascript:;" data-go="account-list">账号权限</a>`
-          : `<a class="uk-button" href="javascript:;" data-go="brand-edit">品牌资料</a>`}
+          : ""}
       </div>
     </div></nav>`;
   }
@@ -4298,9 +4299,6 @@
         render();
         break;
       }
-      case "add-substore":
-        toast("已新增子店铺草稿");
-        break;
       case "add-account": {
         const f = readFields();
         if (!String(f.accPhone || "").trim()) { toast("请填写手机号"); break; }
@@ -4330,10 +4328,15 @@
         render();
         break;
       }
-      case "add-substore": {
+      case "add-substore":
+      case "add-buyer-substore": {
         const f = readFields();
         const r = Store.addSubstore(f.subName, f.subCity);
         toast(r.msg);
+        if (r.ok) {
+          Store.db.ui.buyerMineTab = "sub";
+          Store.persist();
+        }
         render();
         break;
       }
@@ -4622,14 +4625,22 @@
   }
 
   function pageBuyerProfile() {
-    /* Excel #20：个人中心 · 账号 / 发票 / 地址 */
+    /* #23 补余额查看（按品牌）+ 子店铺管理 */
     const s = Store.db.buyerSession;
     const tab = Store.db.ui.buyerMineTab || "info";
+    const buyer = Store.db.buyers.find(b => b.name === s.store || b.phone === s.phone) || {};
+    const balances = buyer.balances || s.balances || {};
+    const balRows = Object.keys(balances).length
+      ? Object.keys(balances).map(brand => ({ brand, amount: balances[brand] }))
+      : RR.brands.slice(0, 5).map((b, i) => ({ brand: b.name, amount: i === 0 ? 2480 : 0 }));
+    const substores = s.substores || buyer.substores || [];
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container mine-container content-page">
         <div class="public_left-container">
           <ul class="mine_side">
             <li class="${tab === "info" ? "active" : ""}"><a href="javascript:;" data-act="buyer-mine-tab:info">个人信息</a></li>
+            <li class="${tab === "balance" ? "active" : ""}"><a href="javascript:;" data-act="buyer-mine-tab:balance">余额查看</a></li>
+            <li class="${tab === "sub" ? "active" : ""}"><a href="javascript:;" data-act="buyer-mine-tab:sub">子店铺管理</a></li>
             <li class="${tab === "addr" ? "active" : ""}"><a href="javascript:;" data-act="buyer-mine-tab:addr">收货地址管理</a></li>
             <li class="${tab === "inv" ? "active" : ""}"><a href="javascript:;" data-act="buyer-mine-tab:inv">发票地址管理</a></li>
           </ul>
@@ -4654,6 +4665,31 @@
                 </div>
                 <div style="margin-top:16px">${btn("保存资料", "btn-primary", "save-buyer-profile")}</div>
               </div>` : ""}
+            ${tab === "balance" ? `
+              <div class="sub_title">余额查看</div>
+              <div class="note">显示本买手在各品牌下的可用余额（发货差额 / 多付款转入等）。</div>
+              <table class="data-table">
+                <thead><tr><th>品牌</th><th>可用余额（元）</th></tr></thead>
+                <tbody>${balRows.map(r => `<tr>
+                  <td>${r.brand}</td>
+                  <td>¥${Store.money(r.amount)}</td>
+                </tr>`).join("")}</tbody>
+              </table>` : ""}
+            ${tab === "sub" ? `
+              <div class="sub_title">子店铺管理</div>
+              <div class="note">管理本账号下的子店铺，用于订单分配。</div>
+              <table class="data-table">
+                <thead><tr><th>子店铺</th><th>城市</th><th>操作</th></tr></thead>
+                <tbody>${(substores.length ? substores : []).map((x, i) => `<tr>
+                  <td>${x.name}</td><td>${x.city || "—"}</td>
+                  <td class="ops"><a href="javascript:;" data-act="edit-substore:${i}">编辑</a></td>
+                </tr>`).join("") || '<tr><td colspan="3">暂无子店铺</td></tr>'}</tbody>
+              </table>
+              <div class="form-grid" style="margin-top:16px">
+                <label>子店铺名</label><div>${field("subName", input("子店铺名称"))}</div>
+                <label>城市</label><div>${field("subCity", input("城市"))}</div>
+              </div>
+              <div style="margin-top:12px">${btn("新建子店铺", "btn-primary", "add-buyer-substore")}</div>` : ""}
             ${tab === "addr" ? `
               <div class="sub_title">收货地址管理</div>
               <table class="data-table">
@@ -4999,15 +5035,15 @@
   };
 
   function render() {
-    /* 登录 / 注册 / 审核进度：独立全屏页（无端口壳） */
+    if (state.portal === "mp" && !["coverage", "flow-map", "login", "register", "register-status"].includes(state.page)) {
+      /* #24 小程序原型：内容与买手端一致 */
+      if (!String(state.page || "").startsWith("buyer-") && state.page !== "buyer-home") {
+        state.page = "buyer-home";
+      }
+    }
     if (["login", "register", "register-status"].includes(state.page)) {
       const authBody = withPageBack(pages[state.page]());
       app.innerHTML = toastHtml() + authBody;
-      bind();
-      return;
-    }
-    if (state.portal === "mp" && !["coverage", "flow-map"].includes(state.page)) {
-      app.innerHTML = toastHtml() + pageMP();
       bind();
       return;
     }
@@ -5018,21 +5054,21 @@
       return;
     }
 
-    const isBuyer = state.portal === "buyer";
+    const isBuyer = state.portal === "buyer" || state.portal === "mp";
     let body = withPageBack((pages[state.page] || pageGoodsList)());
     /* 统一包一层现网右侧容器 class（已自带 brand_goodsList-container 的不重复包） */
     if (!isBuyer && !/brand_goodsList-container|ots_order-form|title_underline|buyer-layout/.test(body)) {
       body = `<div class="brand_goodsList-container">${body}</div>`;
     }
     const drawer = (isBuyer && state.cartOpen) ? cartDrawer() : "";
-    /* 买手端页面自带 oto-main_container（对齐原站），勿再包 order-container 壳 */
+    /* 买手端/小程序页面自带 oto-main_container（对齐原站），勿再包 order-container 壳 */
     if (isBuyer) {
       const selfShell = /oto-main_container|buyer-fe/.test(body);
       if (!selfShell) {
         body = `<div class="oto-main_container buyer-fe"><div class="oto_container order-container"><div class="public_right-container main">${body}</div></div></div>`;
       }
-      app.innerHTML = toastHtml() + protoBar() + topnav("buyer") +
-        `<div class="ots_order-outer-container">${body}</div>` + footer() + drawer;
+      app.innerHTML = toastHtml() + protoBar() + topnav(state.portal === "mp" ? "mp" : "buyer") +
+        `<div class="ots_order-outer-container${state.portal === "mp" ? " mp-shell" : ""}">${body}</div>` + footer() + drawer;
     } else {
       const side = sidebar();
       app.innerHTML = toastHtml() + protoBar() + topnav(state.portal) +
