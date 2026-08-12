@@ -228,7 +228,12 @@
       })),
       intentions: clone(SEED.intentions),
       /* 预约管理：预约需平台/品牌审核后才算参会名额 */
-      appointments: clone(SEED.appointments).map((a, i) => ({ ...a, status: a.status || (i % 3 === 0 ? "待审核" : "已通过"), reason: "" })),
+      appointments: clone(SEED.appointments).map((a, i) => ({
+        ...a,
+        people: a.people || (i % 2 === 0 ? 2 : 1),
+        status: a.status === "待审核" ? "已预约" : (a.status || (i % 3 === 0 ? "已预约" : "已通过")),
+        reason: ""
+      })),
       contracts: [
         { id: "CT-2026SS-088", orderId: "ORD-20260319-088", brand: "JUNLI", season: "2026SS", status: "已生成" },
         { id: "CT-2026SS-102", orderId: "ORD-20260320-102", brand: "HAIZHEN WANG", season: "2026SS", status: "待生成" },
@@ -1626,13 +1631,14 @@
     },
     addAppointment(payload) {
       const at = new Date().toISOString().slice(0, 16).replace("T", " ");
+      /* #9 预约列表不再审核，提交即生效 */
       db.appointments.unshift({
         brand: payload.brand, store: payload.store, contact: payload.contact,
         phone: payload.phone, date: payload.date, season: payload.season || "2026SS",
-        people: Number(payload.people) || 1, submitAt: at, status: "待审核", reason: ""
+        people: Number(payload.people) || 1, submitAt: at, status: "已预约", reason: ""
       });
       save(); syncLegacy();
-      return "预约已提交，等待平台/品牌审核";
+      return "预约已保存";
     },
     /* 买手端「预约申请」：申请线下参加订货会 */
     buyerAppointments() {

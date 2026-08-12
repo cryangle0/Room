@@ -155,7 +155,7 @@
         { id: "fair", label: "订货会管理" },
         /* #5 平台端隐藏「商品管理」顶栏入口 */
         { id: "order", label: "订单管理" },
-        { id: "ship", label: "发货管理" },
+        /* #8 平台端隐藏「发货管理」 */
         { id: "appoint", label: "预约管理" },
         { id: "intent", label: "意向审核" },
         { id: "buyer", label: "买手管理" },
@@ -183,6 +183,7 @@
         goods: [
           { id: "goods-restock", label: "补货/隐藏商品" },
           { id: "goods-look", label: "LOOK列表" },
+          { id: "goods-cat", label: "商品分类" },
           { id: "goods-add", label: "添加新商品" },
           { id: "goods-batch", label: "批量添加新商品" },
           { id: "goods-list", label: "商品信息管理" }
@@ -201,9 +202,9 @@
           { id: "order-kingdee", label: "金蝶同步" }
         ],
         ship: [{ id: "ship-list", label: "发货管理" }],
+        /* #9 预约列表不需要审核入口 */
         appoint: [
-          { id: "appoint-list", label: "预约列表" },
-          { id: "appoint-audit", label: "审核预约" }
+          { id: "appoint-list", label: "预约列表" }
         ],
         intent: [{ id: "intent-list", label: "意向管理" }],
         buyer: [
@@ -232,7 +233,7 @@
         { id: "brand", label: "品牌设置" },
         { id: "goods", label: "商品管理" },
         { id: "order", label: "订单管理" },
-        { id: "ship", label: "发货管理" },
+        /* #8 品牌端同步隐藏发货 */
         { id: "intent", label: "意向审核" }
       ],
       defaultPage: "brand-discount"
@@ -593,7 +594,8 @@
         items = items.filter(i => !["order-recon", "order-appoint"].includes(i.id));
       }
       if (group === "goods") {
-        items = items.filter(i => !["goods-cat", "goods-look"].includes(i.id));
+        /* #7 保留商品分类；LOOK 仍可隐藏 */
+        items = items.filter(i => i.id !== "goods-look");
       }
     }
     if (!items.length) return "";
@@ -779,12 +781,13 @@
   /* 《功能点思维导图》添加新商品：编号可重复 / 支持多规格 / skc编号 */
   function goodsSpecRows() {
     const sizes = Store.db.standardSizes || ["XS", "S", "M", "L", "XL"];
-    const specs = state.goodsSpecs && state.goodsSpecs.length ? state.goodsSpecs : [{ color: "黑色", skc: "", sizes: ["S", "M", "L"] }];
+    const specs = state.goodsSpecs && state.goodsSpecs.length ? state.goodsSpecs : [{ color: "", skc: "", sizes: ["S", "M", "L"] }];
     state.goodsSpecs = specs;
+    /* #6 颜色改为手填，不再用固定色下拉 */
     return `<div class="spec-list">
       ${specs.map((sp, i) => `<div class="spec-row" data-spec="${i}">
         <div class="spec-idx">规格 ${i + 1}</div>
-        <div class="spec-f spec-color"><label>颜色</label>${field("specColor-" + i, select(RR.colors, "请选择", sp.color || "请选择"))}</div>
+        <div class="spec-f spec-color"><label>颜色</label>${field("specColor-" + i, input("手填颜色，如 黑色 / 酒红", sp.color || ""))}</div>
         <div class="spec-f spec-skc"><label>SKC 编号</label>${field("specSkc-" + i, input("留空自动生成，如 JL26SS001-01", sp.skc || ""))}</div>
         <div class="spec-f spec-sizes"><label>尺寸</label>${checkGroup("specSizes-" + i, sizes, sp.sizes && sp.sizes.length ? sp.sizes : ["S", "M", "L"])}</div>
         <div class="spec-ops">${specs.length > 1 ? `<a href="javascript:;" class="oto_btn sm" data-act="del-spec:${i}">删除</a>` : ""}</div>
@@ -797,8 +800,15 @@
     /* 原站：sub_title「修改商品信息」；波段=text；季节/色/尺码/品类=select；Carry=checkbox；发货时间=text 控件（原型用 date） */
     const d = state.goodsDraft || {};
     const dv = (k, fallback) => (d[k] === undefined || d[k] === "" ? fallback : d[k]);
+    /* #7 二层商品分类：一级 → 二级联动 */
+    const cats = Store.db.categories || [];
+    const catNames = cats.map(c => c.name);
+    const catName = dv("cat", catNames[0] || "女装");
+    const catObj = cats.find(c => c.name === catName) || cats[0] || { children: [] };
+    const subOptions = (catObj.children && catObj.children.length) ? catObj.children : ["未分类"];
+    const subName = subOptions.includes(dv("subcat", "")) ? dv("subcat", subOptions[0]) : subOptions[0];
     return `${subTitle("添加新商品")}
-      <div class="note">商品编号（款号）<strong>允许重复</strong>；每个「款 + 色」为一条 <strong>SKC</strong>，SKC 编号在平台内唯一，留空按「编号-序号」自动生成。</div>
+      <div class="note">商品编号（款号）<strong>允许重复</strong>；每个「款 + 色」为一条 <strong>SKC</strong>，SKC 编号在平台内唯一，留空按「编号-序号」自动生成。颜色请<strong>手填</strong>；品类为二层分类。</div>
       <div class="ots_order-form ots_order-form-column goods-add-form">
         <div class="form_item-long"><label class="req">所属品牌 *</label><div>${field("brand", select(RR.brands.map(b => b.name), "选择品牌", dv("brand", "JUNLI")))}</div></div>
         <div class="form_item-long"><label class="req">款式名称 *</label><div>${field("title", input("款式名称", dv("title", "")))}</div></div>
@@ -810,8 +820,8 @@
         <div class="form_item-long"><label>可补货</label><div><label class="check-inline"><input type="checkbox" data-field="restock" checked /></label></div></div>
         <div class="form_item-long"><label class="req">规格（颜色 + SKC 编号 + 尺寸）*</label><div>${goodsSpecRows()}</div></div>
         <div class="form_item-long"><label>面料/材质</label><div>${field("fabric", input("", dv("fabric", "")))}</div></div>
-        <div class="form_item-long"><label class="req">品类 *</label><div>${field("cat", select(["女装", "男装", "男女装", "配饰", "生活方式"], null, dv("cat", "女装")))}</div></div>
-        <div class="form_item-long"><label>二级品类</label><div>${field("subcat", select(["外套", "连衣裙", "裤装", "裙装"], null, dv("subcat", "外套")))}</div></div>
+        <div class="form_item-long"><label class="req">一级分类 *</label><div>${field("cat", `<select data-act-change="goods-cat-change">${catNames.map(n => `<option value="${n}" ${n === catName ? "selected" : ""}>${n}</option>`).join("")}</select>`)}</div></div>
+        <div class="form_item-long"><label class="req">二级分类 *</label><div>${field("subcat", select(subOptions, null, subName))}</div></div>
         <div class="form_item-long"><label class="req">建议零售价 *</label><div>${field("retail", input("CNY", dv("retail", "3000")))}</div></div>
         <div class="form_item-long"><label class="req">订货价 *</label><div>${field("wholesale", input("CNY", dv("wholesale", "1350")))}</div></div>
         <div class="form_item-long"><label>最小起订量</label><div>${field("moq", input("件", dv("moq", "1")))}</div></div>
@@ -935,20 +945,21 @@
   }
 
   function pageGoodsCat() {
+    /* #7 二层商品分类维护 */
     return `${subTitle("商品分类")}
-      <div class="note">平台端：设置商品分类，用于商品资料与买手端筛选</div>
+      <div class="note">商品分类为<strong>二层</strong>：一级分类下挂二级；添加商品时关联一级 + 二级。</div>
       <table class="data-table">
         <thead><tr><th>一级分类</th><th>二级分类</th><th>商品数</th><th>操作</th></tr></thead>
         <tbody>
           ${Store.db.categories.map(c => `<tr>
             <td>${c.name}</td>
-            <td>${c.children.join(" / ")}</td>
+            <td>${(c.children || []).join(" / ") || "—"}</td>
             <td>${c.count}</td>
-            <td>${link("编辑", "edit-category:" + c.name)}</td>
+            <td class="ops"><a href="javascript:;" data-act="edit-category:${c.name}">编辑二级</a></td>
           </tr>`).join("")}
         </tbody>
       </table>
-      <div style="margin-top:16px">${btn("新增分类")}</div>`;
+      <div style="margin-top:16px">${btn("新增分类", "btn-outline", "add-category")}</div>`;
   }
 
   function pageBrandList() {
@@ -1972,7 +1983,7 @@
   }
 
   function pageOrderAppoint() {
-    /* 原站：预约列表 · 选择品牌 select + 店铺名 text · 表头含预约日期/时间/人数/手机/提交/签到 */
+    /* #9 列表不需要审核、去掉下载；#10 保留人数列 */
     return `<div class="brand_goodsList-container">
       ${subTitle("预约列表")}
       ${filterPanel([
@@ -1981,17 +1992,15 @@
       ], "", "筛选", "filter")}
       <table class="data-table">
         <thead><tr>
-          <th>品牌</th><th>店铺名</th><th>预约日期</th><th>预约时间</th><th>人数</th><th>手机号</th><th>提交时间</th><th>签到时间</th><th>操作</th>
+          <th>品牌</th><th>店铺名</th><th>预约日期</th><th>预约时间</th><th>人数</th><th>手机号</th><th>提交时间</th><th>签到时间</th><th>状态</th>
         </tr></thead>
-        <tbody>${Store.db.appointments.map((a, i) => `<tr>
+        <tbody>${Store.db.appointments.map((a) => `<tr>
           <td>${a.brand}</td><td>${a.store}</td><td>${(a.date || "").split(" ")[0] || a.date}</td>
           <td>${a.time || (a.date || "").split(" ")[1] || "—"}</td>
           <td>${a.people || 1}</td><td>${a.phone}</td>
           <td>${a.submitAt || a.date || "—"}</td><td>${a.checkin || "—"}</td>
-          <td><span class="badge ${a.status === "已通过" ? "green" : a.status === "已拒绝" ? "red" : ""}">${a.status || "待审核"}</span></td>
-          <td class="ops"><a href="javascript:;" data-act="download:预约记录">下载</a>
-            ${a.status === "待审核" ? `<a href="javascript:;" data-go="appoint-audit">去审核</a>` : ""}</td>
-        </tr>`).join("") || '<tr><td colspan="10">暂无预约</td></tr>'}</tbody>
+          <td><span class="badge ${a.status === "已通过" || a.status === "已预约" ? "green" : a.status === "已拒绝" ? "red" : ""}">${a.status || "已预约"}</span></td>
+        </tr>`).join("") || '<tr><td colspan="9">暂无预约</td></tr>'}</tbody>
       </table>
     </div>`;
   }
@@ -2037,7 +2046,7 @@
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container content-page">
         ${subTitle("预约申请 · 线下参加订货会")}
-        <div class="note">提交后由平台/品牌在「预约管理 · 审核预约」处理，通过后即可到场看款。</div>
+        <div class="note">提交后直接计入预约列表（无需审核），可到场看款。</div>
         <div class="form-section intent-apply">
           <div class="form-grid">
             <label>订货会</label><div>${field("apFair", select(fairs.map(f => `${f.name}（${f.season}）`), "请选择订货会"))}</div>
@@ -2054,7 +2063,7 @@
           <tbody>${mine.map(a => `<tr>
             <td>${a.season || "—"} · ${a.brand}</td><td>${a.date || "—"}</td><td>${a.people || 1}</td>
             <td><span class="badge ${a.status === "已通过" ? "green" : a.status === "已拒绝" ? "red" : ""}">${a.status || "待审核"}</span></td>
-            <td>${a.reason || (a.status === "已通过" ? "可到场看款" : "等待审核")}</td>
+            <td>${a.reason || (a.status === "已拒绝" ? "" : "可到场看款")}</td>
           </tr>`).join("") || '<tr><td colspan="5">暂无预约记录</td></tr>'}</tbody>
         </table>
       </div>
@@ -3949,14 +3958,13 @@
           const i = row.getAttribute("data-spec");
           const color = f["specColor-" + i];
           return {
-            color: color === "请选择" ? "" : color,
+            color: color === "请选择" ? "" : (color || ""),
             skc: f["specSkc-" + i] || "",
             sizes: [...row.querySelectorAll(`[data-check="specSizes-${i}"]:checked`)].map(x => x.value)
           };
         });
-        const used = cur.map(s => s.color);
-        const next = (RR.colors || []).find(c => !used.includes(c)) || "";
-        state.goodsSpecs = [...cur, { color: next, skc: "", sizes: ["S", "M", "L"] }];
+        /* #6 新手填规格，颜色默认空 */
+        state.goodsSpecs = [...cur, { color: "", skc: "", sizes: ["S", "M", "L"] }];
         state.goodsDraft = f;
         render();
         break;
@@ -4310,6 +4318,22 @@
         if (page === "order-recon" && state.reconTab === "rate") { handleAct("save-recon-rate", el); break; }
         if (page === "order-recon" && state.reconTab === "payinfo") { handleAct("save-recon-pay", el); break; }
         if (page === "contract-preview") { handleAct("create-contract", el); break; }
+        if (page === "buyer-appoint") {
+          const f = readFields();
+          const buyer = Store.db.buyers[0] || {};
+          const date = String(f.mpDate || "").replace("T", " ");
+          toast(Store.addAppointment({
+            brand: f.mpBrand,
+            store: buyer.name || "代约店铺",
+            contact: buyer.contact || buyer.name || "联系人",
+            phone: buyer.phone || "13800000000",
+            date,
+            season: f.mpSeason,
+            people: f.mpPeople
+          }));
+          render();
+          break;
+        }
         if (page === "buyer-balance") {
           const row = el && el.closest("tr");
           if (row) {
@@ -4853,7 +4877,8 @@
     "buyer-appoint": () => simpleFormPage("添加预约", "代买手创建展会预约", `
       <label>品牌</label><div>${field("mpBrand", select(RR.brands.map(b => b.name)))}</div>
       <label>季节</label><div>${field("mpSeason", select(RR.seasons.slice(-8), null, "2026SS"))}</div>
-      <label>时间</label><div>${field("mpDate", datetimeInput("2026-04-08T14:00"))}</div>`),
+      <label>时间</label><div>${field("mpDate", datetimeInput("2026-04-08T14:00"))}</div>
+      <label>人数 *</label><div>${field("mpPeople", input("到场人数", "1"))}</div>`),
     "role-list": pageRoleList,
     "role-perm": pageRolePerm,
     "buyer-home": pageBuyerHome,
@@ -4990,7 +5015,7 @@
         }
         state.portal = state.roleLogin;
         localStorage.setItem("rr_portal", state.portal);
-        state.page = state.portal === "buyer" ? "buyer-home" : state.portal === "brand" ? "brand-discount" : "goods-list";
+        state.page = state.portal === "buyer" ? "buyer-home" : state.portal === "brand" ? "brand-discount" : "brand-list";
         render();
       });
     }
@@ -5132,12 +5157,35 @@
       }
     });
 
+    /* #7 一级分类切换时刷新二级选项 */
+    app.querySelectorAll('[data-act-change="goods-cat-change"]').forEach(sel => {
+      if (sel.dataset.wiredCat) return;
+      sel.dataset.wiredCat = "1";
+      sel.addEventListener("change", () => {
+        const f = readFields();
+        const cat = Store.db.categories.find(c => c.name === f.cat);
+        const kids = (cat && cat.children) || [];
+        f.subcat = kids[0] || "";
+        state.goodsDraft = f;
+        const specs = [...app.querySelectorAll("[data-spec]")].map(row => {
+          const i = row.getAttribute("data-spec");
+          return {
+            color: f["specColor-" + i] || "",
+            skc: f["specSkc-" + i] || "",
+            sizes: [...row.querySelectorAll(`[data-check="specSizes-${i}"]:checked`)].map(x => x.value)
+          };
+        });
+        if (specs.length) state.goodsSpecs = specs;
+        render();
+      });
+    });
+
     wireUniversalClicks();
   }
 
   // boot
   if (location.hash === "#app") {
-    state.page = state.portal === "buyer" ? "buyer-home" : "goods-list";
+    state.page = state.portal === "buyer" ? "buyer-home" : state.portal === "brand" ? "brand-discount" : "brand-list";
   } else {
     state.page = "login";
   }
