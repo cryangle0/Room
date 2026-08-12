@@ -1167,15 +1167,15 @@
         if (platform) wait("等待买手上传支付凭证");
         else A.push({ act: "open-order-panel:pay-deposit", label: "上传付款凭证", primary: true });
       } else if (st === ORDER_ST.depositCheck) {
+        /* #15：待平台确认定金 — 先确认定金；确认后才可生成 OC */
         if (platform) {
           A.push({ act: "open-order-panel:check", label: "确认定金凭证", primary: true });
-          A.push({ act: "gen-oc", label: "生成 OC" });
         } else wait("等待平台确认定金");
       } else if (st === ORDER_ST.finalPay) {
         if (platform) {
           A.push({ act: "open-order-panel:check", label: "确认尾款凭证" });
-          A.push({ act: "gen-oc", label: "生成 OC" });
-          A.push({ act: "settle-order", label: "订单完成", primary: true });
+          A.push({ act: "gen-oc", label: "生成 OC", primary: !o.ocId });
+          A.push({ act: "settle-order", label: "订单完成", primary: !!o.ocId });
         } else A.push({ act: "open-order-panel:pay-final", label: "上传尾款凭证", primary: true });
       } else if (st === ORDER_ST.rejected) {
         if (platform) A.push({ act: "platform-confirm-order", label: "恢复为待确认" });
@@ -1332,11 +1332,11 @@
         Store.pushBuyerMessage(pass ? `${p.kind}已确认` : `${p.kind}凭证需重新上传`,
           `订单 ${o.id}：${pass ? `${p.kind} ¥${p.amount} 已确认通过` : p.note}`);
       } else if (act === "genOc") {
-        if (![ORDER_ST.depositCheck, ORDER_ST.finalPay].includes(st)) return { ok: false, msg: `当前状态「${st}」不可生成 OC` };
+        /* #15：确认定金（进入待买手上传尾款）后才可生成 OC */
+        if (st !== ORDER_ST.finalPay) return { ok: false, msg: `请先确认定金后再生成 OC（当前「${st}」）` };
         const oc = Store.createOc(o.id);
         o.ocId = oc.id || o.ocId;
         o.contractUploaded = true;
-        if (st === ORDER_ST.depositCheck) o.status = ORDER_ST.finalPay;
         log(`平台生成 OC ${o.ocId}（可下载）`);
         Store.pushBuyerMessage("OC 已生成", `订单 ${o.id} 的 OC 已生成，请支付尾款。`);
       } else if (act === "finalPass") {

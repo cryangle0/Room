@@ -1076,40 +1076,48 @@
   }
 
   function pageBrandDeposit() {
-    /* #3 二级页仅设首付比例，不含收款/收货信息 */
+    /* #3 二级页样式对齐合同设置；仅设首付比例，无收货/收款 */
     const brand = state.selectedBrand || RR.brands[0].name;
     const ratio = Math.round(Store.brandDepositRatio(brand) * 100) + "%";
-    return `<div class="bank_payment-container">
-      ${subTitle("订单首付比例(定金)")}
-      <div class="note">仅设置该品牌默认定金比例；收款账户请在「收款设置」维护，本页不出现收货/公章等内容。</div>
-      <div class="form-grid" style="max-width:560px">
-        <label>品牌</label><div>${field("depBrand", select(RR.brands.map(b => b.name), null, brand))}</div>
-        <label class="req">订单首付比例(定金)</label><div>${field("depBrandRatio", select(RR.depositRatios, null, ratio))}</div>
-      </div>
-      <div class="action-bar" style="margin-top:16px">
-        ${btn("保存比例", "btn-primary", "save-brand-ratio")}
-        ${btn("返回品牌列表", "btn-outline", "go:brand-list")}
+    return `<div class="addr-container contact_edit-container">
+      <div class="sub_title">订单首付比例(定金)</div>
+      <div class="addr_edit contact_edit">
+        <div class="items">
+          <div class="item"><label>品牌</label>
+            <div>${brand}${field("depBrand", `<input type="hidden" value="${brand}" />`)}</div>
+          </div>
+          <div class="item"><label class="req">订单首付比例(定金)</label>${field("depBrandRatio", select(RR.depositRatios, null, ratio))}</div>
+        </div>
+        <div class="action_area">
+          <a href="javascript:;" class="oto_btn" data-act="save-brand-ratio">保存</a>
+          <a href="javascript:;" class="oto_btn" data-go="brand-list">返回品牌列表</a>
+        </div>
       </div>
     </div>`;
   }
 
   function pageBrandAuditSet() {
-    /* #3 二级页仅设审核开关 */
+    /* #3 二级页样式对齐合同设置；仅设审核开关，无收货设置 */
     const brand = state.selectedBrand || RR.brands[0].name;
     const need = Store.brandNeedAudit(brand);
-    return `<div class="bank_payment-container">
-      ${subTitle("下单需审核买手")}
-      <div class="note">开启后买手须在意向品牌提交申请并由平台通过，才能查看该品牌商品并下单。本页不出现收货设置。</div>
-      <div class="form-grid" style="max-width:560px">
-        <label>品牌</label><div>${field("auditBrand", select(RR.brands.map(b => b.name), null, brand))}</div>
-        <label>当前状态</label><div><span class="badge ${need ? "" : "green"}">${need ? "需审核" : "免审核"}</span></div>
-        <label>设置</label><div>
-          <label class="check-inline"><input type="checkbox" data-field="auditNeed" ${need ? "checked" : ""} /> 下单需审核买手</label>
+    return `<div class="addr-container contact_edit-container">
+      <div class="sub_title">下单需审核买手</div>
+      <div class="addr_edit contact_edit">
+        <div class="items">
+          <div class="item"><label>品牌</label>
+            <div>${brand}${field("auditBrand", `<input type="hidden" value="${brand}" />`)}</div>
+          </div>
+          <div class="item"><label>当前状态</label>
+            <div><span class="badge ${need ? "" : "green"}">${need ? "需审核" : "免审核"}</span></div>
+          </div>
+          <div class="item"><label>设置</label>
+            <div><label class="check-inline"><input type="checkbox" data-field="auditNeed" ${need ? "checked" : ""} /> 下单需审核买手</label></div>
+          </div>
         </div>
-      </div>
-      <div class="action-bar" style="margin-top:16px">
-        ${btn("保存", "btn-primary", "save-brand-audit-set")}
-        ${btn("返回品牌列表", "btn-outline", "go:brand-list")}
+        <div class="action_area">
+          <a href="javascript:;" class="oto_btn" data-act="save-brand-audit-set">保存</a>
+          <a href="javascript:;" class="oto_btn" data-go="brand-list">返回品牌列表</a>
+        </div>
       </div>
     </div>`;
   }
