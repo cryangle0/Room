@@ -63,6 +63,7 @@
     "buyer-sub": "buyer-list",
     "buyer-add-brand": "buyer-list",
     "buyer-appoint": "buyer-list",
+    "appoint-audit": "appoint-list",
     "role-perm": "account-list",
     "account-center": "account-list",
     "account-list": "account-list",
@@ -155,7 +156,7 @@
       top: [
         { id: "brand", label: "品牌管理" },
         { id: "fair", label: "订货会管理" },
-        /* #5 平台端隐藏「商品管理」顶栏入口 */
+        { id: "goods", label: "商品管理" },
         { id: "order", label: "订单管理" },
         /* #8 平台端隐藏「发货管理」 */
         { id: "appoint", label: "预约管理" },
@@ -205,9 +206,10 @@
           { id: "order-kingdee", label: "金蝶同步" }
         ],
         ship: [{ id: "ship-list", label: "发货管理" }],
-        /* #9 预约列表不需要审核入口 */
+        /* #27 审核预约要保留；预约列表只展示已通过 */
         appoint: [
-          { id: "appoint-list", label: "预约列表" }
+          { id: "appoint-list", label: "预约列表" },
+          { id: "appoint-audit", label: "审核预约" }
         ],
         intent: [{ id: "intent-list", label: "意向管理" }],
         buyer: [
@@ -600,10 +602,6 @@
       if (group === "order") {
         items = items.filter(i => !["order-recon", "order-appoint"].includes(i.id));
       }
-      if (group === "goods") {
-        /* #7 保留商品分类；LOOK 仍可隐藏 */
-        items = items.filter(i => i.id !== "goods-look");
-      }
     }
     if (!items.length) return "";
     /* 原站：public_left-container > ul.mine_side > li.active > a */
@@ -622,7 +620,10 @@
 
   function pageLogin() {
     const isBuyer = state.roleLogin === "buyer";
-    const defPhone = isBuyer ? (Store.db.buyerSession.phone || "13681383088") : "13800000000";
+    const isBrand = state.roleLogin === "brand";
+    const defPhone = isBuyer ? (Store.db.buyerSession.phone || "13681383088")
+      : isBrand ? ((Store.db.brandSession && Store.db.brandSession.phone) || "13800000001")
+      : "13800000000";
     return `${protoBar()}
     <div class="login-page">
       <div class="login-card">
@@ -630,7 +631,7 @@
         <div class="sub">订货管理系统 · 手机号 + 验证码登录</div>
         <div class="role-pick">
           <button class="${state.roleLogin === "platform" ? "on" : ""}" data-role="platform">平台端</button>
-          <button class="${state.roleLogin === "brand" ? "on" : ""}" data-role="brand">品牌端</button>
+          <button class="${isBrand ? "on" : ""}" data-role="brand">品牌端</button>
           <button class="${isBuyer ? "on" : ""}" data-role="buyer">买手端</button>
         </div>
         <div class="login-field"><label>手机号</label>${field("loginPhone", input("请输入手机号", defPhone))}</div>
@@ -645,6 +646,8 @@
         </div>
         <div class="note login-note">买手端需<strong>平台审核通过</strong>后才能登录（《注册流程图》）。<br/>
           可试：<code>13681383088</code> 已通过 · <code>18659515999</code> 待审核（登录被拦截）</div>`
+        : isBrand ? `<div class="note login-note">品牌端用添加品牌时填写的<strong>联系手机</strong>作为登录账号。<br/>
+          可试：<code>${(RR.brands[0] && RR.brands[0].phone) || "13800000001"}</code> ${(RR.brands[0] && RR.brands[0].name) || "HAIZHEN WANG"}</div>`
         : `<p class="login-note-min">根据账号身份权限自动进入对应端口（统一登录页）</p>`}
       </div>
     </div>`;
@@ -988,23 +991,17 @@
         </div>
       </div>
       <div class="edit_boduan-list">
-        ${brands.map(b => {
-          const need = Store.brandNeedAudit(b.name);
-          const ratio = Math.round(Store.brandDepositRatio(b.name) * 100) + "%";
-          return `
+        ${brands.map(b => `
           <div class="item uk-flex-nowrap">
             <div class="g-name"><h4>${b.name}</h4></div>
             <h4><a href="javascript:;" data-go="brand-discount" data-brand="${b.name}">设置优惠规则</a></h4>
             <h4><a href="javascript:;" data-go="brand-size" data-brand="${b.name}">设置尺寸别名</a></h4>
             <h4><a href="javascript:;" data-go="brand-pay" data-brand="${b.name}">收款设置</a></h4>
             <h4><a href="javascript:;" data-go="brand-contract" data-brand="${b.name}">合同设置</a></h4>
-            <h4><a href="javascript:;" data-go="brand-deposit" data-brand="${b.name}">设置首付比例</a>
-              <div class="muted-mini">${ratio}</div></h4>
-            <h4><a href="javascript:;" data-go="brand-audit-set" data-brand="${b.name}">设置审核</a>
-              <div class="muted-mini">${need ? "需审核" : "免审核"}</div></h4>
+            <h4><a href="javascript:;" data-go="brand-deposit" data-brand="${b.name}">订单首付比例</a></h4>
+            <h4><a href="javascript:;" data-go="brand-audit-set" data-brand="${b.name}">下单需审核买手</a></h4>
             <h4><a href="javascript:;" data-go="brand-edit" data-brand="${b.name}">编辑</a></h4>
-          </div>`;
-        }).join("")}
+          </div>`).join("")}
       </div>
       ${isPlatform ? `<div class="note" style="margin-top:24px">平台主数据：
         <a href="javascript:;" data-go="brand-master-style">风格资料维护</a> ·
@@ -1243,10 +1240,10 @@
     const brandNames = RR.brands.map(b => b.name);
     return `<div class="boduan-container fair-create-page">
       ${subTitle("添加订货会")}
-      <div class="note">创建时选择关联季节、参与品牌，并设置该季是否开放<strong>首单</strong> / <strong>补货</strong>。</div>
+      <div class="note">创建时<strong>手写季节</strong>（不限于下拉枚举），勾选参与品牌，并设置该季是否开放<strong>首单</strong> / <strong>补货</strong>。</div>
       <div class="form-grid">
         <label class="req">订货会名称</label><div>${field("fairName", input("例如：2028SS 订货会"))}</div>
-        <label>关联季节</label><div>${field("fairSeason", select(RR.seasons, null, defaultSeason))}</div>
+        <label class="req">季节</label><div>${field("fairSeason", input("手写，例如 2028SS / 2028AW", defaultSeason))}</div>
         <label class="req">参与品牌</label><div class="span2">${checkGroup("fairBrands", brandNames, brandNames.slice(0, 3))}</div>
         <label>首单</label><div><label class="check-inline"><input type="checkbox" data-field="fairFirst" ${curFair.first !== false ? "checked" : ""} /> 开放该季首单下单</label></div>
         <label>补货</label><div><label class="check-inline"><input type="checkbox" data-field="fairReplenish" ${curFair.replenish !== false ? "checked" : ""} /> 开放该季补货下单</label></div>
@@ -2011,9 +2008,11 @@
   }
 
   function pageOrderAppoint() {
-    /* #9 列表不需要审核、去掉下载；#10 保留人数列 */
+    /* #27 预约列表 = 审核通过的预约，不出现待审核 */
+    const list = (Store.db.appointments || []).filter(a => a.status === "已通过" || a.status === "已预约");
     return `<div class="brand_goodsList-container">
       ${subTitle("预约列表")}
+      <div class="note">本页只显示<strong>审核通过</strong>的预约。待审核请到侧栏「审核预约」处理。</div>
       ${filterPanel([
         ["选择品牌:", select(RR.brands.map(b => b.name), "全部")],
         ["店铺名:", input("店铺名")]
@@ -2022,13 +2021,13 @@
         <thead><tr>
           <th>品牌</th><th>店铺名</th><th>预约日期</th><th>预约时间</th><th>人数</th><th>手机号</th><th>提交时间</th><th>签到时间</th><th>状态</th>
         </tr></thead>
-        <tbody>${Store.db.appointments.map((a) => `<tr>
+        <tbody>${list.map((a) => `<tr>
           <td>${a.brand}</td><td>${a.store}</td><td>${(a.date || "").split(" ")[0] || a.date}</td>
           <td>${a.time || (a.date || "").split(" ")[1] || "—"}</td>
           <td>${a.people || 1}</td><td>${a.phone}</td>
           <td>${a.submitAt || a.date || "—"}</td><td>${a.checkin || "—"}</td>
-          <td><span class="badge ${a.status === "已通过" || a.status === "已预约" ? "green" : a.status === "已拒绝" ? "red" : ""}">${a.status || "已预约"}</span></td>
-        </tr>`).join("") || '<tr><td colspan="9">暂无预约</td></tr>'}</tbody>
+          <td><span class="badge green">${a.status || "已通过"}</span></td>
+        </tr>`).join("") || '<tr><td colspan="9">暂无已通过预约</td></tr>'}</tbody>
       </table>
     </div>`;
   }
@@ -2074,7 +2073,7 @@
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container content-page">
         ${subTitle("预约申请 · 线下参加订货会")}
-        <div class="note">提交后直接计入预约列表（无需审核），可到场看款。</div>
+        <div class="note">提交后进入<strong>待审核</strong>；平台在「审核预约」通过后才会出现在预约列表，届时可以到场看款。</div>
         <div class="form-section intent-apply">
           <div class="form-grid">
             <label>订货会</label><div>${field("apFair", select(fairs.map(f => `${f.name}（${f.season}）`), "请选择订货会"))}</div>
@@ -3828,7 +3827,7 @@
         const styles = [...app.querySelectorAll('[data-check="styles"]:checked')].map(x => x.value);
         const crowds = [...app.querySelectorAll('[data-check="crowds"]:checked')].map(x => x.value);
         if (!String(f.contact || "").trim()) { toast("请填写联系人"); break; }
-        if (!String(f.phone || "").trim()) { toast("请填写联系手机"); break; }
+        if (!/^1\d{10}$/.test(String(f.phone || "").trim())) { toast("请填写 11 位联系手机（品牌端登录账号）"); break; }
         const r = Store.addBrand({
           name: f.name,
           cat: cats[0] || "女装",
@@ -4171,7 +4170,7 @@
         const styles = [...app.querySelectorAll('[data-check="styles"]:checked')].map(x => x.value);
         const crowds = [...app.querySelectorAll('[data-check="crowds"]:checked')].map(x => x.value);
         if (!String(f.contact || "").trim()) { toast("请填写联系人"); break; }
-        if (!String(f.phone || "").trim()) { toast("请填写联系手机"); break; }
+        if (!/^1\d{10}$/.test(String(f.phone || "").trim())) { toast("请填写 11 位联系手机（品牌端登录账号）"); break; }
         toast(Store.saveBrandProfile({
           name: f.name, year: Number(f.year || 0), designer: f.designer || "", about: f.about || "",
           site: f.site || "", shipAt: f.shipAt || "", abbr: f.abbr || "",
@@ -4285,10 +4284,11 @@
       case "create-ordering-fair": {
         const f = readFields();
         const brands = [...app.querySelectorAll('[data-check="fairBrands"]:checked')].map(x => x.value);
+        if (!String(f.fairSeason || "").trim()) { toast("请手写填写季节，例如 2028SS"); break; }
         if (!brands.length) { toast("请至少选择一个参与品牌"); break; }
         const r = Store.createOrderingFair({
           name: f.fairName,
-          season: f.fairSeason,
+          season: String(f.fairSeason).trim(),
           intro: f.fairIntro,
           cover: true,
           first: !!f.fairFirst,
@@ -5042,6 +5042,90 @@
     "mp-home": pageMP
   };
 
+  const MP_TAB_ICO = {
+    brand: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></svg>',
+    restock: '<svg viewBox="0 0 24 24"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/><path d="M4 11h16"/></svg>',
+    sel: '<svg viewBox="0 0 24 24"><path d="M7 4h10l1 16H6L7 4z"/><path d="M9 9h6M9 13h6"/></svg>',
+    order: '<svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M8 9h8M8 13h5"/></svg>',
+    mine: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 19.2a6.5 6.5 0 0 1 13 0"/></svg>'
+  };
+
+  function mpTabId() {
+    const p = state.page || "";
+    if (p === "buyer-replenish") return "buyer-replenish";
+    if (p.startsWith("buyer-selection")) return "buyer-selection";
+    if (p.startsWith("buyer-order")) return "buyer-orders";
+    if (p === "buyer-profile" || p === "buyer-message" || p === "buyer-intent" || p === "buyer-appoint-apply") return "buyer-profile";
+    return "buyer-home";
+  }
+
+  function mpTitle() {
+    const p = state.page || "";
+    if (p === "buyer-home") return "品牌";
+    if (p === "buyer-brand" || p === "buyer-brand-about") return state.selectedBrand || "品牌";
+    if (p === "buyer-detail") return "商品详情";
+    if (p === "buyer-replenish") return "补货";
+    if (p.startsWith("buyer-selection")) return "选款单";
+    if (p.startsWith("buyer-order")) return "我的订单";
+    if (p === "buyer-appoint-apply") return "预约申请";
+    if (p === "buyer-intent") return "意向品牌";
+    if (p === "buyer-message") return "消息";
+    if (p === "buyer-profile") return "我的";
+    return "ROOMROOM";
+  }
+
+  function mpMineHub() {
+    const unread = Store.unreadMessageCount();
+    const items = [
+      ["buyer-appoint-apply", "预约申请", "线下看款"],
+      ["buyer-intent", "意向品牌", "申请可订品牌"],
+      ["buyer-message", "消息通知", unread ? `${unread} 条未读` : "暂无未读"]
+    ];
+    return `<div class="rr-mp-hub">
+      ${items.map(([id, t, s]) => `<a class="rr-mp-hub-item" href="javascript:;" data-go="${id}">
+        <span><b>${t}</b><small>${s}</small></span><i>›</i>
+      </a>`).join("")}
+    </div>`;
+  }
+
+  function mpShell(inner) {
+    const tab = mpTabId();
+    const tabs = [
+      ["buyer-home", "品牌", "brand"],
+      ["buyer-replenish", "补货", "restock"],
+      ["buyer-selection", "选款", "sel"],
+      ["buyer-orders", "订单", "order"],
+      ["buyer-profile", "我的", "mine"]
+    ];
+    const canBack = !["buyer-home", "buyer-replenish", "buyer-selection", "buyer-orders", "buyer-profile"].includes(state.page);
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    const extra = state.page === "buyer-profile" ? mpMineHub() : "";
+    return `<div class="rr-mp-stage">
+      <div class="rr-mp-phone">
+        <div class="rr-mp-glass">
+          <div class="rr-mp-status"><span>${hh}:${mm}</span><span class="rr-mp-notch"></span><span>5G ▮▮▮</span></div>
+          <div class="rr-mp-head">
+            ${canBack ? `<a class="rr-mp-back" href="javascript:;" data-act="back">‹</a>` : `<span class="rr-mp-back-ph"></span>`}
+            <strong>${mpTitle()}</strong>
+            <a class="rr-mp-bell" href="javascript:;" data-go="buyer-message" aria-label="消息">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22a2.2 2.2 0 0 0 2.2-2.2h-4.4A2.2 2.2 0 0 0 12 22zm7-5.2V11a7 7 0 0 0-5-6.7V3.8a2 2 0 1 0-4 0v.5A7 7 0 0 0 5 11v5.8L3.4 18.4A1 1 0 0 0 4.1 20h15.8a1 1 0 0 0 .7-1.6L19 16.8z"/></svg>
+              ${Store.unreadMessageCount() ? `<i>${Store.unreadMessageCount()}</i>` : ""}
+            </a>
+          </div>
+          <div class="rr-mp-scroll">${extra}${inner}</div>
+        </div>
+        <nav class="rr-mp-tabbar" aria-label="小程序导航">
+          ${tabs.map(([id, lab, ico]) => `<button type="button" class="rr-mp-tab ${tab === id ? "on" : ""}" data-go="${id}">
+            <span class="rr-mp-ico">${MP_TAB_ICO[ico]}</span><span>${lab}</span>
+          </button>`).join("")}
+        </nav>
+      </div>
+      <p class="rr-mp-hint">小程序 · 苹果风玻璃态（参考锐涞底栏）· 内容与买手端一致</p>
+    </div>`;
+  }
+
   function render() {
     if (state.portal === "mp" && !["coverage", "flow-map", "login", "register", "register-status"].includes(state.page)) {
       /* #24 小程序原型：内容与买手端一致 */
@@ -5063,7 +5147,8 @@
     }
 
     const isBuyer = state.portal === "buyer" || state.portal === "mp";
-    let body = withPageBack((pages[state.page] || pageGoodsList)());
+    let rawPage = (pages[state.page] || pageGoodsList)();
+    let body = state.portal === "mp" ? rawPage : withPageBack(rawPage);
     /* 统一包一层现网右侧容器 class（已自带 brand_goodsList-container 的不重复包） */
     if (!isBuyer && !/brand_goodsList-container|ots_order-form|title_underline|buyer-layout/.test(body)) {
       body = `<div class="brand_goodsList-container">${body}</div>`;
@@ -5075,8 +5160,13 @@
       if (!selfShell) {
         body = `<div class="oto-main_container buyer-fe"><div class="oto_container order-container"><div class="public_right-container main">${body}</div></div></div>`;
       }
-      app.innerHTML = toastHtml() + protoBar() + topnav(state.portal === "mp" ? "mp" : "buyer") +
-        `<div class="ots_order-outer-container${state.portal === "mp" ? " mp-shell" : ""}">${body}</div>` + footer() + drawer;
+      if (state.portal === "mp") {
+        /* #28 小程序：手机框 + 玻璃态底栏，不再套买手桌面顶栏 */
+        app.innerHTML = toastHtml() + protoBar() + mpShell(body) + drawer;
+      } else {
+        app.innerHTML = toastHtml() + protoBar() + topnav("buyer") +
+          `<div class="ots_order-outer-container">${body}</div>` + footer() + drawer;
+      }
     } else {
       const side = sidebar();
       app.innerHTML = toastHtml() + protoBar() + topnav(state.portal) +
@@ -5158,6 +5248,13 @@
             else if (["pending", "rejected"].includes(r.code)) go("register-status");
             return;
           }
+        }
+        if (state.roleLogin === "brand") {
+          const f = readFields();
+          const r = Store.brandLogin(f.loginPhone, f.loginCode);
+          toast(r.msg);
+          if (!r.ok) return;
+          state.selectedBrand = r.brand;
         }
         state.portal = state.roleLogin;
         localStorage.setItem("rr_portal", state.portal);

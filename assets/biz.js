@@ -4,7 +4,13 @@
  */
 (() => {
   /* v6：订单流程按《订单流程图》重建 + 注册审核链路，旧结构不再兼容 */
-  const KEY = "rr_biz_v7";
+  const KEY = "rr_biz_v8";
+
+  /* #4 联系手机即品牌端登录账号；演示号 13800000001 起按品牌顺序分配 */
+  (RR.brands || []).forEach((b, i) => {
+    if (!b.phone) b.phone = String(13800000001 + i);
+    if (!b.contact) b.contact = "品牌联系人";
+  });
 
   const DEFAULT_RULE = () => ({
     minAmount: 30000, cloth: 0.45, accessory: 0.5, lifestyle: 0.55,
@@ -249,7 +255,7 @@
       appointments: clone(SEED.appointments).map((a, i) => ({
         ...a,
         people: a.people || (i % 2 === 0 ? 2 : 1),
-        status: a.status === "待审核" ? "已预约" : (a.status || (i % 3 === 0 ? "已预约" : "已通过")),
+        status: i % 4 === 0 ? "待审核" : "已通过",
         reason: ""
       })),
       contracts: [
@@ -440,6 +446,10 @@
         brandAccess: { "IAN HYLTON": "granted", "PRIVATE POLICY": "pending", "XIMONLEE": "denied" },
         substores: [{ name: "Liora Amour 静安", city: "上海" }]
       },
+      brandSession: {
+        phone: "13800000001",
+        brand: "HAIZHEN WANG"
+      },
       kingdee: {
         lastPush: "",
         lastPull: "",
@@ -472,7 +482,7 @@
       if (!raw) return defaultDb();
       const db = JSON.parse(raw);
       const base = defaultDb();
-      const merged = { ...base, ...db, ui: { ...base.ui, ...(db.ui || {}) }, buyerSession: { ...base.buyerSession, ...(db.buyerSession || {}) } };
+      const merged = { ...base, ...db, ui: { ...base.ui, ...(db.ui || {}) }, buyerSession: { ...base.buyerSession, ...(db.buyerSession || {}) }, brandSession: { ...base.brandSession, ...(db.brandSession || {}) } };
       if (!merged.buyerSession.brandAccess) merged.buyerSession.brandAccess = clone(base.buyerSession.brandAccess);
       if (!merged.buyerSession.substores) merged.buyerSession.substores = clone(base.buyerSession.substores);
       if (!merged.kingdee) merged.kingdee = clone(base.kingdee);
@@ -835,7 +845,8 @@
     createOrderingFair(payload) {
       const name = String(payload.name || "").trim();
       if (!name) return { ok: false, msg: "请填写订货会名称" };
-      const season = payload.season || (RR.seasons && RR.seasons[RR.seasons.length - 1]) || "";
+      const season = String(payload.season || "").trim();
+      if (!season) return { ok: false, msg: "请手写填写季节" };
       const brands = Array.isArray(payload.brands) ? payload.brands.filter(Boolean) : [];
       if (!brands.length) return { ok: false, msg: "请选择参与品牌" };
       const id = uid("FAIR");
@@ -876,6 +887,10 @@
     savePayInfo(info) { Object.assign(db.payInfo, info); save(); return "收款设置已保存"; },
     saveContractSettings(info) { Object.assign(db.contractSettings, info); save(); return "合同设置已保存"; },
     saveBrandProfile(info) {
+      if (info.phone != null && !/^1\d{10}$/.test(String(info.phone).trim())) {
+        return "请填写 11 位联系手机（品牌端登录账号）";
+      }
+      if (info.contact != null && !String(info.contact).trim()) return "请填写联系人";
       const cats = info.cats || db.brandProfile.cats || [];
       const styles = info.styles || db.brandProfile.styles || [];
       const crowds = info.crowds || db.brandProfile.crowds || [];
@@ -1533,6 +1548,19 @@
       save(); syncLegacy();
       return { ok: true, msg: `登录成功：${b.name}`, buyer: b };
     },
+    /* #4 联系手机 = 品牌端登录账号 */
+    brandLogin(phone, code) {
+      const p = String(phone || "").trim();
+      if (!/^1\d{10}$/.test(p)) return { ok: false, msg: "请输入 11 位手机号" };
+      if (String(code || "").trim() !== "888888") return { ok: false, msg: "验证码错误（原型固定 888888）" };
+      const fromRr = (RR.brands || []).find(b => String(b.phone || "").trim() === p);
+      const fromProf = Object.values(db.brandProfiles || {}).find(b => String(b.phone || "").trim() === p);
+      const brand = fromRr || fromProf;
+      if (!brand || !brand.name) return { ok: false, msg: "该手机号未开通品牌端账号" };
+      db.brandSession = { phone: p, brand: brand.name };
+      save();
+      return { ok: true, msg: `登录成功：${brand.name}`, brand: brand.name };
+    },
     setIntention(store, brand, status) {
       const i = db.intentions.find(x => x.store === store && x.brand === brand);
       if (!i) return "意向不存在";
@@ -1601,7 +1629,7 @@
       const name = String(payload.name || "").trim();
       if (!name) return { ok: false, msg: "请填写品牌名称" };
       if (!String(payload.contact || "").trim()) return { ok: false, msg: "请填写联系人" };
-      if (!String(payload.phone || "").trim()) return { ok: false, msg: "请填写联系手机" };
+      if (!/^1\d{10}$/.test(String(payload.phone || "").trim())) return { ok: false, msg: "请填写 11 位联系手机（品牌端登录账号）" };
       if ((RR.brands || []).some(b => b.name === name)) return { ok: false, msg: "该品牌已存在" };
       const cats = payload.cats || [payload.cat || "女装"].filter(Boolean);
       const styles = payload.styles || (payload.style ? [payload.style] : []);
@@ -1676,14 +1704,14 @@
     },
     addAppointment(payload) {
       const at = new Date().toISOString().slice(0, 16).replace("T", " ");
-      /* #9 预约列表不再审核，提交即生效 */
+      /* #27 提交后待审核，通过后才进预约列表 */
       db.appointments.unshift({
         brand: payload.brand, store: payload.store, contact: payload.contact,
         phone: payload.phone, date: payload.date, season: payload.season || "2026SS",
-        people: Number(payload.people) || 1, submitAt: at, status: "已预约", reason: ""
+        people: Number(payload.people) || 1, submitAt: at, status: "待审核", reason: ""
       });
       save(); syncLegacy();
-      return "预约已保存";
+      return "预约已提交，等待平台审核";
     },
     /* 买手端「预约申请」：申请线下参加订货会 */
     buyerAppointments() {
