@@ -1689,6 +1689,7 @@ header.oto-nav.buyer-oto-nav .login_area .nav-ico {
   font-weight: 700;
 }
 .rr-mp-tab:active { transform: scale(0.96); }
+.rr-mp-tab > span:last-child { white-space: nowrap; }
 .rr-mp-ico {
   width: 22px; height: 22px;
   display: grid; place-items: center;

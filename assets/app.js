@@ -5756,7 +5756,7 @@
     brand: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></svg>',
     restock: '<svg viewBox="0 0 24 24"><path d="M4 7h16v12H4z"/><path d="M8 7V5h8v2"/><path d="M4 11h16"/></svg>',
     sel: '<svg viewBox="0 0 24 24"><path d="M7 4h10l1 16H6L7 4z"/><path d="M9 9h6M9 13h6"/></svg>',
-    order: '<svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M8 9h8M8 13h5"/></svg>',
+    appoint: '<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/><path d="M9 14h2M13 14h2M9 17h6"/></svg>',
     mine: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 19.2a6.5 6.5 0 0 1 13 0"/></svg>'
   };
 
@@ -5765,8 +5765,8 @@
     if (p === "buyer-replenish" || p === "buyer-replenish-cart") return "buyer-replenish";
     if (p === "buyer-cart") return "buyer-home";
     if (p.startsWith("buyer-selection")) return "buyer-selection";
-    if (p.startsWith("buyer-order")) return "buyer-orders";
-    if (p === "buyer-profile" || p === "buyer-message" || p === "buyer-message-detail" || p === "buyer-intent" || p === "buyer-intent-detail" || p === "buyer-appoint-apply" || p === "buyer-appoint-detail") return "buyer-profile";
+    if (p === "buyer-appoint-apply" || p === "buyer-appoint-detail") return "buyer-appoint-apply";
+    if (p.startsWith("buyer-order") || p === "buyer-profile" || p === "buyer-message" || p === "buyer-message-detail" || p === "buyer-intent" || p === "buyer-intent-detail") return "buyer-profile";
     return "buyer-home";
   }
 
@@ -5794,7 +5794,7 @@
   function mpMineHub() {
     const unread = Store.unreadMessageCount();
     const items = [
-      ["buyer-appoint-apply", "预约申请", "线下看款"],
+      ["buyer-orders", "我的订单", "查看订单进度"],
       ["buyer-intent", "意向品牌", "申请可订品牌"],
       ["buyer-message", "消息通知", unread ? `${unread} 条未读` : "暂无未读"]
     ];
@@ -5811,10 +5811,10 @@
       ["buyer-home", "品牌", "brand"],
       ["buyer-replenish", "补货", "restock"],
       ["buyer-selection", "选款", "sel"],
-      ["buyer-orders", "订单", "order"],
+      ["buyer-appoint-apply", "预约申请", "appoint"],
       ["buyer-profile", "我的", "mine"]
     ];
-    const canBack = !["buyer-home", "buyer-replenish", "buyer-selection", "buyer-orders", "buyer-profile"].includes(state.page);
+    const canBack = !["buyer-home", "buyer-replenish", "buyer-selection", "buyer-appoint-apply", "buyer-profile"].includes(state.page);
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, "0");
     const mm = String(now.getMinutes()).padStart(2, "0");
