@@ -2070,18 +2070,43 @@
   function pageBuyerFairAppoint() {
     const mine = Store.buyerAppointments();
     const fairs = Store.db.orderingFairs || [];
-    return `<div class="oto-main_container buyer-fe">
-      <div class="oto_container content-page">
-        ${subTitle("预约申请 · 线下参加订货会")}
-        <div class="note">提交后进入<strong>待审核</strong>；平台在「审核预约」通过后才会出现在预约列表，届时可以到场看款。</div>
-        <div class="form-section intent-apply">
-          <div class="form-grid">
+    const form = `<div class="form-grid">
             <label>订货会</label><div>${field("apFair", select(fairs.map(f => `${f.name}（${f.season}）`), "请选择订货会"))}</div>
             <label>品牌</label><div>${field("apBrand", select(RR.brands.map(b => b.name), "请选择品牌"))}</div>
             <label>到场日期时间</label><div>${field("apDate", datetimeInput("2026-04-08T14:00"))}</div>
             <label>到场人数</label><div>${field("apPeople", input("如 2", "2"))}</div>
             <label>联系人手机号</label><div>${field("apPhone", input("手机号", Store.db.buyerSession.phone || ""))}</div>
+          </div>`;
+    if (isMp()) {
+      return `<div class="rr-mp-stack">
+        <article class="rr-mp-card rr-mp-form">
+          <p class="rr-mp-lead">提交后待平台审核，通过后可到场看款。</p>
+          ${form}
+          <button type="button" class="rr-mp-cta" data-act="submit-buyer-appoint">提交预约申请</button>
+        </article>
+        <h3 class="rr-mp-sec">我的预约</h3>
+        ${mine.map(a => `<article class="rr-mp-card">
+          <header class="rr-mp-card-hd">
+            <div class="rr-mp-avatar">${esc((a.brand || "").slice(0, 2))}</div>
+            <div class="rr-mp-card-ttl">
+              <b>${a.brand}</b>
+              <small>${a.season || "—"} · ${a.date || "—"}</small>
+            </div>
+            <span class="rr-mp-pill">${a.status || "待审核"}</span>
+          </header>
+          <div class="rr-mp-metrics">
+            <span><em>${a.people || 1}</em>人</span>
+            <span>${a.reason || (a.status === "已拒绝" ? "" : "可到场看款")}</span>
           </div>
+        </article>`).join("") || `<div class="rr-mp-empty">暂无预约记录</div>`}
+      </div>`;
+    }
+    return `<div class="oto-main_container buyer-fe">
+      <div class="oto_container content-page">
+        ${subTitle("预约申请 · 线下参加订货会")}
+        <div class="note">提交后进入<strong>待审核</strong>；平台在「审核预约」通过后才会出现在预约列表，届时可以到场看款。</div>
+        <div class="form-section intent-apply">
+          ${form}
           <div class="action-bar">${btn("提交预约申请", "btn-primary", "submit-buyer-appoint")}</div>
         </div>
         ${subTitle("我的预约")}
@@ -2612,10 +2637,37 @@
     </div>`;
   }
 
+  function isMp() { return state.portal === "mp"; }
+
   function pageBuyerSelection() {
     const store = Store.db.buyerSession.store;
     const list = Store.db.selections.filter(s => s.store === store || true);
     const hearts = Store.db.buyerSession.selections;
+    if (isMp()) {
+      return `<div class="rr-mp-stack">
+        ${hearts.length ? `<button type="button" class="rr-mp-cta" data-act="buyer-confirm-hearts">按品牌确认选款单</button>` : ""}
+        ${list.map(s => `<article class="rr-mp-card">
+          <header class="rr-mp-card-hd">
+            <div class="rr-mp-avatar">${esc((s.brand || "").slice(0, 2))}</div>
+            <div class="rr-mp-card-ttl">
+              <b>${s.brand}</b>
+              <small>${s.season} · ${s.createdAt || s.date || s.time || "—"}</small>
+            </div>
+            ${s.locked ? `<span class="rr-mp-pill mute">已取消</span>` : `<span class="rr-mp-pill">待确认</span>`}
+          </header>
+          <div class="rr-mp-metrics">
+            <span><em>¥${s.amount}</em>买手价</span>
+            <span><em>${s.skus}</em>SKU</span>
+            <span><em>${s.pieces}</em>件数</span>
+          </div>
+          ${s.locked ? "" : `<footer class="rr-mp-card-ft">
+            <a href="javascript:;" data-go="buyer-selection-edit" data-sel="${s.id}">修改</a>
+            <a href="javascript:;" data-act="download:选款单">下载</a>
+            <a href="javascript:;" class="on" data-act="buyer-confirm-sel" data-sel="${s.id}">确认订单</a>
+          </footer>`}
+        </article>`).join("") || `<div class="rr-mp-empty">暂无选款单，去品牌里加款</div>`}
+      </div>`;
+    }
     /* 原站：selection-container > selection_list > item > selection_info */
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container selection-container">
@@ -2674,6 +2726,45 @@
   function pageBuyerOrders() {
     const tab = Store.db.buyerSession.orderTab || "全部";
     const list = Store.buyerOrders(tab);
+    if (isMp()) {
+      return `<div class="rr-mp-stack">
+        <div class="rr-mp-seg">${["全部", "已完成", "未完成"].map(t =>
+          `<button type="button" class="rr-mp-seg-btn ${tab === t ? "on" : ""}" data-tabsoft data-order-tab="${t}">${t}</button>`
+        ).join("")}</div>
+        ${list.map(o => {
+          const acts = Store.orderActions(o, "buyer");
+          const pay = Store.paymentStats(o);
+          const extras = [
+            `<a href="javascript:;" data-go="buyer-order-detail" data-oid="${o.id}">查看</a>`,
+            o.status === Store.ORDER_ST.rejected
+              ? `<a href="javascript:;" data-go="buyer-selection-edit" data-sel="${o.fromSelection || ""}">修改重下</a>` : "",
+            ...acts.filter(a => !a.wait && a.act !== "download:订单").map(a => {
+              const panel = a.act.startsWith("open-order-panel:") ? a.act.slice("open-order-panel:".length) : "";
+              if (panel) return `<a href="javascript:;" data-go="buyer-order-detail" data-oid="${o.id}" data-order-action="${panel}">${a.label}</a>`;
+              if (a.act.startsWith("go:")) return `<a href="javascript:;" data-act="${a.act}">${a.label}</a>`;
+              return `<a href="javascript:;" data-act="${a.act}" data-oid="${o.id}">${a.label}</a>`;
+            })
+          ].filter(Boolean);
+          return `<article class="rr-mp-card">
+            <header class="rr-mp-card-hd">
+              <div class="rr-mp-avatar">${esc((o.brand || "").slice(0, 2))}</div>
+              <div class="rr-mp-card-ttl">
+                <b>${o.brand}${o.type === "补货单" ? " · 补货" : ""}</b>
+                <small>${o.season} · ${o.createdAt || "—"}</small>
+              </div>
+              <span class="rr-mp-pill">${o.status}</span>
+            </header>
+            <div class="rr-mp-metrics">
+              <span><em>¥${o.amount}</em>订单</span>
+              <span><em>¥${Store.money(pay.confirmed)}</em>已付</span>
+              <span><em>¥${Store.money(pay.unpaid)}</em>待付</span>
+            </div>
+            <div class="rr-mp-id">${o.id}</div>
+            <footer class="rr-mp-card-ft">${extras.join("")}${acts.filter(a => a.wait).map(a => `<span class="wait-chip">${a.label}</span>`).join("")}</footer>
+          </article>`;
+        }).join("") || `<div class="rr-mp-empty">暂无订单</div>`}
+      </div>`;
+    }
     /* 原站：order-container > left 我的订单 tabs + order_list item */
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container order-container">
@@ -4812,6 +4903,31 @@
     const granted = brands.filter(b => b.needAudit && b.accept);
     const free = brands.filter(b => !b.needAudit);
     const badge = st => st === "已通过" ? "green" : st === "已拒绝" ? "red" : "";
+    if (isMp()) {
+      return `<div class="rr-mp-stack">
+        <article class="rr-mp-card rr-mp-form">
+          <p class="rr-mp-lead">需审核品牌先申请，通过后才能看货下单。</p>
+          <div class="form-grid">
+            <label>申请品牌</label><div>${field("intentBrand", select(canApply.length ? canApply.map(b => b.name) : ["暂无可申请品牌"], null, canApply[0] ? canApply[0].name : "暂无可申请品牌"))}</div>
+            <label>申请说明</label><div>${field("intentNote", input("门店定位 / 采购计划"))}</div>
+          </div>
+          <button type="button" class="rr-mp-cta" data-act="submit-intent">提交品牌申请</button>
+        </article>
+        ${rows.map(r => `<article class="rr-mp-card">
+          <header class="rr-mp-card-hd">
+            <div class="rr-mp-avatar">${esc((r.brand || "").slice(0, 2))}</div>
+            <div class="rr-mp-card-ttl">
+              <b>${r.brand}</b>
+              <small>${r.date || r.at || "—"}</small>
+            </div>
+            <span class="rr-mp-pill">${r.status}</span>
+          </header>
+          <footer class="rr-mp-card-ft">${r.status === "已通过"
+            ? `<a class="on" href="javascript:;" data-go="buyer-brand" data-brand="${r.brand}">查看商品</a>`
+            : r.status === "已拒绝" ? `<a href="javascript:;" data-act="apply-brand:${r.brand}">重新申请</a>` : `<span>审核中</span>`}</footer>
+        </article>`).join("") || `<div class="rr-mp-empty">暂无申请记录</div>`}
+      </div>`;
+    }
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container order-container">
         <div class="public_right-container" style="width:100%">

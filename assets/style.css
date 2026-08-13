@@ -1660,6 +1660,116 @@ header.oto-nav.buyer-oto-nav .login_area .nav-ico {
 .rr-mp-hub-item small { color: #8e8e93; font-size: 11px; }
 .rr-mp-hub-item i { font-style: normal; color: #c7c7cc; font-size: 18px; }
 
+.rr-mp-stack { display: flex; flex-direction: column; gap: 10px; }
+.rr-mp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.58);
+  border: 1px solid rgba(255,255,255,0.72);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255,255,255,0.85);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+.rr-mp-card-hd { display: flex; align-items: center; gap: 10px; }
+.rr-mp-avatar {
+  width: 40px; height: 40px; flex: 0 0 auto;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #9a37fe, #6d28d9);
+  color: #fff; font-size: 12px; font-weight: 800;
+  display: grid; place-items: center;
+  letter-spacing: 0.04em;
+}
+.rr-mp-card-ttl { flex: 1; min-width: 0; }
+.rr-mp-card-ttl b { display: block; font-size: 14px; line-height: 1.25; }
+.rr-mp-card-ttl small { display: block; margin-top: 2px; font-size: 11px; color: #8e8e93; }
+.rr-mp-pill {
+  flex: 0 0 auto;
+  max-width: 72px;
+  font-size: 10px; font-weight: 700;
+  color: #9a37fe;
+  background: rgba(154,55,254,0.12);
+  border-radius: 999px;
+  padding: 4px 8px;
+  line-height: 1.2;
+  text-align: center;
+}
+.rr-mp-pill.mute { color: #8e8e93; background: rgba(60,60,67,0.08); }
+.rr-mp-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(118,118,128,0.1);
+}
+.rr-mp-metrics span {
+  display: flex; flex-direction: column; align-items: center;
+  font-size: 10px; color: #8e8e93; gap: 2px; text-align: center;
+}
+.rr-mp-metrics em { font-style: normal; font-size: 13px; font-weight: 800; color: #1c1c1e; }
+.rr-mp-id { font-size: 11px; color: #aeaeb2; word-break: break-all; }
+.rr-mp-card-ft {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding-top: 2px;
+}
+.rr-mp-card-ft a, .rr-mp-card-ft span {
+  flex: 1 1 auto;
+  text-align: center;
+  font-size: 12px; font-weight: 600;
+  padding: 8px 6px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.7);
+  color: #1c1c1e;
+}
+.rr-mp-card-ft a.on { background: #9a37fe; color: #fff; }
+.rr-mp-cta {
+  width: 100%; height: 44px; border: none; border-radius: 14px;
+  background: linear-gradient(145deg, #9a37fe, #7c22e0);
+  color: #fff; font-size: 15px; font-weight: 800;
+  box-shadow: 0 10px 22px rgba(154,55,254,0.28);
+}
+.rr-mp-seg {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  gap: 4px; padding: 4px; border-radius: 14px;
+  background: rgba(118,118,128,0.12);
+}
+.rr-mp-seg-btn {
+  border: none; background: transparent; height: 32px; border-radius: 10px;
+  font-size: 13px; font-weight: 600; color: rgba(60,60,67,0.7);
+}
+.rr-mp-seg-btn.on {
+  background: rgba(255,255,255,0.92); color: #1c1c1e;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.rr-mp-sec { margin: 6px 2px 0; font-size: 13px; font-weight: 800; color: #1c1c1e; }
+.rr-mp-lead { margin: 0 0 8px; font-size: 12px; color: #8e8e93; line-height: 1.5; }
+.rr-mp-empty {
+  text-align: center; padding: 28px 12px; font-size: 13px; color: #8e8e93;
+  border-radius: 16px; background: rgba(255,255,255,0.4);
+}
+.rr-mp-form .form-grid { display: grid; gap: 8px; }
+.rr-mp-form .form-grid label { font-size: 12px; color: #8e8e93; margin: 0; }
+.rr-mp-form .form-grid > div { min-width: 0; }
+
+.rr-mp-scroll .selection-container .public_left-container,
+.rr-mp-scroll .addr-container > .sub_title,
+.rr-mp-scroll .order_list-container > .sub_title,
+.rr-mp-scroll .content-page > .sub_title { display: none !important; }
+.rr-mp-scroll .selection_info,
+.rr-mp-scroll .order_info {
+  display: flex !important;
+  flex-direction: column !important;
+  grid-template-columns: none !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+  padding: 0 !important;
+}
+.rr-mp-scroll .order_state { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.rr-mp-scroll table.data-table { display: block; overflow-x: auto; }
+
 .rr-mp-scroll .oto-main_container,
 .rr-mp-scroll .oto_container,
 .rr-mp-scroll .brand_list-container,
