@@ -22,6 +22,9 @@
     selectedShip: null,
     selectedBuyer: null,
     selectedRole: null,
+    selectedAppoint: null,
+    selectedMsg: null,
+    selectedLook: null,
     listPage: 1,
     selAddOpen: false,
     cartBrandFilter: "",
@@ -73,8 +76,16 @@
     "buyer-detail": "buyer-brand",
     "buyer-selection-edit": "buyer-selection",
     "buyer-order-detail": "buyer-orders",
-    "buyer-message": "buyer-home",
+    "buyer-message": "buyer-profile",
+    "buyer-message-detail": "buyer-message",
     "buyer-profile": "buyer-home",
+    "buyer-intent": "buyer-profile",
+    "buyer-appoint-apply": "buyer-profile",
+    "buyer-appoint-detail": "buyer-appoint-apply",
+    "buyer-look-detail": "buyer-brand-about",
+    "buyer-intent-detail": "buyer-intent",
+    "buyer-cart": "buyer-brand",
+    "buyer-replenish-cart": "buyer-replenish",
     register: "login",
     "register-status": "login"
   };
@@ -82,7 +93,7 @@
   function isRootNavEl(el) {
     /* 顶栏铃铛/个人中心属于子页入口，不当作顶层导航 */
     if (el && el.closest(".login_area, .bell_tip, .nav_person")) return false;
-    return !!(el && el.closest(".mine_side, .uk-navbar-nav, .proto-bar, .nav_menu, .logo_area, .ots_order-nav > .topnav-inner > .logo"));
+    return !!(el && el.closest(".mine_side, .uk-navbar-nav, .proto-bar, .nav_menu, .logo_area, .ots_order-nav > .topnav-inner > .logo, .rr-mp-tabbar"));
   }
 
   function resolveBackTarget() {
@@ -186,7 +197,6 @@
         ],
         goods: [
           { id: "goods-restock", label: "补货/隐藏商品" },
-          { id: "goods-look", label: "LOOK列表" },
           { id: "goods-cat", label: "商品分类" },
           { id: "goods-add", label: "添加新商品" },
           { id: "goods-batch", label: "批量添加新商品" },
@@ -279,6 +289,7 @@
     }
     /* 原「季节控制」/品牌下订货会入口 → 订货会管理模块 */
     if (page === "brand-fair" || page === "brand-fair-new") page = "fair-add";
+    if (page === "goods-look") page = "goods-list";
     if (page === "goods-add") { state.goodsSpecs = null; state.goodsDraft = null; }
 
     if (opts.replace) {
@@ -294,7 +305,7 @@
     state.cartOpen = false;
     state.listPage = 1;
     state.selAddOpen = false;
-    if (!page.startsWith("order-detail") && page !== "order-detail") state.orderAction = "";
+    if (page !== "order-detail" && page !== "buyer-order-detail") state.orderAction = "";
     window.scrollTo(0, 0);
     render();
   }
@@ -1482,7 +1493,7 @@
       const retail = Store.parseMoney(l.retail) * qty;
       const price = Store.parseMoney(l.price);
       const sizeKeys = Object.keys(l.sizes || {});
-      return `<div class="sel-line-card" data-sku-row="${l.sku}">
+      return `<div class="sel-line-card${isMp() ? " rr-mp-card-tap" : ""}" data-sku-row="${l.sku}"${isMp() ? ` data-go="buyer-detail" data-sku="${esc(l.sku)}"` : ""}>
         <div class="sel-line-left">
           <div class="thumb ph">IMG</div>
           <div>
@@ -2078,14 +2089,23 @@
             <label>联系人手机号</label><div>${field("apPhone", input("手机号", Store.db.buyerSession.phone || ""))}</div>
           </div>`;
     if (isMp()) {
-      return `<div class="rr-mp-stack">
-        <article class="rr-mp-card rr-mp-form">
+      const ui = mpUi();
+      const q = (ui.q["buyer-appoint-apply"] || "").trim().toLowerCase();
+      const tab = ui.appointTab || "全部";
+      const shown = mine.filter(a => {
+        if (tab !== "全部" && (a.status || "待审核") !== tab) return false;
+        if (!q) return true;
+        return `${a.brand} ${a.season} ${a.status}`.toLowerCase().includes(q);
+      });
+      return mpPage(
+        `${mpChipRow(["全部", "待审核", "已通过", "已拒绝"], tab, "mp-chip:appointTab:")}${mpSearch("搜索品牌 / 季节", ui.q["buyer-appoint-apply"] || "")}`,
+        `<article class="rr-mp-card rr-mp-form">
           <p class="rr-mp-lead">提交后待平台审核，通过后可到场看款。</p>
           ${form}
           <button type="button" class="rr-mp-cta" data-act="submit-buyer-appoint">提交预约申请</button>
         </article>
         <h3 class="rr-mp-sec">我的预约</h3>
-        ${mine.map(a => `<article class="rr-mp-card">
+        ${shown.map(a => `<article class="rr-mp-card rr-mp-card-tap" data-go="buyer-appoint-detail" data-aid="${a.index}">
           <header class="rr-mp-card-hd">
             <div class="rr-mp-avatar">${esc((a.brand || "").slice(0, 2))}</div>
             <div class="rr-mp-card-ttl">
@@ -2093,13 +2113,14 @@
               <small>${a.season || "—"} · ${a.date || "—"}</small>
             </div>
             <span class="rr-mp-pill">${a.status || "待审核"}</span>
+            <span class="rr-mp-chevron">›</span>
           </header>
           <div class="rr-mp-metrics">
             <span><em>${a.people || 1}</em>人</span>
             <span>${a.reason || (a.status === "已拒绝" ? "" : "可到场看款")}</span>
           </div>
-        </article>`).join("") || `<div class="rr-mp-empty">暂无预约记录</div>`}
-      </div>`;
+        </article>`).join("") || `<div class="rr-mp-empty">暂无预约记录</div>`}`
+      );
     }
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container content-page">
@@ -2459,6 +2480,7 @@
   function pageBuyerHome() {
     const brands = Store.buyerBrands(Store.db.buyerSession.cat || "全部");
     syncBuyerCart();
+    if (isMp()) return mpBrandGrid(brands);
     /* 原站：brand_list-container > left 分类 + right brand_list grid item_inner */
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container brand_list-container">
@@ -2500,6 +2522,22 @@
     /* 《注册流程图》：只能查看已审核通过或不需要审核的品牌商品 */
     const gate = Store.brandOrderable(brand);
     if (!gate.ok) {
+      if (isMp()) {
+        return `<div class="rr-mp-stack">
+          <article class="rr-mp-card">
+            <div class="rr-mp-brand-mark">${esc(brand)}</div>
+            <h3>${gate.msg}</h3>
+            <p class="rr-mp-lead">该品牌开启了「下单需审核买手」，需平台审核通过后才能查看商品并加入选款单。</p>
+            ${gate.pending
+              ? '<span class="rr-mp-pill mute">品牌申请审核中</span>'
+              : `<button type="button" class="rr-mp-cta" data-act="apply-brand:${esc(brand)}">${gate.denied ? "重新提交申请" : "提交品牌申请"}</button>`}
+            <footer class="rr-mp-card-ft">
+              <a href="javascript:;" data-go="buyer-intent">查看我的品牌申请</a>
+              <a href="javascript:;" data-go="buyer-home">返回品牌列表</a>
+            </footer>
+          </article>
+        </div>`;
+      }
       return `<div class="oto-main_container buyer-fe">
         <div class="oto_container brand_list-container">
           ${buyerCatSide(`<div style="margin-top:16px"><a href="javascript:;" data-act="go:buyer-home">返回品牌列表</a></div>`)}
@@ -2566,6 +2604,43 @@
             </div>
           </div>`).join("") || '<div class="note">无匹配商品（可取消 New / Carry Over 筛选）</div>'}
       </div>`;
+    if (isMp()) {
+      const sess = Store.db.buyerSession;
+      const filter = `
+        ${mpChipRow(seasons, s.season, "season:")}
+        <div class="rr-mp-search">
+          ${field("buyerSearch", input("搜索款号 / 名称", sess.search || ""))}
+          <button type="button" class="rr-mp-search-btn" data-act="buyer-filter">搜索</button>
+        </div>
+        <div class="rr-mp-chips">
+          <button type="button" class="rr-mp-seg-btn ${state.viewMode === "image" ? "on" : ""}" data-view="image">图片</button>
+          <button type="button" class="rr-mp-seg-btn ${state.viewMode === "code" ? "on" : ""}" data-view="code">编号</button>
+          <button type="button" class="rr-mp-seg-btn ${sess.newOnly ? "on" : ""}" data-act="mp-toggle-new">New</button>
+          <button type="button" class="rr-mp-seg-btn ${sess.carryOnly ? "on" : ""}" data-act="mp-toggle-carry">Carry Over</button>
+        </div>`;
+      const intro = `<article class="rr-mp-card rr-mp-card-tap" data-go="buyer-brand-about">
+          <header class="rr-mp-card-hd">
+            <div class="rr-mp-avatar">${esc((brand || "").slice(0, 2))}</div>
+            <div class="rr-mp-card-ttl">
+              <b>${esc(brand)}</b>
+              <small>${esc((bmeta.about || bmeta.style || "品牌介绍 / LOOKBOOK").slice(0, 42))}</small>
+            </div>
+            <span class="rr-mp-chevron">›</span>
+          </header>
+        </article>`;
+      const grid = state.viewMode === "code"
+        ? `<div class="rr-mp-code-grid">${list.map(g => `
+            <button type="button" class="rr-mp-code-cell" data-go="buyer-detail" data-sku="${esc(g.skc || g.sku)}">${esc(g.code || g.sku.slice(-3))}</button>`).join("") || `<div class="rr-mp-empty">无匹配商品</div>`}</div>`
+        : `<div class="rr-mp-grid2">${list.map(g => `
+            <article class="rr-mp-card rr-mp-card-tap rr-mp-goods" data-go="buyer-detail" data-sku="${esc(g.skc || g.sku)}">
+              <button type="button" class="rr-mp-heart ${state.hearts.includes(g.skc || g.sku) ? "on" : ""}" data-heart="${esc(g.skc || g.sku)}">${state.hearts.includes(g.skc || g.sku) ? "♥" : "♡"}</button>
+              <div class="rr-mp-cover">${g.isNew ? '<span class="rr-mp-new">New</span>' : ""}LOOK</div>
+              <b>${esc(g.title)}</b>
+              <small>${esc(g.sku)}</small>
+              <em>¥${g.wholesale}</em>
+            </article>`).join("") || `<div class="rr-mp-empty">无匹配商品</div>`}</div>`;
+      return mpPage(filter, intro + grid);
+    }
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container brand_list-container">
         ${buyerCatSide(`<div style="margin-top:16px"><a href="javascript:;" data-act="go:buyer-home">返回品牌列表</a></div>`)}
@@ -2612,7 +2687,7 @@
     const q = draft.quote;
     const lines = draft.lines;
     /* 原站：balck_bg + selection_side-container */
-    return `<div class="rr-drawer-root">
+    return `<div class="rr-drawer-root${isMp() ? " rr-mp-sheet" : ""}">
       <div class="balck_bg rr-drawer-mask" data-toggle-cart></div>
       <div class="selection_side-container active rr-drawer rr-drawer-wide" role="dialog" aria-label="快捷选款单">
         <div class="side_cancel" data-toggle-cart title="关闭"><span class="close-x"></span></div>
@@ -2639,14 +2714,227 @@
 
   function isMp() { return state.portal === "mp"; }
 
+  function mpUi() {
+    Store.db.ui.mp = Store.db.ui.mp || { selTab: "全部", appointTab: "全部", intentTab: "全部", msgTab: "全部", q: {} };
+    Store.db.ui.mp.q = Store.db.ui.mp.q || {};
+    return Store.db.ui.mp;
+  }
+
+  function mpPage(filter, body) {
+    return `<div class="rr-mp-page">
+      ${filter ? `<div class="rr-mp-filter">${filter}</div>` : ""}
+      <div class="rr-mp-body">${body}</div>
+    </div>`;
+  }
+
+  function mpSearch(placeholder, value, act) {
+    return `<div class="rr-mp-search">
+      ${field("mpListQ", input(placeholder, value || ""))}
+      <button type="button" class="rr-mp-search-btn" data-act="${act || "mp-list-filter"}">搜索</button>
+    </div>`;
+  }
+
+  function mpChipRow(items, current, actPrefix) {
+    return `<div class="rr-mp-chips">${items.map(it => {
+      const v = Array.isArray(it) ? it[0] : it;
+      const lab = Array.isArray(it) ? it[1] : it;
+      return `<button type="button" class="rr-mp-seg-btn ${String(current) === String(v) ? "on" : ""}" data-act="${actPrefix}${v}">${lab}</button>`;
+    }).join("")}</div>`;
+  }
+
+  function mpKv(rows) {
+    return `<dl class="rr-mp-kv">${(rows || []).map(([k, v]) => `<div><dt>${k}</dt><dd>${v == null || v === "" ? "—" : v}</dd></div>`).join("")}</dl>`;
+  }
+
+  function mpBrandGrid(brands) {
+    const cat = Store.db.buyerSession.cat || "全部";
+    const cats = ["全部", "女装", "男装", "男女装", "配饰"];
+    const q = (mpUi().q[state.page] || "").trim().toLowerCase();
+    const shown = (brands || []).filter(b => !q || String(b.name || "").toLowerCase().includes(q));
+    return mpPage(
+      `${mpChipRow(cats, cat, "cat:")}${mpSearch("搜索品牌", mpUi().q[state.page] || "")}`,
+      `<div class="rr-mp-grid2">${shown.map(b => {
+        const noAuth = b.accept === false;
+        const pending = b.pending;
+        const go = noAuth ? "buyer-intent" : "buyer-brand";
+        const tag = noAuth ? (pending ? "申请中" : b.denied ? "被拒绝" : "需申请") : "";
+        return `<article class="rr-mp-card rr-mp-card-tap rr-mp-brand-tile" data-go="${go}" data-brand="${esc(b.name)}">
+          ${tag ? `<span class="rr-mp-pill mute">${tag}</span>` : ""}
+          <div class="rr-mp-brand-mark">${esc(b.name)}</div>
+          <b>${esc(b.name)}</b>
+        </article>`;
+      }).join("") || `<div class="rr-mp-empty">${q ? "无匹配品牌" : "该分类下暂无品牌"}</div>`}</div>`
+    );
+  }
+
+  function mpFabCart(label) {
+    syncBuyerCart();
+    const restock = mpTabId() === "buyer-replenish";
+    const go = restock ? "buyer-replenish-cart" : "buyer-cart";
+    const lab = label || (restock ? "我的补货单" : "我的选款单");
+    return `<button type="button" class="rr-mp-fab" data-go="${go}">${lab}${state.cart.length ? `<i>${state.cart.length}</i>` : ""}</button>`;
+  }
+
+  function pageBuyerCart() {
+    syncBuyerCart();
+    const replenish = state.page === "buyer-replenish-cart";
+    const brand = state.cartBrandFilter || state.selectedBrand || (Store.db.buyerSession.selections[0] && Store.db.buyerSession.selections[0].brand) || "";
+    const draft = Store.draftQuote(brand);
+    const q = draft.quote || {};
+    const lines = draft.lines || [];
+    const brands = [...new Set((Store.db.buyerSession.selections || []).map(x => x.brand).filter(Boolean))];
+    const ui = mpUi();
+    const qtext = (ui.q[state.page] || "").trim().toLowerCase();
+    const shown = (lines || []).filter(l => !qtext || `${l.title || ""} ${l.sku || ""}`.toLowerCase().includes(qtext));
+    const filter = `${brands.length ? mpChipRow(brands, brand, "cart-brand:") : ""}${mpSearch("搜索款号 / 名称", ui.q[state.page] || "")}`;
+    const body = `<article class="rr-mp-card">
+        <header class="rr-mp-card-hd">
+          <div class="rr-mp-avatar">${esc((brand || "—").slice(0, 2))}</div>
+          <div class="rr-mp-card-ttl"><b>${esc(brand || "未选品牌")}</b><small>${replenish ? "补货草稿" : "选款草稿"}</small></div>
+        </header>
+        ${mpKv([
+          ["件数", q.pieces || 0],
+          ["SKU", (draft.items || []).length],
+          ["总吊牌价", "¥" + Store.money(q.retail)],
+          ["总批发价", "¥" + Store.money(q.wholesale)]
+        ])}
+      </article>
+      ${(shown || []).map(l => {
+        const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
+        return `<article class="rr-mp-card rr-mp-card-tap" data-go="buyer-detail" data-sku="${esc(l.sku)}">
+          <header class="rr-mp-card-hd">
+            <div class="rr-mp-cover sm">图</div>
+            <div class="rr-mp-card-ttl"><b>${esc(l.title || l.sku)}</b><small>${esc(l.sku)} · ${qty} 件</small></div>
+            <span class="rr-mp-chevron">›</span>
+          </header>
+        </article>`;
+      }).join("") || `<div class="rr-mp-empty">${qtext ? "无匹配款式" : "暂无款式，请添加"}</div>`}
+      <div class="rr-mp-actions">
+        <button type="button" class="rr-mp-cta" data-act="go:buyer-selection">查看选款单</button>
+        ${brand ? `<button type="button" class="rr-mp-cta" data-act="buyer-confirm-one-brand" data-brand="${esc(brand)}">确认本品牌</button>` : ""}
+      </div>`;
+    return mpPage(filter, body);
+  }
+
+  function pageBuyerAppointDetail() {
+    const a = state.selectedAppoint || Store.buyerAppointments()[0] || {};
+    return `<div class="rr-mp-stack">
+      <article class="rr-mp-card">
+        <header class="rr-mp-card-hd">
+          <div class="rr-mp-avatar">${esc((a.brand || "").slice(0, 2))}</div>
+          <div class="rr-mp-card-ttl"><b>${esc(a.brand || "预约详情")}</b><small>${esc(a.season || "")}</small></div>
+          <span class="rr-mp-pill">${a.status || "待审核"}</span>
+        </header>
+        ${mpKv([
+          ["订货会", a.season],
+          ["到场时间", a.date],
+          ["人数", a.people || 1],
+          ["联系人", a.contact],
+          ["手机", a.phone],
+          ["店铺", a.store],
+          ["说明", a.reason || (a.status === "已拒绝" ? "" : "可到场看款")]
+        ])}
+      </article>
+    </div>`;
+  }
+
+  function pageBuyerMessageDetail() {
+    const m = state.selectedMsg || (Store.db.buyerMessages || [])[0] || { title: "消息", body: "暂无内容", time: "" };
+    if (m) m.read = true;
+    Store.persist && Store.persist();
+    return `<div class="rr-mp-stack">
+      <article class="rr-mp-card">
+        <header class="rr-mp-card-hd">
+          <div class="rr-mp-card-ttl"><b>${esc(m.title || "消息")}</b><small>${esc(m.time || "")}</small></div>
+        </header>
+        <p class="rr-mp-lead" style="color:#1c1c1e">${esc(m.body || "")}</p>
+      </article>
+    </div>`;
+  }
+
+  function pageBuyerLookDetail() {
+    const b = RR.brands.find(x => x.name === state.selectedBrand) || RR.brands[0];
+    const look = (Store.db.looks || []).find(l => String(l.id) === String(state.selectedLook))
+      || (Store.db.looks || []).find(l => !l.brand || l.brand === (b && b.name))
+      || { id: state.selectedLook, title: "LOOK", skus: [], season: "" };
+    const goods = (look.skus || []).map(sku => Store.db.goods.find(g => g.sku === sku || g.skc === sku)).filter(Boolean);
+    if (isMp()) {
+      const ui = mpUi();
+      const q = (ui.q["buyer-look-detail"] || "").trim().toLowerCase();
+      const shown = goods.filter(g => !q || `${g.title} ${g.sku} ${g.code || ""}`.toLowerCase().includes(q));
+      return mpPage(
+        mpSearch("搜索款号 / 名称", ui.q["buyer-look-detail"] || ""),
+        `<article class="rr-mp-card">
+          <div class="rr-mp-cover lg">LOOK ${esc(look.id || "")}</div>
+          <header class="rr-mp-card-hd">
+            <div class="rr-mp-card-ttl"><b>${esc(look.title || "LOOKBOOK")}</b><small>${esc(look.season || "")} · ${esc((b && b.name) || "")}</small></div>
+          </header>
+        </article>
+        <h3 class="rr-mp-sec">相关款式</h3>
+        <div class="rr-mp-grid2">${shown.map(g => `
+          <article class="rr-mp-card rr-mp-card-tap rr-mp-goods" data-go="buyer-detail" data-sku="${esc(g.skc || g.sku)}">
+            <div class="rr-mp-cover">LOOK</div>
+            <b>${esc(g.title)}</b>
+            <small>${esc(g.sku)}</small>
+            <em>¥${g.wholesale}</em>
+          </article>`).join("") || `<div class="rr-mp-empty">${q ? "无匹配款式" : "该 LOOK 暂未绑定款式"}</div>`}</div>`
+      );
+    }
+    return `<div class="rr-mp-stack">
+      <article class="rr-mp-card">
+        <div class="rr-mp-cover lg">LOOK ${esc(look.id || "")}</div>
+        <header class="rr-mp-card-hd">
+          <div class="rr-mp-card-ttl"><b>${esc(look.title || "LOOKBOOK")}</b><small>${esc(look.season || "")} · ${esc((b && b.name) || "")}</small></div>
+        </header>
+      </article>
+      <h3 class="rr-mp-sec">相关款式</h3>
+      <div class="rr-mp-grid2">${goods.map(g => `
+        <article class="rr-mp-card rr-mp-card-tap rr-mp-goods" data-go="buyer-detail" data-sku="${esc(g.skc || g.sku)}">
+          <div class="rr-mp-cover">LOOK</div>
+          <b>${esc(g.title)}</b>
+          <small>${esc(g.sku)}</small>
+          <em>¥${g.wholesale}</em>
+        </article>`).join("") || `<div class="rr-mp-empty">该 LOOK 暂未绑定款式</div>`}</div>
+    </div>`;
+  }
+
+  function pageBuyerIntentDetail() {
+    const brand = state.selectedBrand;
+    const row = (Store.buyerIntentions() || []).find(r => r.brand === brand) || { brand, status: "待审核" };
+    return `<div class="rr-mp-stack">
+      <article class="rr-mp-card">
+        <header class="rr-mp-card-hd">
+          <div class="rr-mp-avatar">${esc((row.brand || "").slice(0, 2))}</div>
+          <div class="rr-mp-card-ttl"><b>${esc(row.brand || "意向详情")}</b><small>${esc(row.date || row.at || "")}</small></div>
+          <span class="rr-mp-pill">${row.status || "待审核"}</span>
+        </header>
+        ${mpKv([["状态", row.status], ["申请说明", row.note || row.reason || "—"]])}
+        <footer class="rr-mp-card-ft">
+          ${row.status === "已通过" ? `<a class="on" href="javascript:;" data-go="buyer-brand" data-brand="${esc(row.brand)}">查看商品</a>` : ""}
+          ${row.status === "已拒绝" ? `<a href="javascript:;" data-act="apply-brand:${esc(row.brand)}">重新申请</a>` : `<span>审核中</span>`}
+        </footer>
+      </article>
+    </div>`;
+  }
+
   function pageBuyerSelection() {
     const store = Store.db.buyerSession.store;
     const list = Store.db.selections.filter(s => s.store === store || true);
     const hearts = Store.db.buyerSession.selections;
     if (isMp()) {
-      return `<div class="rr-mp-stack">
-        ${hearts.length ? `<button type="button" class="rr-mp-cta" data-act="buyer-confirm-hearts">按品牌确认选款单</button>` : ""}
-        ${list.map(s => `<article class="rr-mp-card">
+      const ui = mpUi();
+      const q = (ui.q["buyer-selection"] || "").trim().toLowerCase();
+      const tab = ui.selTab || "全部";
+      const shown = list.filter(s => {
+        const st = s.locked ? "已取消" : "待确认";
+        if (tab !== "全部" && st !== tab) return false;
+        if (!q) return true;
+        return `${s.brand} ${s.id} ${s.season}`.toLowerCase().includes(q);
+      });
+      return mpPage(
+        `${mpChipRow(["全部", "待确认", "已取消"], tab, "mp-chip:selTab:")}${mpSearch("搜索品牌 / 单号", ui.q["buyer-selection"] || "")}`,
+        `${hearts.length ? `<button type="button" class="rr-mp-cta" data-act="buyer-confirm-hearts">按品牌确认选款单</button>` : ""}
+        ${shown.map(s => `<article class="rr-mp-card rr-mp-card-tap" data-go="buyer-selection-edit" data-sel="${s.id}">
           <header class="rr-mp-card-hd">
             <div class="rr-mp-avatar">${esc((s.brand || "").slice(0, 2))}</div>
             <div class="rr-mp-card-ttl">
@@ -2654,6 +2942,7 @@
               <small>${s.season} · ${s.createdAt || s.date || s.time || "—"}</small>
             </div>
             ${s.locked ? `<span class="rr-mp-pill mute">已取消</span>` : `<span class="rr-mp-pill">待确认</span>`}
+            <span class="rr-mp-chevron">›</span>
           </header>
           <div class="rr-mp-metrics">
             <span><em>¥${s.amount}</em>买手价</span>
@@ -2665,8 +2954,8 @@
             <a href="javascript:;" data-act="download:选款单">下载</a>
             <a href="javascript:;" class="on" data-act="buyer-confirm-sel" data-sel="${s.id}">确认订单</a>
           </footer>`}
-        </article>`).join("") || `<div class="rr-mp-empty">暂无选款单，去品牌里加款</div>`}
-      </div>`;
+        </article>`).join("") || `<div class="rr-mp-empty">暂无选款单</div>`}`
+      );
     }
     /* 原站：selection-container > selection_list > item > selection_info */
     return `<div class="oto-main_container buyer-fe">
@@ -2714,28 +3003,31 @@
 
   function pageBuyerSelectionEdit() {
     const s = state.selectedSel || Store.db.selections[0];
-    return renderSelectionWorkbench(s, {
+    const html = renderSelectionWorkbench(s, {
       backAct: "go:buyer-selection",
       showGen: false,
       showConfirm: true,
       showCancel: false,
       hideSpecs: true
     });
+    return isMp() ? `<div class="rr-mp-work">${html}</div>` : html;
   }
 
   function pageBuyerOrders() {
     const tab = Store.db.buyerSession.orderTab || "全部";
     const list = Store.buyerOrders(tab);
     if (isMp()) {
-      return `<div class="rr-mp-stack">
-        <div class="rr-mp-seg">${["全部", "已完成", "未完成"].map(t =>
+      const ui = mpUi();
+      const q = (ui.q["buyer-orders"] || "").trim().toLowerCase();
+      const shown = list.filter(o => !q || `${o.brand} ${o.id} ${o.season} ${o.status}`.toLowerCase().includes(q));
+      return mpPage(
+        `<div class="rr-mp-seg">${["全部", "已完成", "未完成"].map(t =>
           `<button type="button" class="rr-mp-seg-btn ${tab === t ? "on" : ""}" data-tabsoft data-order-tab="${t}">${t}</button>`
-        ).join("")}</div>
-        ${list.map(o => {
+        ).join("")}</div>${mpSearch("搜索品牌 / 订单号", ui.q["buyer-orders"] || "")}`,
+        shown.map(o => {
           const acts = Store.orderActions(o, "buyer");
           const pay = Store.paymentStats(o);
           const extras = [
-            `<a href="javascript:;" data-go="buyer-order-detail" data-oid="${o.id}">查看</a>`,
             o.status === Store.ORDER_ST.rejected
               ? `<a href="javascript:;" data-go="buyer-selection-edit" data-sel="${o.fromSelection || ""}">修改重下</a>` : "",
             ...acts.filter(a => !a.wait && a.act !== "download:订单").map(a => {
@@ -2745,7 +3037,8 @@
               return `<a href="javascript:;" data-act="${a.act}" data-oid="${o.id}">${a.label}</a>`;
             })
           ].filter(Boolean);
-          return `<article class="rr-mp-card">
+          const waits = acts.filter(a => a.wait).map(a => `<span class="wait-chip">${a.label}</span>`).join("");
+          return `<article class="rr-mp-card rr-mp-card-tap" data-go="buyer-order-detail" data-oid="${o.id}">
             <header class="rr-mp-card-hd">
               <div class="rr-mp-avatar">${esc((o.brand || "").slice(0, 2))}</div>
               <div class="rr-mp-card-ttl">
@@ -2753,6 +3046,7 @@
                 <small>${o.season} · ${o.createdAt || "—"}</small>
               </div>
               <span class="rr-mp-pill">${o.status}</span>
+              <span class="rr-mp-chevron">›</span>
             </header>
             <div class="rr-mp-metrics">
               <span><em>¥${o.amount}</em>订单</span>
@@ -2760,10 +3054,10 @@
               <span><em>¥${Store.money(pay.unpaid)}</em>待付</span>
             </div>
             <div class="rr-mp-id">${o.id}</div>
-            <footer class="rr-mp-card-ft">${extras.join("")}${acts.filter(a => a.wait).map(a => `<span class="wait-chip">${a.label}</span>`).join("")}</footer>
+            ${extras.length || waits ? `<footer class="rr-mp-card-ft">${extras.join("")}${waits}</footer>` : ""}
           </article>`;
-        }).join("") || `<div class="rr-mp-empty">暂无订单</div>`}
-      </div>`;
+        }).join("") || `<div class="rr-mp-empty">暂无订单</div>`
+      );
     }
     /* 原站：order-container > left 我的订单 tabs + order_list item */
     return `<div class="oto-main_container buyer-fe">
@@ -2863,6 +3157,79 @@
         <div class="action-bar">${btn("提交凭证", "btn-primary", "submit-pay")}</div>
         <div class="pay-sum">未付金额 ¥${Store.money(stats.unpaid)}（已核对 ¥${Store.money(stats.confirmed)}）</div></div>`
     };
+    if (isMp()) {
+      return `<div class="rr-mp-stack rr-mp-detail">
+        <article class="rr-mp-card">${orderFlowSteps(o)}</article>
+        <article class="rr-mp-card">
+          <header class="rr-mp-card-hd">
+            <div class="rr-mp-avatar">${esc((o.brand || "").slice(0, 2))}</div>
+            <div class="rr-mp-card-ttl"><b>${esc(o.brand || "")}${o.type === "补货单" ? " · 补货" : ""}</b><small>${esc(o.id)}</small></div>
+            <span class="rr-mp-pill">${o.status}</span>
+          </header>
+          ${mpKv([
+            ["下单时间", o.createdAt],
+            ["订单金额", "¥ " + o.amount],
+            ["应付定金", `¥ ${o.deposit}（${Math.round(Number(o.depositRatio || 0.3) * 100)}%）`],
+            ["已付金额", "¥ " + Store.money(stats.confirmed)],
+            ["待付金额", "¥ " + Store.money(stats.unpaid)]
+          ])}
+          <footer class="rr-mp-card-ft">
+            ${acts.filter(a => !a.wait && a.act !== "download:订单").map(a => {
+              const p = a.act.startsWith("open-order-panel:") ? a.act.slice("open-order-panel:".length) : "";
+              if (p) return `<a href="javascript:;" class="on" data-act="open-order-panel:${p}" data-oid="${o.id}">${a.label}</a>`;
+              return `<a href="javascript:;" data-act="${a.act}" data-oid="${o.id}">${a.label}</a>`;
+            }).join("")}
+            ${acts.filter(a => a.wait).map(a => `<span class="wait-chip">${a.label}</span>`).join("")}
+            <a href="javascript:;" data-act="download:订单Excel">下载</a>
+          </footer>
+        </article>
+        ${payPanels[panel] || ""}
+        <article class="rr-mp-card">
+          <h3 class="rr-mp-sec">付款凭证</h3>
+          ${(o.payments || []).map(p => `<div class="rr-mp-pay-row"><b>${p.kind}</b><span>¥${p.amount}</span><span class="rr-mp-pill ${p.status === "已核对" ? "" : "mute"}">${p.status}</span></div>`).join("") || `<p class="rr-mp-lead">暂无付款凭证</p>`}
+        </article>
+        <article class="rr-mp-card">
+          <h3 class="rr-mp-sec">流程记录</h3>
+          <ul class="flow-log">${(o.flowLog || []).map(l => `<li><span>${l.at}</span>${l.text}</li>`).join("") || "<li>暂无记录</li>"}</ul>
+        </article>
+        <article class="rr-mp-card">
+          <h3 class="rr-mp-sec">收货地址</h3>
+          <p class="rr-mp-lead" style="color:#1c1c1e">${addr.name} ${addr.phone}<br/>${addr.addr}</p>
+          <footer class="rr-mp-card-ft"><a href="javascript:;" data-go="buyer-profile" data-mine-tab="addr">管理地址</a></footer>
+        </article>
+        <article class="rr-mp-card">
+          <h3 class="rr-mp-sec">开票信息</h3>
+          ${mpKv([["类型", inv.type || "企业发票"], ["抬头", inv.title || o.store], ["税号", inv.tax]])}
+        </article>
+        ${(lines || []).map(l => {
+          const g = Store.db.goods.find(x => x.sku === l.sku) || {};
+          const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
+          const buyerPrice = qty * Number(l.price || 0) * Number(l.discount || 1);
+          const sizeText = Object.entries(l.sizes || {}).map(([k, v]) => `${k}:${v}`).join(" ");
+          return `<article class="rr-mp-card rr-mp-card-tap" data-go="buyer-detail" data-sku="${esc(l.sku)}">
+            <header class="rr-mp-card-hd">
+              <div class="rr-mp-cover sm">图</div>
+              <div class="rr-mp-card-ttl"><b>${esc(l.title || g.title || l.sku)}</b><small>SKU ${esc(l.sku)} · ${esc(sizeText || "—")}</small></div>
+              <span class="rr-mp-chevron">›</span>
+            </header>
+            <div class="rr-mp-metrics">
+              <span><em>¥${Store.money(buyerPrice)}</em>买手价</span>
+              <span><em>${qty}</em>件</span>
+            </div>
+          </article>`;
+        }).join("") || `<div class="rr-mp-empty">无商品明细</div>`}
+        <article class="rr-mp-card">
+          ${mpKv([
+            ["总计", "¥ " + Store.money(total)],
+            ["已付金额", "¥ " + Store.money(paid)],
+            ["待付金额", "¥ " + Store.money(unpaid)],
+            ["零售总价", "¥ " + Store.money(retail)],
+            ["商品定金", "¥ " + (o.deposit || "0.00")],
+            ["商品尾款", "¥ " + Store.money(Math.max(0, total - Store.parseMoney(o.deposit)))]
+          ])}
+        </article>
+      </div>`;
+    }
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container order-container order_detail-container buyer-order-detail">
         <div class="public_right-container" style="width:100%">
@@ -3412,6 +3779,22 @@
       render();
       return;
     }
+    if (act.startsWith("mp-chip:")) {
+      const rest = act.slice("mp-chip:".length);
+      const i = rest.indexOf(":");
+      if (i > 0) {
+        mpUi()[rest.slice(0, i)] = rest.slice(i + 1);
+        Store.persist();
+        render();
+      }
+      return;
+    }
+    if (act.startsWith("cart-brand:")) {
+      state.cartBrandFilter = act.slice("cart-brand:".length);
+      state.selectedBrand = state.cartBrandFilter;
+      render();
+      return;
+    }
     if (act.startsWith("disable-account:")) {
       const i = Number(act.split(":")[1]);
       if (Store.db.accounts && Store.db.accounts[i]) {
@@ -3579,6 +3962,24 @@
     if (selId) state.selectedSel = Store.db.selections.find(s => s.id === selId) || state.selectedSel;
 
     switch (act) {
+      case "mp-list-filter": {
+        mpUi().q[state.page] = readFields().mpListQ || "";
+        Store.persist();
+        render();
+        break;
+      }
+      case "mp-toggle-new":
+        Store.db.buyerSession.newOnly = !Store.db.buyerSession.newOnly;
+        state.listPage = 1;
+        Store.persist();
+        render();
+        break;
+      case "mp-toggle-carry":
+        Store.db.buyerSession.carryOnly = !Store.db.buyerSession.carryOnly;
+        state.listPage = 1;
+        Store.persist();
+        render();
+        break;
       case "toggle-sel-add":
         state.selAddOpen = !state.selAddOpen;
         render();
@@ -4461,8 +4862,10 @@
         const f = readFields();
         if (f.buyerSeason) Store.db.buyerSession.season = f.buyerSeason;
         Store.db.buyerSession.search = f.buyerSearch || "";
-        Store.db.buyerSession.carryOnly = !!document.querySelector('[data-field="buyerCarry"]:checked');
-        Store.db.buyerSession.newOnly = !!document.querySelector('[data-field="buyerNew"]:checked');
+        if (!isMp()) {
+          Store.db.buyerSession.carryOnly = !!document.querySelector('[data-field="buyerCarry"]:checked');
+          Store.db.buyerSession.newOnly = !!document.querySelector('[data-field="buyerNew"]:checked');
+        }
         state.listPage = 1;
         Store.persist();
         render();
@@ -4608,6 +5011,33 @@
     /* 原站：brand_detail-container · 品牌介绍/LOOKBOOK · brand_info 字段 */
     const b = RR.brands.find(x => x.name === state.selectedBrand) || RR.brands[0];
     const tab = Store.db.ui.buyerBrandTab || "intro";
+    const looks = (Store.db.looks || []).filter(l => !l.brand || l.brand === b.name).slice(0, 6);
+    if (isMp()) {
+      return `<div class="rr-mp-stack">
+        <div class="rr-mp-cover hero">${esc(b.name)}</div>
+        <div class="rr-mp-seg">
+          <button type="button" class="rr-mp-seg-btn ${tab === "intro" ? "on" : ""}" data-act="buyer-brand-tab:intro">品牌介绍</button>
+          <button type="button" class="rr-mp-seg-btn ${tab === "look" ? "on" : ""}" data-act="buyer-brand-tab:look">LOOKBOOK</button>
+        </div>
+        ${tab === "intro" ? `<article class="rr-mp-card">
+            ${mpKv([
+              ["品牌名", b.name],
+              ["成立时间", b.year],
+              ["官网", b.site],
+              ["最小起订量", b.moq || Store.db.brandRules.minAmount || 50000],
+              ["品类", b.cat],
+              ["风格", b.style],
+              ["人群", b.crowd]
+            ])}
+            <p class="rr-mp-lead" style="color:#1c1c1e">${esc(b.about || "由平台端/品牌端在品牌信息中维护。")}</p>
+          </article>` : `<div class="rr-mp-grid2">${looks.map(l => `
+            <article class="rr-mp-card rr-mp-card-tap rr-mp-goods" data-go="buyer-look-detail" data-look="${l.id}">
+              <div class="rr-mp-cover">LOOK ${l.id}</div>
+              <b>${esc(l.title)}</b>
+              <small>${esc(l.season || "")}</small>
+            </article>`).join("") || `<div class="rr-mp-empty">暂无 LOOKBOOK</div>`}</div>`}
+      </div>`;
+    }
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container brand_detail-container">
         <div class="brand_swiper-container">
@@ -4651,6 +5081,39 @@
     const price = Store.parseMoney(g.wholesale);
     const totalQty = sizes.reduce((a, sz) => a + (state.qty[sz] || 0), 0);
     const totalAmt = sizes.reduce((a, sz) => a + (state.qty[sz] || 0) * price, 0);
+    if (isMp()) {
+      return `<div class="rr-mp-stack rr-mp-goods-detail">
+        <div class="rr-mp-cover hero">商品大图</div>
+        <div class="rr-mp-thumbs">${[1, 2, 3, 4].map(i => `<span>${i}</span>`).join("")}</div>
+        <article class="rr-mp-card">
+          <header class="rr-mp-card-hd">
+            <div class="rr-mp-avatar">${esc((g.brand || "").slice(0, 2))}</div>
+            <div class="rr-mp-card-ttl"><b>${esc(g.title)}</b><small>SKU ${esc(g.sku)}</small></div>
+          </header>
+          <div class="rr-mp-metrics">
+            <span><em>¥${g.retail}</em>零售</span>
+            <span><em>¥${g.wholesale}</em>订货</span>
+            <span><em>${totalQty}</em>已选</span>
+          </div>
+          <div class="size_list">${sizes.map(sz => `
+            <div class="size-row item">
+              <div class="size_name">${sz}</div>
+              <div class="qty">
+                <button data-qty="${sz}" data-d="-1">−</button>
+                <input value="${state.qty[sz] || 0}" readonly />
+                <button data-qty="${sz}" data-d="1">+</button>
+              </div>
+              <div class="line_amt">¥${Store.money((state.qty[sz] || 0) * price)}</div>
+            </div>`).join("")}</div>
+          <p class="rr-mp-lead">最小起订 ¥${Store.money(Store.getDiscountRules().minAmount)} · 已选 ¥${Store.money(totalAmt)}</p>
+          <button type="button" class="rr-mp-cta" data-act="add-to-order">加入选款单</button>
+        </article>
+        <article class="rr-mp-card">
+          <h3 class="rr-mp-sec">材质信息</h3>
+          <p class="rr-mp-lead" style="color:#1c1c1e">主面料 100% Wool · 里料 100% Cupro</p>
+        </article>
+      </div>`;
+    }
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container goods_detail-container">
         <div class="detail-sticky">
@@ -4702,6 +5165,25 @@
     /* Excel #20：站内消息 */
     const msgs = Store.db.buyerMessages || [];
     Store.markMessagesRead();
+    if (isMp()) {
+      const ui = mpUi();
+      const q = (ui.q["buyer-message"] || "").trim().toLowerCase();
+      const shown = msgs.filter(m => !q || `${m.title} ${m.body}`.toLowerCase().includes(q));
+      return mpPage(
+        mpSearch("搜索消息", ui.q["buyer-message"] || ""),
+        shown.map(m => `
+          <article class="rr-mp-card rr-mp-card-tap ${m.read ? "" : "unread"}" data-go="buyer-message-detail" data-mid="${esc(m.id)}">
+            <header class="rr-mp-card-hd">
+              <div class="rr-mp-card-ttl">
+                <b>${esc(m.title)}${m.read ? "" : ' <span class="rr-mp-pill">新</span>'}</b>
+                <small>${esc(m.time)}</small>
+              </div>
+              <span class="rr-mp-chevron">›</span>
+            </header>
+            <p class="rr-mp-lead">${esc(m.body)}</p>
+          </article>`).join("") || `<div class="rr-mp-empty">暂无消息</div>`
+      );
+    }
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container message-container content-page">
         <div class="public_right-container" style="width:100%">
@@ -4733,6 +5215,71 @@
       ? Object.keys(balances).map(brand => ({ brand, amount: balances[brand] }))
       : RR.brands.slice(0, 5).map((b, i) => ({ brand: b.name, amount: i === 0 ? 2480 : 0 }));
     const substores = s.substores || buyer.substores || [];
+    if (isMp()) {
+      const chips = `<div class="rr-mp-chips">${[
+        ["info", "个人信息"], ["balance", "余额"], ["sub", "子店铺"], ["addr", "地址"], ["inv", "发票"]
+      ].map(([id, lab]) => `<button type="button" class="rr-mp-seg-btn ${tab === id ? "on" : ""}" data-act="buyer-mine-tab:${id}">${lab}</button>`).join("")}</div>`;
+      let pane = "";
+      if (tab === "info") {
+        pane = `<article class="rr-mp-card rr-mp-form">
+          <h3 class="rr-mp-sec">登录信息</h3>
+          <label class="rr-mp-lab">手机号</label>${field("phone", input("", s.phone || ""))}
+          <h3 class="rr-mp-sec">店铺信息</h3>
+          <label class="rr-mp-lab">姓名</label>${field("contact", input("", s.contact || ""))}
+          <label class="rr-mp-lab">店铺名称</label>${field("store", input("", s.store || ""))}
+          <label class="rr-mp-lab">店铺地址</label>${field("city", input("", s.city || ""))}
+          <label class="rr-mp-lab">店铺级别</label><div class="rr-mp-static">${s.level || "—"}</div>
+          <button type="button" class="rr-mp-cta" data-act="save-buyer-profile">保存资料</button>
+        </article>`;
+      } else if (tab === "balance") {
+        pane = `<p class="rr-mp-lead">各品牌可用余额，点卡片看该品牌商品。</p>
+          <div class="rr-mp-stack">${balRows.map(r => `<article class="rr-mp-card rr-mp-card-tap" data-go="buyer-brand" data-brand="${esc(r.brand)}">
+            <header class="rr-mp-card-hd">
+              <div class="rr-mp-avatar">${esc((r.brand || "").slice(0, 2))}</div>
+              <div class="rr-mp-card-ttl"><b>${esc(r.brand)}</b><small>可用余额</small></div>
+              <em class="rr-mp-amt">¥${Store.money(r.amount)}</em>
+              <span class="rr-mp-chevron">›</span>
+            </header>
+          </article>`).join("")}</div>`;
+      } else if (tab === "sub") {
+        pane = `<p class="rr-mp-lead">管理本账号下的子店铺。</p>
+          <div class="rr-mp-stack">${(substores.length ? substores : []).map((x, i) => `<article class="rr-mp-card">
+            <header class="rr-mp-card-hd">
+              <div class="rr-mp-card-ttl"><b>${esc(x.name)}</b><small>${esc(x.city || "—")}</small></div>
+            </header>
+            <footer class="rr-mp-card-ft"><a href="javascript:;" data-act="edit-substore:${i}">编辑</a></footer>
+          </article>`).join("") || `<div class="rr-mp-empty">暂无子店铺</div>`}</div>
+          <article class="rr-mp-card rr-mp-form">
+            <label class="rr-mp-lab">子店铺名</label>${field("subName", input("子店铺名称"))}
+            <label class="rr-mp-lab">城市</label>${field("subCity", input("城市"))}
+            <button type="button" class="rr-mp-cta" data-act="add-buyer-substore">新建子店铺</button>
+          </article>`;
+      } else if (tab === "addr") {
+        pane = `<div class="rr-mp-stack">${(s.addresses || []).map((a, i) => `<article class="rr-mp-card rr-mp-form">
+            <label class="rr-mp-lab">收货人</label>${field("addrName-" + i, input("", a.name))}
+            <label class="rr-mp-lab">电话</label>${field("addrPhone-" + i, input("", a.phone))}
+            <label class="rr-mp-lab">地址</label>${field("addrDetail-" + i, input("", a.addr))}
+            <footer class="rr-mp-card-ft"><a class="on" href="javascript:;" data-act="save-buyer-addresses">保存</a></footer>
+          </article>`).join("") || `<div class="rr-mp-empty">暂无地址</div>`}
+          <button type="button" class="rr-mp-cta" data-act="add-address">新增地址</button>`;
+      } else {
+        pane = `<article class="rr-mp-card rr-mp-form">
+          <div class="rr-mp-checks" style="margin-bottom:8px">
+            <label><input type="radio" name="buyerInvKind" data-field="invKind" value="企业发票" checked /> 企业发票</label>
+            <label><input type="radio" name="buyerInvKind" data-field="invKind" value="个人发票" /> 个人发票</label>
+          </div>
+          <label class="rr-mp-lab">公司名称/抬头</label>${field("invTitle", input("", (s.invoice && s.invoice.title) || ""))}
+          <label class="rr-mp-lab">税号</label>${field("invTax", input("", (s.invoice && s.invoice.tax) || ""))}
+          <label class="rr-mp-lab">电话</label>${field("invPhone", input("", (s.invoice && s.invoice.phone) || s.phone || ""))}
+          <label class="rr-mp-lab">地址</label>${field("invAddr", input("", (s.invoice && s.invoice.addr) || ""))}
+          <label class="rr-mp-lab">开户行</label>${field("invBank", input("", (s.invoice && s.invoice.bank) || ""))}
+          <label class="rr-mp-lab">银行账号</label>${field("invAccount", input("", (s.invoice && s.invoice.account) || ""))}
+          <button type="button" class="rr-mp-cta" data-act="save-buyer-invoice">保存发票信息</button>
+        </article>`;
+      }
+      return mpPage(`${mpMineHub()}${chips}`, `${pane}
+        <button type="button" class="rr-mp-logout" data-act="logout">登出</button>`);
+    }
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container mine-container content-page">
         <div class="public_left-container">
@@ -4764,7 +5311,16 @@
                 </div>
                 <div style="margin-top:16px">${btn("保存资料", "btn-primary", "save-buyer-profile")}</div>
               </div>` : ""}
-            ${tab === "balance" ? `
+            ${tab === "balance" ? (isMp() ? `
+              <p class="rr-mp-lead">各品牌可用余额，点卡片看该品牌商品。</p>
+              <div class="rr-mp-stack">${balRows.map(r => `<article class="rr-mp-card rr-mp-card-tap" data-go="buyer-brand" data-brand="${esc(r.brand)}">
+                <header class="rr-mp-card-hd">
+                  <div class="rr-mp-avatar">${esc((r.brand || "").slice(0, 2))}</div>
+                  <div class="rr-mp-card-ttl"><b>${esc(r.brand)}</b><small>可用余额</small></div>
+                  <em class="rr-mp-amt">¥${Store.money(r.amount)}</em>
+                  <span class="rr-mp-chevron">›</span>
+                </header>
+              </article>`).join("")}</div>` : `
               <div class="sub_title">余额查看</div>
               <div class="note">显示本买手在各品牌下的可用余额（发货差额 / 多付款转入等）。</div>
               <table class="data-table">
@@ -4773,8 +5329,22 @@
                   <td>${r.brand}</td>
                   <td>¥${Store.money(r.amount)}</td>
                 </tr>`).join("")}</tbody>
-              </table>` : ""}
-            ${tab === "sub" ? `
+              </table>`) : ""}
+            ${tab === "sub" ? (isMp() ? `
+              <p class="rr-mp-lead">管理本账号下的子店铺。</p>
+              <div class="rr-mp-stack">${(substores.length ? substores : []).map((x, i) => `<article class="rr-mp-card">
+                <header class="rr-mp-card-hd">
+                  <div class="rr-mp-card-ttl"><b>${esc(x.name)}</b><small>${esc(x.city || "—")}</small></div>
+                </header>
+                <footer class="rr-mp-card-ft"><a href="javascript:;" data-act="edit-substore:${i}">编辑</a></footer>
+              </article>`).join("") || `<div class="rr-mp-empty">暂无子店铺</div>`}</div>
+              <article class="rr-mp-card rr-mp-form">
+                <div class="form-grid">
+                  <label>子店铺名</label><div>${field("subName", input("子店铺名称"))}</div>
+                  <label>城市</label><div>${field("subCity", input("城市"))}</div>
+                </div>
+                <button type="button" class="rr-mp-cta" data-act="add-buyer-substore">新建子店铺</button>
+              </article>` : `
               <div class="sub_title">子店铺管理</div>
               <div class="note">管理本账号下的子店铺，用于订单分配。</div>
               <table class="data-table">
@@ -4788,8 +5358,17 @@
                 <label>子店铺名</label><div>${field("subName", input("子店铺名称"))}</div>
                 <label>城市</label><div>${field("subCity", input("城市"))}</div>
               </div>
-              <div style="margin-top:12px">${btn("新建子店铺", "btn-primary", "add-buyer-substore")}</div>` : ""}
-            ${tab === "addr" ? `
+              <div style="margin-top:12px">${btn("新建子店铺", "btn-primary", "add-buyer-substore")}</div>`) : ""}
+            ${tab === "addr" ? (isMp() ? `
+              <div class="rr-mp-stack">${(s.addresses || []).map((a, i) => `<article class="rr-mp-card rr-mp-form">
+                <div class="form-grid">
+                  <label>收货人</label><div>${field("addrName-" + i, input("", a.name))}</div>
+                  <label>电话</label><div>${field("addrPhone-" + i, input("", a.phone))}</div>
+                  <label>地址</label><div>${field("addrDetail-" + i, input("", a.addr))}</div>
+                </div>
+                <footer class="rr-mp-card-ft"><a class="on" href="javascript:;" data-act="save-buyer-addresses">保存</a></footer>
+              </article>`).join("") || `<div class="rr-mp-empty">暂无地址</div>`}
+              <button type="button" class="rr-mp-cta" data-act="add-address">新增地址</button>` : `
               <div class="sub_title">收货地址管理</div>
               <table class="data-table">
                 <thead><tr><th>收货人</th><th>电话</th><th>地址</th><th>操作</th></tr></thead>
@@ -4800,7 +5379,7 @@
                   <td><a href="javascript:;" data-act="save-buyer-addresses">保存</a></td>
                 </tr>`).join("")}</tbody>
               </table>
-              <div style="margin-top:12px">${btn("新增地址", "btn-outline", "add-address")}</div>` : ""}
+              <div style="margin-top:12px">${btn("新增地址", "btn-outline", "add-address")}</div>`) : ""}
             ${tab === "inv" ? `
               <div class="sub_title">发票地址管理</div>
               <div class="invoice-type-row" style="margin-bottom:12px">
@@ -4863,6 +5442,7 @@
     /* 原站 /replenish：与首页同构 brand_list-container，侧栏分类 + 品牌格子；侧边栏文案为「我的补货单」 */
     const brands = Store.buyerBrands(Store.db.buyerSession.cat || "全部");
     syncBuyerCart();
+    if (isMp()) return mpBrandGrid(brands);
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container brand_list-container">
         ${buyerCatSide()}
@@ -4904,16 +5484,23 @@
     const free = brands.filter(b => !b.needAudit);
     const badge = st => st === "已通过" ? "green" : st === "已拒绝" ? "red" : "";
     if (isMp()) {
-      return `<div class="rr-mp-stack">
-        <article class="rr-mp-card rr-mp-form">
+      const ui = mpUi();
+      const q = (ui.q["buyer-intent"] || "").trim().toLowerCase();
+      const tab = ui.intentTab || "全部";
+      const shown = rows.filter(r => {
+        if (tab !== "全部" && r.status !== tab) return false;
+        if (!q) return true;
+        return `${r.brand} ${r.status}`.toLowerCase().includes(q);
+      });
+      return mpPage(
+        `${mpChipRow(["全部", "待审核", "已通过", "已拒绝"], tab, "mp-chip:intentTab:")}${mpSearch("搜索品牌", ui.q["buyer-intent"] || "")}`,
+        `<article class="rr-mp-card rr-mp-form">
           <p class="rr-mp-lead">需审核品牌先申请，通过后才能看货下单。</p>
-          <div class="form-grid">
-            <label>申请品牌</label><div>${field("intentBrand", select(canApply.length ? canApply.map(b => b.name) : ["暂无可申请品牌"], null, canApply[0] ? canApply[0].name : "暂无可申请品牌"))}</div>
-            <label>申请说明</label><div>${field("intentNote", input("门店定位 / 采购计划"))}</div>
-          </div>
+          <label class="rr-mp-lab">申请品牌</label>${field("intentBrand", select(canApply.length ? canApply.map(b => b.name) : ["暂无可申请品牌"], null, canApply[0] ? canApply[0].name : "暂无可申请品牌"))}
+          <label class="rr-mp-lab">申请说明</label>${field("intentNote", input("门店定位 / 采购计划"))}
           <button type="button" class="rr-mp-cta" data-act="submit-intent">提交品牌申请</button>
         </article>
-        ${rows.map(r => `<article class="rr-mp-card">
+        ${shown.map(r => `<article class="rr-mp-card rr-mp-card-tap" data-go="${r.status === "已通过" ? "buyer-brand" : "buyer-intent-detail"}" data-brand="${esc(r.brand)}">
           <header class="rr-mp-card-hd">
             <div class="rr-mp-avatar">${esc((r.brand || "").slice(0, 2))}</div>
             <div class="rr-mp-card-ttl">
@@ -4921,12 +5508,13 @@
               <small>${r.date || r.at || "—"}</small>
             </div>
             <span class="rr-mp-pill">${r.status}</span>
+            <span class="rr-mp-chevron">›</span>
           </header>
           <footer class="rr-mp-card-ft">${r.status === "已通过"
             ? `<a class="on" href="javascript:;" data-go="buyer-brand" data-brand="${r.brand}">查看商品</a>`
             : r.status === "已拒绝" ? `<a href="javascript:;" data-act="apply-brand:${r.brand}">重新申请</a>` : `<span>审核中</span>`}</footer>
-        </article>`).join("") || `<div class="rr-mp-empty">暂无申请记录</div>`}
-      </div>`;
+        </article>`).join("") || `<div class="rr-mp-empty">暂无申请记录</div>`}`
+      );
     }
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container order-container">
@@ -5153,8 +5741,14 @@
     "buyer-order-detail": pageBuyerOrderDetail,
     "buyer-profile": pageBuyerProfile,
     "buyer-message": pageBuyerMessage,
+    "buyer-message-detail": pageBuyerMessageDetail,
     "buyer-intent": pageBuyerIntent,
+    "buyer-intent-detail": pageBuyerIntentDetail,
+    "buyer-appoint-detail": pageBuyerAppointDetail,
+    "buyer-look-detail": pageBuyerLookDetail,
     "buyer-replenish": pageBuyerReplenish,
+    "buyer-cart": pageBuyerCart,
+    "buyer-replenish-cart": pageBuyerCart,
     "mp-home": pageMP
   };
 
@@ -5168,10 +5762,11 @@
 
   function mpTabId() {
     const p = state.page || "";
-    if (p === "buyer-replenish") return "buyer-replenish";
+    if (p === "buyer-replenish" || p === "buyer-replenish-cart") return "buyer-replenish";
+    if (p === "buyer-cart") return "buyer-home";
     if (p.startsWith("buyer-selection")) return "buyer-selection";
     if (p.startsWith("buyer-order")) return "buyer-orders";
-    if (p === "buyer-profile" || p === "buyer-message" || p === "buyer-intent" || p === "buyer-appoint-apply") return "buyer-profile";
+    if (p === "buyer-profile" || p === "buyer-message" || p === "buyer-message-detail" || p === "buyer-intent" || p === "buyer-intent-detail" || p === "buyer-appoint-apply" || p === "buyer-appoint-detail") return "buyer-profile";
     return "buyer-home";
   }
 
@@ -5181,11 +5776,17 @@
     if (p === "buyer-brand" || p === "buyer-brand-about") return state.selectedBrand || "品牌";
     if (p === "buyer-detail") return "商品详情";
     if (p === "buyer-replenish") return "补货";
+    if (p === "buyer-cart") return "我的选款单";
+    if (p === "buyer-replenish-cart") return "我的补货单";
     if (p.startsWith("buyer-selection")) return "选款单";
     if (p.startsWith("buyer-order")) return "我的订单";
     if (p === "buyer-appoint-apply") return "预约申请";
+    if (p === "buyer-appoint-detail") return "预约详情";
     if (p === "buyer-intent") return "意向品牌";
+    if (p === "buyer-intent-detail") return "申请详情";
     if (p === "buyer-message") return "消息";
+    if (p === "buyer-message-detail") return "消息详情";
+    if (p === "buyer-look-detail") return "LOOKBOOK";
     if (p === "buyer-profile") return "我的";
     return "ROOMROOM";
   }
@@ -5217,7 +5818,7 @@
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, "0");
     const mm = String(now.getMinutes()).padStart(2, "0");
-    const extra = state.page === "buyer-profile" ? mpMineHub() : "";
+    const showFab = ["buyer-home", "buyer-brand", "buyer-replenish", "buyer-detail"].includes(state.page);
     return `<div class="rr-mp-stage">
       <div class="rr-mp-phone">
         <div class="rr-mp-glass">
@@ -5230,13 +5831,14 @@
               ${Store.unreadMessageCount() ? `<i>${Store.unreadMessageCount()}</i>` : ""}
             </a>
           </div>
-          <div class="rr-mp-scroll">${extra}${inner}</div>
+          <div class="rr-mp-scroll">${inner}</div>
         </div>
         <nav class="rr-mp-tabbar" aria-label="小程序导航">
           ${tabs.map(([id, lab, ico]) => `<button type="button" class="rr-mp-tab ${tab === id ? "on" : ""}" data-go="${id}">
             <span class="rr-mp-ico">${MP_TAB_ICO[ico]}</span><span>${lab}</span>
           </button>`).join("")}
         </nav>
+        ${showFab ? mpFabCart() : ""}
       </div>
       <p class="rr-mp-hint">小程序 · 苹果风玻璃态（参考锐涞底栏）· 内容与买手端一致</p>
     </div>`;
@@ -5272,13 +5874,13 @@
     const drawer = (isBuyer && state.cartOpen) ? cartDrawer() : "";
     /* 买手端/小程序页面自带 oto-main_container（对齐原站），勿再包 order-container 壳 */
     if (isBuyer) {
-      const selfShell = /oto-main_container|buyer-fe/.test(body);
+      const selfShell = /oto-main_container|buyer-fe|rr-mp-stack|rr-mp-work|rr-mp-page/.test(body);
       if (!selfShell) {
         body = `<div class="oto-main_container buyer-fe"><div class="oto_container order-container"><div class="public_right-container main">${body}</div></div></div>`;
       }
       if (state.portal === "mp") {
         /* #28 小程序：手机框 + 玻璃态底栏，不再套买手桌面顶栏 */
-        app.innerHTML = toastHtml() + protoBar() + mpShell(body) + drawer;
+        app.innerHTML = toastHtml() + protoBar() + mpShell(body);
       } else {
         app.innerHTML = toastHtml() + protoBar() + topnav("buyer") +
           `<div class="ots_order-outer-container">${body}</div>` + footer() + drawer;
@@ -5330,6 +5932,15 @@
         const sku = el.getAttribute("data-sku");
         if (ship) state.selectedShip = Store.db.shipments.find(x => x.id === ship) || state.selectedShip;
         if (sku) state.selectedGoods = sku;
+        const aid = el.getAttribute("data-aid");
+        if (aid != null && aid !== "") {
+          const a = Store.db.appointments[Number(aid)];
+          if (a) state.selectedAppoint = { ...a, index: Number(aid) };
+        }
+        const mid = el.getAttribute("data-mid");
+        if (mid) state.selectedMsg = (Store.db.buyerMessages || []).find(m => String(m.id) === String(mid)) || state.selectedMsg;
+        const look = el.getAttribute("data-look");
+        if (look) state.selectedLook = look;
         if (el.getAttribute("data-role-name")) state.selectedRole = el.getAttribute("data-role-name");
         const oa = el.getAttribute("data-order-action");
         if (oa) state.orderAction = oa;
@@ -5379,7 +5990,8 @@
       });
     }
     app.querySelectorAll("[data-qty]").forEach(el => {
-      el.addEventListener("click", () => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
         const s = el.getAttribute("data-qty");
         const d = Number(el.getAttribute("data-d"));
         state.qty[s] = Math.max(0, (state.qty[s] || 0) + d);
@@ -5387,7 +5999,8 @@
       });
     });
     app.querySelectorAll("[data-line-qty]").forEach(el => {
-      el.addEventListener("click", () => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
         const sku = el.getAttribute("data-line-qty");
         const size = el.getAttribute("data-size");
         const d = Number(el.getAttribute("data-d"));
@@ -5399,13 +6012,15 @@
       });
     });
     app.querySelectorAll("[data-draft-qty]").forEach(el => {
-      el.addEventListener("click", () => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
         Store.bumpDraftQty(el.getAttribute("data-draft-qty"), el.getAttribute("data-size"), Number(el.getAttribute("data-d")));
         render();
       });
     });
     app.querySelectorAll("[data-tabsoft]").forEach(btnEl => {
-      btnEl.addEventListener("click", () => {
+      btnEl.addEventListener("click", (e) => {
+        e.stopPropagation();
         const mode = btnEl.getAttribute("data-mode");
         const styleDim = btnEl.getAttribute("data-style-dim");
         const orderTab = btnEl.getAttribute("data-order-tab");
@@ -5492,8 +6107,22 @@
           go("buyer-selection");
           return;
         }
+        if (isMp()) {
+          go(mpTabId() === "buyer-replenish" ? "buyer-replenish-cart" : "buyer-cart");
+          return;
+        }
         state.cartOpen = !state.cartOpen;
         render();
+      });
+    });
+    app.querySelectorAll(".rr-mp-search input").forEach(inp => {
+      if (inp.dataset.wiredEnter) return;
+      inp.dataset.wiredEnter = "1";
+      inp.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        const btn = inp.closest(".rr-mp-search") && inp.closest(".rr-mp-search").querySelector("[data-act]");
+        if (btn) handleAct(btn.getAttribute("data-act"), btn);
       });
     });
     app.querySelectorAll("[data-heart]").forEach(el => {
