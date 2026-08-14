@@ -379,6 +379,7 @@
       /* 注册流程：本机最近一次提交的注册申请（用于「审核进度」页） */
       regSession: { phone: "", store: "", status: "", reason: "", at: "" },
       fairs: Object.fromEntries((RR.seasons || []).map(s => [s, { first: true, replenish: true }])),
+      brandFairs: {},
       orderingFairs: [
         { id: "FAIR-2027PS", name: "2027 Pre-Spring 订货会", season: "2027PS", brands: ["HAIZHEN WANG", "JUNLI", "ANGEL CHEN"], cover: true, intro: "春季订货会图文介绍（展示位置待确认）", createdAt: "2026-06-01" },
         { id: "FAIR-2026SS", name: "2026 Spring/Summer 订货会", season: "2026SS", brands: ["HAIZHEN WANG", "JUNLI", "Ms MIN", "SUSAN FANG"], cover: true, intro: "夏季订货会说明", createdAt: "2025-11-12" }
@@ -496,6 +497,7 @@
       if (!merged.crowdsMaster) merged.crowdsMaster = base.crowdsMaster;
       if (!merged.catsMaster) merged.catsMaster = base.catsMaster;
       if (!merged.orderingFairs) merged.orderingFairs = clone(base.orderingFairs || []);
+      if (!merged.brandFairs) merged.brandFairs = {};
       if (!merged.buyerMessages) merged.buyerMessages = clone(base.buyerMessages || []);
       if (!merged.brandAudit) merged.brandAudit = clone(base.brandAudit);
       if (!merged.brandDeposit) merged.brandDeposit = clone(base.brandDeposit);
@@ -842,6 +844,36 @@
       save();
       return `${season} 订货会设置已更新`;
     },
+    listOrderingSessions() {
+      const rows = (db.orderingFairs || []).map(f => ({
+        id: f.id || f.season,
+        name: f.name || `${f.season} 订货会`,
+        season: f.season
+      }));
+      const seen = new Set(rows.map(r => r.season));
+      (RR.seasons || []).forEach(s => {
+        if (seen.has(s)) return;
+        rows.push({ id: "SEA-" + String(s).replace(/[^A-Za-z0-9_-]/g, "_"), name: s + " 订货会", season: s });
+        seen.add(s);
+      });
+      return rows;
+    },
+    fairFlags(brand, season) {
+      const bmap = brand && db.brandFairs && db.brandFairs[brand];
+      if (bmap && bmap[season]) {
+        return { first: bmap[season].first !== false, replenish: bmap[season].replenish !== false };
+      }
+      const g = db.fairs[season] || { first: true, replenish: true };
+      return { first: g.first !== false, replenish: g.replenish !== false };
+    },
+    setBrandFair(brand, season, patch) {
+      if (!brand || !season) return "缺少品牌或订货会";
+      db.brandFairs = db.brandFairs || {};
+      db.brandFairs[brand] = db.brandFairs[brand] || {};
+      db.brandFairs[brand][season] = { ...this.fairFlags(brand, season), ...patch };
+      save();
+      return `${brand} · ${season} 订货会设置已更新`;
+    },
     createOrderingFair(payload) {
       const name = String(payload.name || "").trim();
       if (!name) return { ok: false, msg: "请填写订货会名称" };
@@ -945,8 +977,8 @@
       if (s.status === "已取消") return { ok: false, msg: "选款单已取消" };
 
       // replenishment rule if season has no first order for this store (platform mock: check buyerSession for Liora, else allow)
-      const fair = db.fairs[s.season] || { first: true, replenish: true };
-      if (!fair.first && !fair.replenish) return { ok: false, msg: `${s.season} 订货会已关闭，不可下单` };
+      const check = Store.canOrder(s.brand, s.season, s.type === "补货单" ? "补货单" : "首单");
+      if (!check.ok) return check;
 
       const orderId = uid("ORD");
       const amountNum = parseMoney(s.amount);
@@ -1897,9 +1929,9 @@
       return order.filter(s => set.has(s)).reverse().concat([...set].filter(s => !order.includes(s)));
     },
     canOrder(brand, season, type) {
-      const fair = db.fairs[season] || { first: true, replenish: true };
+      const fair = this.fairFlags(brand, season);
       if (type === "首单" && !fair.first) return { ok: false, msg: `${season} 首单已关闭（商品可见不可下单）` };
-      if (type === "补货单" && !fair.replenish) return { ok: false, msg: `${season} 补货已关闭` };
+      if (type === "补货单" && !fair.replenish) return { ok: false, msg: `${season} 补货已关闭（商品可见不可下单）` };
       if (type === "补货单" && !db.buyerSession.hasFirstOrderBySeason[season]) {
         return { ok: false, msg: "本季未下过首单，不允许下补货单" };
       }

@@ -45,7 +45,7 @@
     "brand-deposit": "brand-list",
     "brand-audit-set": "brand-list",
     "brand-edit": "brand-list",
-    "brand-fair": "fair-list",
+    "brand-fair": "brand-list",
     "brand-fair-new": "fair-list",
     "fair-add": "fair-list",
     "brand-master-style": "brand-list",
@@ -184,6 +184,7 @@
           { id: "brand-size", label: "设置尺寸别名" },
           { id: "brand-pay", label: "收款设置" },
           { id: "brand-contract", label: "合同设置" },
+          { id: "brand-fair", label: "订货会设置" },
           { id: "brand-deposit", label: "订单首付比例" },
           { id: "brand-audit-set", label: "下单需审核买手" },
           { id: "brand-edit", label: "品牌信息编辑" },
@@ -287,8 +288,8 @@
       Store.db.ui.restockKind = "";
       Store.persist();
     }
-    /* 原「季节控制」/品牌下订货会入口 → 订货会管理模块 */
-    if (page === "brand-fair" || page === "brand-fair-new") page = "fair-add";
+    /* 品牌下「订货会设置」走品牌二级页，不再跳到订货会创建 */
+    if (page === "brand-fair-new") page = "fair-add";
     if (page === "goods-look") page = "goods-list";
     if (page === "goods-add") { state.goodsSpecs = null; state.goodsDraft = null; }
 
@@ -984,7 +985,7 @@
   }
 
   function pageBrandList() {
-    /* #2 列表去掉订货会设置；#3 首付比例/审核改为二级页链接；#18 品牌端仅当前账号品牌、行样式同列表 */
+    /* 品牌列表含订货会设置；#3 首付比例/审核为二级页链接；#18 品牌端仅当前账号品牌 */
     const isPlatform = state.portal === "platform";
     const mine = state.selectedBrand || (RR.brands[0] && RR.brands[0].name) || "HAIZHEN WANG";
     const brands = isPlatform ? RR.brands : RR.brands.filter(b => b.name === mine);
@@ -998,7 +999,7 @@
       </div>
       <div class="items head_items">
         <div class="item_boduan-row">
-          <h4>品牌名称</h4><h4>阶梯优惠规则</h4><h4>尺寸别名</h4><h4>收款设置</h4><h4>合同设置</h4><h4>订单首付比例(定金)</h4><h4>下单需审核买手</h4><h4>编辑</h4>
+          <h4>品牌名称</h4><h4>阶梯优惠规则</h4><h4>尺寸别名</h4><h4>收款设置</h4><h4>合同设置</h4><h4>订货会设置</h4><h4>订单首付比例(定金)</h4><h4>下单需审核买手</h4><h4>编辑</h4>
         </div>
       </div>
       <div class="edit_boduan-list">
@@ -1009,6 +1010,7 @@
             <h4><a href="javascript:;" data-go="brand-size" data-brand="${b.name}">设置尺寸别名</a></h4>
             <h4><a href="javascript:;" data-go="brand-pay" data-brand="${b.name}">收款设置</a></h4>
             <h4><a href="javascript:;" data-go="brand-contract" data-brand="${b.name}">合同设置</a></h4>
+            <h4><a href="javascript:;" data-go="brand-fair" data-brand="${b.name}">订货会设置</a></h4>
             <h4><a href="javascript:;" data-go="brand-deposit" data-brand="${b.name}">订单首付比例</a></h4>
             <h4><a href="javascript:;" data-go="brand-audit-set" data-brand="${b.name}">下单需审核买手</a></h4>
             <h4><a href="javascript:;" data-go="brand-edit" data-brand="${b.name}">编辑</a></h4>
@@ -1219,26 +1221,35 @@
   }
 
   function pageBrandFair() {
-    /* 原站：季节开启状态 · season-row + checkbox 首单/补货（非 select） */
+    /* 品牌管理 · 订货会设置：全部场次，每场独立开关首单/补货 */
+    const brand = state.selectedBrand || (RR.brands[0] && RR.brands[0].name);
+    const sessions = Store.listOrderingSessions();
+    const keyOf = f => String(f.id || f.season).replace(/[^A-Za-z0-9_-]/g, "_");
     return `<div class="boduan-container">
-      ${subTitle("季节开启状态")}
+      ${subTitle("订货会设置")}
+      <div class="note">品牌 <strong>${esc(brand)}</strong>。展示全部订货会场次，每个场次可单独开启或关闭<strong>首单</strong> / <strong>补货</strong>。关闭后买手端对应商品仍可见，但不支持下单。</div>
       <div class="season_crtl-container">
-        <div class="season_crtl">
+        <div class="season_crtl fair-set">
           <div class="items head_items uk-width-1-1">
-            <div class="season-row uk-width-1-1"><h4>季节</h4><h4>首单</h4><h4>补货</h4></div>
+            <div class="season-row uk-width-1-1"><h4>订货会名称</h4><h4>订货会</h4><h4>首单</h4><h4>补货</h4></div>
           </div>
           <div class="items uk-width-1-1" id="fair-table">
-            ${RR.seasons.map(s => {
-              const f = Store.db.fairs[s] || { first: true, replenish: true };
-              return `<div class="season-row" data-season="${s}">
-                <div><h4>${s}</h4></div>
-                <div><input type="checkbox" class="uk-checkbox" data-field="fair-first-${s}" ${f.first ? "checked" : ""} /></div>
-                <div><input type="checkbox" class="uk-checkbox" data-field="fair-rep-${s}" ${f.replenish ? "checked" : ""} /></div>
+            ${sessions.map(f => {
+              const flags = Store.fairFlags(brand, f.season);
+              const key = keyOf(f);
+              return `<div class="season-row" data-season="${esc(f.season)}" data-fair-key="${key}">
+                <div><h4>${esc(f.name)}</h4></div>
+                <div>${esc(f.season || "—")}</div>
+                <div><input type="checkbox" class="uk-checkbox" data-field="fair-first-${key}" ${flags.first ? "checked" : ""} /></div>
+                <div><input type="checkbox" class="uk-checkbox" data-field="fair-rep-${key}" ${flags.replenish ? "checked" : ""} /></div>
               </div>`;
-            }).join("")}
+            }).join("") || `<div class="note">暂无订货会场次，请先在「订货会管理」添加</div>`}
           </div>
         </div>
-        <div class="submit_area action-bar"><a href="javascript:;" class="oto_btn" data-act="save-fair">保存</a></div>
+        <div class="submit_area action-bar">
+          <a href="javascript:;" class="oto_btn" data-act="save-fair">保存</a>
+          <a href="javascript:;" class="oto_btn" data-go="brand-list">返回品牌列表</a>
+        </div>
       </div>
     </div>`;
   }
@@ -4615,14 +4626,16 @@
         break;
       }
       case "save-fair": {
+        const brand = state.selectedBrand || (RR.brands[0] && RR.brands[0].name);
         const f = readFields();
-        RR.seasons.forEach(season => {
-          Store.setFair(season, {
-            first: !!f["fair-first-" + season],
-            replenish: !!f["fair-rep-" + season]
+        Store.listOrderingSessions().forEach(sess => {
+          const key = String(sess.id || sess.season).replace(/[^A-Za-z0-9_-]/g, "_");
+          Store.setBrandFair(brand, sess.season, {
+            first: !!f["fair-first-" + key],
+            replenish: !!f["fair-rep-" + key]
           });
         });
-        toast("季节开启状态已保存");
+        toast("订货会设置已保存（关闭后商品可见不可下单）");
         render();
         break;
       }

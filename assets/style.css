@@ -925,6 +925,9 @@ a.ots_order-btn { color: #fff; }
   display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px;
   align-items: center; padding: 12px 0; border-bottom: 1px solid var(--rr-border);
 }
+.season_crtl.fair-set .season-row {
+  grid-template-columns: 2fr 1fr 0.7fr 0.7fr;
+}
 .season_crtl .season-row h4 { margin: 0; font-size: 14px; font-weight: 500; }
 .ots_order-addlist > p { margin: 12px 0 8px; font-size: 13px; color: #666; }
 .ots_order-addlist select { max-width: 360px; display: block; margin-bottom: 8px; }
@@ -1471,10 +1474,10 @@ header.oto-nav.buyer-oto-nav .login_area .nav-ico {
   .spec-row .spec-ops { text-align: left; }
 }
 
-/* 品牌列表：去掉订货会列后为 8 列；首付/审核为二级页链接 */
+/* 品牌列表：含订货会设置共 9 列；首付/审核为二级页链接 */
 .brand_goodsList-container.edit_boduan .item_boduan-row,
 .brand_goodsList-container.edit_boduan .edit_boduan-list .item {
-  grid-template-columns: 1.3fr repeat(4, 1fr) 1.1fr 1fr 0.6fr;
+  grid-template-columns: 1.2fr repeat(5, 0.95fr) 1.05fr 0.9fr 0.55fr;
 }
 .brand_goodsList-container.edit_boduan .muted-mini {
   font-size: 12px; color: #999; margin-top: 4px; font-weight: 400;
