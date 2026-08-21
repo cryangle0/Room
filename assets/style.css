@@ -2167,13 +2167,45 @@ header.oto-nav.buyer-oto-nav .login_area .nav-ico {
 .rr-mp-code-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
+  gap: 8px;
+}
+.rr-mp-code-wrap {
+  position: relative;
 }
 .rr-mp-code-cell {
-  height: 44px; border: none; border-radius: 12px;
+  width: 100%;
+  height: 48px; border: none; border-radius: 12px;
   background: rgba(255,255,255,0.55);
   font-size: 11px; font-weight: 700;
   backdrop-filter: blur(12px);
+}
+.rr-mp-heart.sm {
+  top: -6px; right: -4px;
+  width: 22px; height: 22px;
+  font-size: 11px;
+  background: rgba(255,255,255,0.95);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}
+.rr-mp-hero-btn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  width: 100%; border: none; border-radius: 18px;
+  padding: 22px 20px; text-align: left;
+  background: rgba(255,255,255,0.72);
+  box-shadow: 0 8px 24px rgba(90, 40, 140, 0.08);
+}
+.rr-mp-hero-btn b { font-size: 22px; color: #1c1c1e; }
+.rr-mp-hero-btn small { color: #8e8e93; font-size: 13px; }
+.rr-mp-hero-btn.alt { background: rgba(154, 55, 254, 0.12); }
+.rr-mp-qr {
+  width: 168px; height: 168px; margin: 12px auto;
+  border-radius: 16px;
+  background:
+    repeating-linear-gradient(90deg, #1c1c1e 0 8px, transparent 8px 16px),
+    repeating-linear-gradient(0deg, #1c1c1e 0 8px, transparent 8px 16px);
+  background-color: #fff;
+  color: #fff; font-size: 28px; font-weight: 800;
+  display: grid; place-items: center;
+  mix-blend-mode: multiply;
 }
 .rr-mp-thumbs { display: flex; gap: 8px; }
 .rr-mp-thumbs span {

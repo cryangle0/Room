@@ -159,6 +159,7 @@ window.RR = {
   orders: [
     /* 状态取值对齐《订单流程图》各节点，便于逐节点演示 */
     { id: "ORD-20260805-121", brand: "HAIZHEN WANG", season: "2026SS", store: "Liora Amour", type: "首单", amount: "62,400.00", deposit: "18,720.00", status: "待平台确认" },
+    { id: "ORD-20260812-122", brand: "HAIZHEN WANG", season: "2026SS", store: "Liora Amour", type: "补货单", amount: "18,600.00", deposit: "5,580.00", status: "待平台确认" },
     { id: "ORD-20260320-102", brand: "HAIZHEN WANG", season: "2026SS", store: "Liora Amour", type: "首单", amount: "128,600.00", deposit: "38,580.00", status: "待确认定金" },
     { id: "ORD-20260319-088", brand: "JUNLI", season: "2026SS", store: "B1OCK", type: "首单", amount: "96,400.00", deposit: "28,920.00", status: "待核对定金凭证" },
     { id: "ORD-20260315-044", brand: "ANGEL CHEN", season: "2026SS", store: "Felix", type: "补货单", amount: "41,200.00", deposit: "12,360.00", status: "待完成结算" },
@@ -211,7 +212,8 @@ window.RR = {
     { store: "名君岛", brand: "ANGEL CHEN", date: "2026-07-06", status: "待审核", note: "线下看款后申请" }
   ],
   appointments: [
-    { brand: "HAIZHEN WANG", store: "Liora Amour", contact: "王女士", phone: "13681383088", date: "2026-04-08 14:00", season: "2026SS" },
+    { brand: "HAIZHEN WANG", store: "Liora Amour", contact: "王女士", phone: "13681383088", date: "2026-09-08 08:45", season: "2027PS" },
+    { brand: "JUNLI", store: "B1OCK", contact: "李先生", phone: "18030251878", date: "2026-09-08 09:10", season: "2027PS" },
     { brand: "JUNLI", store: "B1OCK", contact: "李先生", phone: "18030251878", date: "2026-04-09 10:30", season: "2026SS" },
     { brand: "ANGEL CHEN", store: "Felix", contact: "陈女士", phone: "13636613350", date: "2026-04-10 16:00", season: "2026SS" },
     { brand: "IAN HYLTON", store: "ASSEMBLE BY REEL", contact: "周经理", phone: "18650122612", date: "2026-07-22 11:00", season: "2027PS" },

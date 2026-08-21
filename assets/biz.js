@@ -4,7 +4,7 @@
  */
 (() => {
   /* v6：订单流程按《订单流程图》重建 + 注册审核链路，旧结构不再兼容 */
-  const KEY = "rr_biz_v8";
+  const KEY = "rr_biz_v10";
 
   /* #4 联系手机即品牌端登录账号；演示号 13800000001 起按品牌顺序分配 */
   (RR.brands || []).forEach((b, i) => {
@@ -229,14 +229,18 @@
   function defaultDb() {
     return {
       goods: clone(SEED.goods).map((g, i) => enrichGoods(g, i)),
-      selections: clone(SEED.selections).map((s, i) => ({
-        ...s,
-        createdAt: s.createdAt || s.date || s.time || "",
-        locked: s.status === "已生成订单",
-        lines: (s.brand === "IAN HYLTON" && i === 0
-          ? clone(SEED.selectionLines)
-          : linesForBrand(s.brand)).map((l, j) => enrichLine(l, j))
-      })),
+      selections: clone(SEED.selections).map((s, i) => {
+        const status = (s.status === "待确认" && i % 3 === 0) ? "待审核" : s.status;
+        return {
+          ...s,
+          status,
+          createdAt: s.createdAt || s.date || s.time || "",
+          locked: status === "已生成订单" || status === "待审核",
+          lines: (s.brand === "IAN HYLTON" && i === 0
+            ? clone(SEED.selectionLines)
+            : linesForBrand(s.brand)).map((l, j) => enrichLine(l, j))
+        };
+      }),
       orders: clone(SEED.orders).map((o, oi) => seedOrder(o, oi)),
       buyers: clone(SEED.buyers).map((b, i) => ({
         ...b,
@@ -248,8 +252,18 @@
         /* 注册流程：待审核=买手手机号注册后提交的申请 */
         source: b.status === "待审核" ? "手机号注册" : "平台录入",
         regAt: b.status === "待审核" ? `2026-08-0${(i % 9) + 1} 10:${String(10 + i).slice(-2)}` : "",
-        reason: ""
-      })),
+        reason: "",
+        allowSelfSub: false,
+        subAccounts: b.name === "Liora Amour"
+          ? [{ name: "店员小王", phone: "13600001111", at: "2026-08-12" }]
+          : []
+      })).concat([{
+        name: "平台签到员", phone: "13900000000", city: "上海", level: "—", status: "已通过",
+        role: "checker", allowSelfSub: true,
+        subAccounts: [{ name: "签到助手", phone: "13900000001", at: "2026-08-18" }],
+        balances: {}, addresses: [], invoice: { title: "平台签到员", tax: "" }, substores: [],
+        source: "平台录入", contact: "签到员", reason: "", regAt: ""
+      }]),
       intentions: clone(SEED.intentions),
       /* 预约管理：预约需平台/品牌审核后才算参会名额 */
       appointments: clone(SEED.appointments).map((a, i) => ({
@@ -381,9 +395,36 @@
       fairs: Object.fromEntries((RR.seasons || []).map(s => [s, { first: true, replenish: true }])),
       brandFairs: {},
       orderingFairs: [
-        { id: "FAIR-2027PS", name: "2027 Pre-Spring 订货会", season: "2027PS", brands: ["HAIZHEN WANG", "JUNLI", "ANGEL CHEN"], cover: true, intro: "春季订货会图文介绍（展示位置待确认）", createdAt: "2026-06-01" },
-        { id: "FAIR-2026SS", name: "2026 Spring/Summer 订货会", season: "2026SS", brands: ["HAIZHEN WANG", "JUNLI", "Ms MIN", "SUSAN FANG"], cover: true, intro: "夏季订货会说明", createdAt: "2025-11-12" }
+        {
+          id: "FAIR-2027PS", name: "2027 Pre-Spring 订货会", season: "2027PS",
+          brands: ["HAIZHEN WANG", "JUNLI", "ANGEL CHEN"], cover: true,
+          intro: "春季订货会图文介绍（展示位置待确认）", createdAt: "2026-06-01",
+          bookFrom: "2026-08-01", bookTo: "2026-11-30", fairFrom: "2026-09-08", fairTo: "2026-09-12"
+        },
+        {
+          id: "FAIR-2026SS", name: "2026 Spring/Summer 订货会", season: "2026SS",
+          brands: ["HAIZHEN WANG", "JUNLI", "Ms MIN", "SUSAN FANG"], cover: true,
+          intro: "夏季订货会说明", createdAt: "2025-11-12",
+          bookFrom: "2025-10-01", bookTo: "2026-03-01", fairFrom: "2026-01-10", fairTo: "2026-01-18"
+        }
       ],
+      /* 订货会 × 品牌 × 时段接待上限 */
+      fairSlots: {
+        "FAIR-2027PS": {
+          "HAIZHEN WANG": [
+            { id: "SL-1", date: "2026-09-08", from: "08:30", to: "09:30", cap: 200, booked: 12 },
+            { id: "SL-2", date: "2026-09-08", from: "09:30", to: "11:30", cap: 150, booked: 40 }
+          ],
+          "JUNLI": [
+            { id: "SL-3", date: "2026-09-08", from: "08:30", to: "09:30", cap: 80, booked: 8 }
+          ]
+        }
+      },
+      checkins: [
+        { id: "CK-1", fairId: "FAIR-2027PS", brand: "HAIZHEN WANG", store: "Liora Amour", phone: "13681383088", kind: "预约", at: "2026-08-20 10:12", slot: "08:30-09:30" },
+        { id: "CK-2", fairId: "FAIR-2027PS", brand: "JUNLI", store: "现场访客", phone: "13900001111", kind: "现场", at: "2026-08-20 10:40", slot: "—" }
+      ],
+      brandDiscountBase: {},
       buyerMessages: [
         { id: "m1", title: "订单状态更新", time: "2026-07-28 10:20", body: "您的选款单已生成订单，请及时确认。", read: false },
         { id: "m2", title: "品牌权限通过", time: "2026-07-20 15:01", body: "您申请的品牌权限已通过。", read: true },
@@ -445,7 +486,9 @@
         openReplenish: {},
         /* granted | pending | denied | none —— 仅对「需审核」品牌生效，免审核品牌直接可看可下单 */
         brandAccess: { "IAN HYLTON": "granted", "PRIVATE POLICY": "pending", "XIMONLEE": "denied" },
-        substores: [{ name: "Liora Amour 静安", city: "上海" }]
+        substores: [{ name: "Liora Amour 静安", city: "上海" }],
+        role: "buyer", /* buyer | checker 签到员 */
+        allowSelfSub: false
       },
       brandSession: {
         phone: "13800000001",
@@ -498,6 +541,9 @@
       if (!merged.catsMaster) merged.catsMaster = base.catsMaster;
       if (!merged.orderingFairs) merged.orderingFairs = clone(base.orderingFairs || []);
       if (!merged.brandFairs) merged.brandFairs = {};
+      if (!merged.fairSlots) merged.fairSlots = clone(base.fairSlots || {});
+      if (!merged.checkins) merged.checkins = clone(base.checkins || []);
+      if (!merged.brandDiscountBase) merged.brandDiscountBase = {};
       if (!merged.buyerMessages) merged.buyerMessages = clone(base.buyerMessages || []);
       if (!merged.brandAudit) merged.brandAudit = clone(base.brandAudit);
       if (!merged.brandDeposit) merged.brandDeposit = clone(base.brandDeposit);
@@ -888,26 +934,241 @@
         name,
         season,
         brands,
-        first: payload.first !== false,
-        replenish: payload.replenish !== false,
+        bookFrom: payload.bookFrom || "",
+        bookTo: payload.bookTo || "",
+        fairFrom: payload.fairFrom || "",
+        fairTo: payload.fairTo || "",
         cover: !!payload.cover,
         intro: payload.intro || "",
         createdAt: new Date().toISOString().slice(0, 10)
       });
-      /* 同步季节开启状态：创建时写入首单/补货开关 */
-      if (season) {
-        db.fairs[season] = {
-          ...(db.fairs[season] || {}),
-          first: payload.first !== false,
-          replenish: payload.replenish !== false
-        };
-      }
       save();
       return {
         ok: true,
         msg: `已创建订货会 ${name}（${season} · ${brands.length} 个品牌）`,
         id
       };
+    },
+    todayStr() {
+      return new Date().toISOString().slice(0, 10);
+    },
+    isFairBookable(fair, day) {
+      if (!fair) return false;
+      const d = day || Store.todayStr();
+      if (fair.bookFrom && d < fair.bookFrom) return false;
+      if (fair.bookTo && d > fair.bookTo) return false;
+      return true;
+    },
+    bookableFairs() {
+      return (db.orderingFairs || []).filter(f => Store.isFairBookable(f));
+    },
+    brandDiscountBase(brand) {
+      const v = (db.brandDiscountBase || {})[brand];
+      if (v === "wholesale" || v === "订货价") return "wholesale";
+      const p = Store.getBrandProfile(brand);
+      if (p && (p.discountBase === "wholesale" || p.discountBase === "订货价")) return "wholesale";
+      return "retail";
+    },
+    setBrandDiscountBase(brand, mode) {
+      if (!brand) return "缺少品牌";
+      db.brandDiscountBase = db.brandDiscountBase || {};
+      db.brandDiscountBase[brand] = mode === "wholesale" ? "wholesale" : "retail";
+      db.brandProfiles = db.brandProfiles || {};
+      db.brandProfiles[brand] = { ...(db.brandProfiles[brand] || {}), discountBase: db.brandDiscountBase[brand] };
+      save();
+      return `${brand} 折扣计算已设为按${db.brandDiscountBase[brand] === "wholesale" ? "订货价" : "零售价"}`;
+    },
+    lineUnitBase(line, brand) {
+      const g = findGoods(line && line.sku) || {};
+      const retail = parseMoney(line.retail != null ? line.retail : g.retail);
+      const wholesale = parseMoney(line.wholesale != null ? line.wholesale : (line.price != null ? line.price : g.wholesale));
+      return Store.brandDiscountBase(brand || g.brand) === "wholesale" ? wholesale : (retail || wholesale);
+    },
+    fairSlotsOf(fairId, brand) {
+      db.fairSlots = db.fairSlots || {};
+      const m = db.fairSlots[fairId] || {};
+      if (brand) return m[brand] || [];
+      return m;
+    },
+    saveFairSlot(fairId, brand, slot) {
+      if (!fairId || !brand) return { ok: false, msg: "缺少订货会或品牌" };
+      db.fairSlots = db.fairSlots || {};
+      db.fairSlots[fairId] = db.fairSlots[fairId] || {};
+      const list = db.fairSlots[fairId][brand] || [];
+      const row = {
+        id: slot.id || uid("SL"),
+        date: slot.date || Store.todayStr(),
+        from: slot.from || "09:00",
+        to: slot.to || "10:00",
+        cap: Number(slot.cap || 0),
+        booked: Number(slot.booked || 0)
+      };
+      if (!row.cap) return { ok: false, msg: "请填写接待上限" };
+      const i = list.findIndex(x => x.id === row.id);
+      if (i >= 0) list[i] = { ...list[i], ...row };
+      else list.push(row);
+      db.fairSlots[fairId][brand] = list;
+      save();
+      return { ok: true, msg: "时段已保存", id: row.id };
+    },
+    removeFairSlot(fairId, brand, slotId) {
+      const list = Store.fairSlotsOf(fairId, brand);
+      db.fairSlots[fairId][brand] = list.filter(x => x.id !== slotId);
+      save();
+      return "已删除时段";
+    },
+    importFairSlots(fairId, brand, text) {
+      const lines = String(text || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      let n = 0;
+      lines.forEach(line => {
+        if (/^日期/.test(line)) return;
+        const parts = line.split(/[,，\t]/).map(s => s.trim());
+        if (parts.length < 4) return;
+        const r = Store.saveFairSlot(fairId, brand, { date: parts[0], from: parts[1], to: parts[2], cap: parts[3] });
+        if (r.ok) n += 1;
+      });
+      return { ok: true, msg: n ? `已导入 ${n} 条时段` : "没有可导入的行（格式：日期,开始,结束,上限）" };
+    },
+    appointmentsByFair(fairId) {
+      const fair = (db.orderingFairs || []).find(f => f.id === fairId || f.season === fairId);
+      const season = fair && fair.season;
+      const brands = (fair && fair.brands) || [];
+      return (db.appointments || []).filter(a => {
+        if (a.fairId && fair && a.fairId === fair.id) return true;
+        if (season && a.season === season && (!brands.length || brands.includes(a.brand))) return true;
+        return false;
+      });
+    },
+    fairAppointSummary(fairId) {
+      const fair = (db.orderingFairs || []).find(f => f.id === fairId) || {};
+      const brands = fair.brands || [];
+      const ap = Store.appointmentsByFair(fairId);
+      return brands.map(brand => {
+        const rows = ap.filter(a => a.brand === brand);
+        const passed = rows.filter(a => a.status === "已通过" || a.status === "已预约");
+        const people = passed.reduce((s, a) => s + Number(a.people || 1), 0);
+        const slots = Store.fairSlotsOf(fairId, brand);
+        const cap = slots.reduce((s, x) => s + Number(x.cap || 0), 0);
+        return { brand, total: rows.length, passed: passed.length, people, cap, slots: slots.length };
+      });
+    },
+    addCheckin(payload) {
+      const buyer = (db.buyers || []).find(b => b.phone === payload.phone || b.name === payload.store);
+      db.checkins = db.checkins || [];
+      db.checkins.unshift({
+        id: uid("CK"),
+        fairId: payload.fairId || ((db.orderingFairs || [])[0] && db.orderingFairs[0].id),
+        brand: payload.brand || "—",
+        store: (buyer && buyer.name) || payload.store || "现场访客",
+        phone: payload.phone || (buyer && buyer.phone) || "",
+        kind: payload.kind === "现场" ? "现场" : "预约",
+        at: new Date().toISOString().slice(0, 16).replace("T", " "),
+        slot: payload.slot || "—"
+      });
+      const ap = (db.appointments || []).find(a => a.phone === payload.phone && a.brand === payload.brand);
+      if (ap) ap.checkin = db.checkins[0].at;
+      save();
+      return { ok: true, msg: `已签到 ${db.checkins[0].store}（${db.checkins[0].kind}）` };
+    },
+    setBuyerAllowSelfSub(name, on) {
+      const b = db.buyers.find(x => x.name === name);
+      if (!b) return "买手不存在";
+      b.allowSelfSub = !!on;
+      save();
+      return `${name} ${b.allowSelfSub ? "允许" : "不允许"}买手自行添加子账号`;
+    },
+    addBuyerSubAccount(ownerName, payload) {
+      const b = db.buyers.find(x => x.name === ownerName);
+      if (!b) return { ok: false, msg: "买手不存在" };
+      const phone = String(payload.phone || "").trim();
+      if (!/^1\d{10}$/.test(phone)) return { ok: false, msg: "请填写 11 位子账号手机号" };
+      b.subAccounts = b.subAccounts || [];
+      if (b.subAccounts.some(s => s.phone === phone)) return { ok: false, msg: "该手机号已是子账号" };
+      b.subAccounts.unshift({ name: payload.name || "子账号", phone, at: new Date().toISOString().slice(0, 10) });
+      save();
+      return { ok: true, msg: `已添加子账号 ${phone}，与主账号共享订单和选款单` };
+    },
+    syncGoodsPriceToOrders(sku) {
+      const g = findGoods(sku);
+      if (!g) return { ok: false, msg: "商品不存在" };
+      const closed = [ORDER_ST.done, ORDER_ST.canceled];
+      let hit = 0;
+      (db.orders || []).forEach(o => {
+        if (closed.includes(normStatus(o.status))) return;
+        let changed = false;
+        (o.lines || []).forEach(l => {
+          if (l.sku !== g.sku && l.sku !== g.skc && l.sku !== (g.skc || g.sku)) return;
+          l.retail = parseMoney(g.retail);
+          l.wholesale = parseMoney(g.wholesale);
+          l.price = Store.lineUnitBase(l, o.brand);
+          changed = true;
+          hit += 1;
+        });
+        if (!changed) return;
+        let amount = 0;
+        (o.lines || []).forEach(l => {
+          const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
+          amount += qty * Number(l.price || 0) * Number(l.discount || 1);
+        });
+        o.amount = money(amount);
+        o.deposit = money(amount * Number(o.depositRatio || Store.brandDepositRatio(o.brand)));
+        o.flowLog = o.flowLog || [];
+        o.flowLog.unshift({ at: new Date().toISOString().slice(0, 16).replace("T", " "), text: `商品 ${g.sku} 价格已从商品管理同步，订单金额 ¥${o.amount}` });
+      });
+      save(); syncLegacy();
+      return { ok: true, msg: hit ? `已同步到 ${hit} 条未完成订单明细，并按当前折扣重算金额` : "没有未完成订单包含此商品" };
+    },
+    orderPriceWave(orderId) {
+      const o = db.orders.find(x => x.id === orderId);
+      if (!o) return [];
+      return (o.lines || []).map(l => {
+        const g = findGoods(l.sku) || {};
+        const nowR = parseMoney(g.retail);
+        const nowW = parseMoney(g.wholesale);
+        const oldR = parseMoney(l.retail);
+        const oldW = parseMoney(l.wholesale != null ? l.wholesale : l.price);
+        return {
+          sku: l.sku, title: l.title || g.title,
+          oldRetail: oldR, nowRetail: nowR,
+          oldWholesale: oldW, nowWholesale: nowW,
+          changed: nowR !== oldR || nowW !== oldW
+        };
+      });
+    },
+    addOrderLine(orderId, sku) {
+      const o = db.orders.find(x => x.id === orderId);
+      const g = findGoods(sku);
+      if (!o || !g) return { ok: false, msg: "订单或商品不存在" };
+      if ([ORDER_ST.done, ORDER_ST.canceled].includes(normStatus(o.status))) return { ok: false, msg: "订单已结束，不可改商品" };
+      o.lines = o.lines || [];
+      if (o.lines.some(l => l.sku === g.sku || l.sku === g.skc)) return { ok: false, msg: "订单已包含该商品" };
+      const sizes = Object.fromEntries((g.sizes || ["S", "M", "L"]).map((sz, i) => [sz, i === 0 ? 1 : 0]));
+      o.lines.push({
+        sku: g.skc || g.sku, title: g.title, sizes,
+        retail: parseMoney(g.retail), wholesale: parseMoney(g.wholesale),
+        price: Store.lineUnitBase({ retail: g.retail, wholesale: g.wholesale, price: g.wholesale, sku: g.sku }, o.brand),
+        discount: 1, l1Cat: Store.goodsL1Cat(g.cat)
+      });
+      save();
+      return { ok: true, msg: `已加入 ${g.title}` };
+    },
+    rejectSelection(selId, reason) {
+      const s = db.selections.find(x => x.id === selId);
+      if (!s) return { ok: false, msg: "选款单不存在" };
+      s.status = "已驳回";
+      s.locked = false;
+      s.rejectReason = reason || "请修改后重新提交";
+      save(); syncLegacy();
+      Store.pushBuyerMessage("选款单被驳回", `选款单 ${s.id} 被驳回：${s.rejectReason}`);
+      return { ok: true, msg: "已驳回，买手可继续修改后重新提交" };
+    },
+    submitSelection(selId) {
+      const s = db.selections.find(x => x.id === selId);
+      if (!s) return { ok: false, msg: "选款单不存在" };
+      s.status = "待审核";
+      s.locked = true;
+      save();
+      return { ok: true, msg: "已提交，等待平台审核" };
     },
     markMessagesRead() {
       (db.buyerMessages || []).forEach(m => { m.read = true; });
@@ -943,6 +1204,10 @@
         db.brandAudit = db.brandAudit || {};
         db.brandAudit[name] = !!info.needAudit;
       }
+      if (info.discountBase) {
+        db.brandDiscountBase = db.brandDiscountBase || {};
+        db.brandDiscountBase[name] = info.discountBase === "wholesale" ? "wholesale" : "retail";
+      }
       // sync into RR.brands for buyer about
       const rb = RR.brands.find(x => x.name === name);
       if (rb) Object.assign(rb, {
@@ -973,8 +1238,12 @@
     genOrderFromSelection(selId) {
       const s = db.selections.find(x => x.id === selId);
       if (!s) return { ok: false, msg: "选款单不存在" };
-      if (s.locked || s.status === "已生成订单") return { ok: false, msg: "选款单已生成订单，不可重复生成" };
+      if (s.status === "已生成订单") return { ok: false, msg: "选款单已生成订单，不可重复生成" };
       if (s.status === "已取消") return { ok: false, msg: "选款单已取消" };
+      if (s.status === "已驳回") return { ok: false, msg: "选款单已驳回，请买手修改后重新提交" };
+      if (s.status && s.status !== "待审核" && s.status !== "待确认") {
+        return { ok: false, msg: `当前状态「${s.status}」不可生成订单` };
+      }
 
       // replenishment rule if season has no first order for this store (platform mock: check buyerSession for Liora, else allow)
       const check = Store.canOrder(s.brand, s.season, s.type === "补货单" ? "补货单" : "首单");
@@ -1018,20 +1287,30 @@
       save(); syncLegacy();
       return { ok: true, msg: `已生成订单 ${orderId}`, orderId };
     },
+    canMutateSelection(s, opts) {
+      const platform = !!(opts && opts.platform);
+      if (!s) return { ok: false, msg: "选款单不存在" };
+      if (s.status === "已生成订单") return { ok: false, msg: "选款单已生成订单，不可修改" };
+      if (s.status === "已取消") return { ok: false, msg: "选款单已取消" };
+      if (platform && (s.status === "待审核" || s.status === "待确认")) return { ok: true };
+      if (s.locked) return { ok: false, msg: "选款单已锁定，买手提交后需平台驳回才能再改" };
+      return { ok: true };
+    },
     cancelSelection(selId) {
       const s = db.selections.find(x => x.id === selId);
       if (!s) return "选款单不存在";
-      if (s.locked) return "已生成订单的选款单不可取消，需先驳回订单";
+      if (s.status === "已生成订单") return "已生成订单的选款单不可取消，需先驳回订单";
       s.status = "已取消";
+      s.locked = true;
       save(); syncLegacy();
       return `选款单 ${selId} 已取消`;
     },
-    saveSelectionLines(selId, lines) {
+    saveSelectionLines(selId, lines, opts) {
       const s = db.selections.find(x => x.id === selId);
-      if (!s) return { ok: false, msg: "选款单不存在" };
-      if (s.locked) return { ok: false, msg: "选款单已锁定，需后台驳回订单后才能修改" };
+      const gate = Store.canMutateSelection(s, opts);
+      if (!gate.ok) return gate;
       s.lines = (lines || []).map((l, i) => enrichLine(l, i));
-      const q = Store.selectionQuote(s.lines);
+      const q = Store.selectionQuote(s.lines, null, s.season, s.brand);
       s.pieces = q.pieces;
       s.skus = s.lines.length;
       s.amount = money(q.wholesale);
@@ -1039,25 +1318,26 @@
       save(); syncLegacy();
       return { ok: true, msg: "选款单已保存", quote: q };
     },
-    bumpSelectionQty(selId, sku, size, d) {
+    bumpSelectionQty(selId, sku, size, d, opts) {
       const s = db.selections.find(x => x.id === selId);
-      if (!s) return { ok: false, msg: "选款单不存在" };
-      if (s.locked) return { ok: false, msg: "选款单已锁定" };
+      const gate = Store.canMutateSelection(s, opts);
+      if (!gate.ok) return gate;
       const line = (s.lines || []).find(x => x.sku === sku);
       if (!line) return { ok: false, msg: "款式不存在" };
       line.sizes = line.sizes || {};
       line.sizes[size] = Math.max(0, Number(line.sizes[size] || 0) + Number(d || 0));
-      return Store.saveSelectionLines(selId, s.lines);
+      return Store.saveSelectionLines(selId, s.lines, opts);
     },
-    removeSelectionLine(selId, sku) {
+    removeSelectionLine(selId, sku, opts) {
       const s = db.selections.find(x => x.id === selId);
-      if (!s) return { ok: false, msg: "选款单不存在" };
-      return Store.saveSelectionLines(selId, (s.lines || []).filter(l => l.sku !== sku));
+      const gate = Store.canMutateSelection(s, opts);
+      if (!gate.ok) return gate;
+      return Store.saveSelectionLines(selId, (s.lines || []).filter(l => l.sku !== sku), opts);
     },
-    addSelectionLine(selId, sku) {
+    addSelectionLine(selId, sku, opts) {
       const s = db.selections.find(x => x.id === selId);
-      if (!s) return { ok: false, msg: "选款单不存在" };
-      if (s.locked) return { ok: false, msg: "选款单已锁定" };
+      const gate = Store.canMutateSelection(s, opts);
+      if (!gate.ok) return gate;
       if ((s.lines || []).some(l => l.sku === sku)) return { ok: false, msg: "该款已在选款单中" };
       const g = findGoods(sku);
       if (!g) return { ok: false, msg: "商品不存在" };
@@ -1065,21 +1345,25 @@
       const sizes = Object.fromEntries((g.sizes || ["S", "M", "L"]).map(sz => [sz, sz === (g.sampleSize || "M") || sz === "M" ? 1 : 0]));
       s.lines = s.lines || [];
       s.lines.push(enrichLine({ sku: g.sku, title: g.title, sizes, price: g.wholesale, retail: g.retail }, s.lines.length));
-      return Store.saveSelectionLines(selId, s.lines);
+      return Store.saveSelectionLines(selId, s.lines, opts);
     },
-    selectionQuote(lines, ruleMode, season) {
+    selectionQuote(lines, ruleMode, season, brandHint) {
+      const brand = brandHint || ((lines && lines[0] && (findGoods(lines[0].sku) || {}).brand) || "");
       const rules = Store.getDiscountRules(season || db.ui.discountSeason, ruleMode);
       const groups = {
-        服饰: { key: "cloth", pieces: 0, retail: 0 },
-        配饰: { key: "accessory", pieces: 0, retail: 0 },
-        生活方式: { key: "lifestyle", pieces: 0, retail: 0 }
+        服饰: { key: "cloth", pieces: 0, retail: 0, listed: 0 },
+        配饰: { key: "accessory", pieces: 0, retail: 0, listed: 0 },
+        生活方式: { key: "lifestyle", pieces: 0, retail: 0, listed: 0 }
       };
       (lines || []).forEach(l => {
         const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
         const type = l.goodsType || "服饰";
         const g = groups[type] || groups["服饰"];
+        const retailUnit = parseMoney(l.retail != null ? l.retail : (parseMoney(l.price) / 0.45));
+        const listedUnit = parseMoney(l.wholesale != null ? l.wholesale : l.price);
         g.pieces += qty;
-        g.retail += qty * parseMoney(l.retail != null ? l.retail : (parseMoney(l.price) / 0.45));
+        g.retail += qty * retailUnit;
+        g.listed += qty * listedUnit;
       });
       const retail = Object.values(groups).reduce((a, g) => a + g.retail, 0);
       const pieces = Object.values(groups).reduce((a, g) => a + g.pieces, 0);
@@ -1093,19 +1377,20 @@
           name,
           pieces: g.pieces,
           retail: g.retail,
+          listed: g.listed,
           discount: disc,
           discountLabel: (disc * 10).toFixed(1).replace(/\.0$/, "") + "折",
           nextGap: nextStair ? Math.max(0, nextStair.amount - retail) : 0,
           nextDiscountLabel: nextStair ? (Number(nextStair.discount) * 10).toFixed(1).replace(/\.0$/, "") + "折" : ""
         };
       }).filter(t => t.pieces > 0 || t.retail > 0);
+      const useWholesale = Store.brandDiscountBase(brand) === "wholesale";
       let wholesale = 0;
-      types.forEach(t => { wholesale += t.retail * t.discount; });
-      // lines with 0 type still count via fallback
+      types.forEach(t => { wholesale += (useWholesale ? t.listed : t.retail) * t.discount; });
       if (!types.length) {
         (lines || []).forEach(l => {
           const qty = Object.values(l.sizes || {}).reduce((a, b) => a + Number(b || 0), 0);
-          wholesale += qty * parseMoney(l.price);
+          wholesale += qty * Store.lineUnitBase(l, brand);
         });
       }
       return {
@@ -1117,7 +1402,8 @@
         minGap: Math.max(0, Number(rules.minAmount || 0) - retail),
         types,
         nextStair,
-        activeStair
+        activeStair,
+        discountBase: useWholesale ? "订货价" : "零售价"
       };
     },
     draftQuote(brand) {
@@ -1137,7 +1423,8 @@
       };
       const lines = items.map((i, idx) => toLine(i, idx, false));
       const quoteLines = items.map((i, idx) => toLine(i, idx, true));
-      return { items, lines, quote: Store.selectionQuote(quoteLines), brand: brand || (items[0] && items[0].brand) || "" };
+      const bname = brand || (items[0] && items[0].brand) || "";
+      return { items, lines, quote: Store.selectionQuote(quoteLines, null, null, bname), brand: bname };
     },
     bumpDraftQty(sku, size, d) {
       const item = db.buyerSession.selections.find(x => x.sku === sku);
@@ -1182,58 +1469,42 @@
         diff: total - confirmed
       };
     },
-    /* 当前状态下该端可执行的动作（驱动按钮渲染，避免出现流程外按钮） */
+    /* #40：未完成订单平台可并行操作；完成/取消后不再出操作 */
     orderActions(o, side) {
       const st = normStatus(o && o.status);
       const platform = side !== "buyer";
       const A = [];
       const wait = t => A.push({ label: t, wait: true });
-      if (st === ORDER_ST.confirm) {
-        if (platform) {
-          A.push({ act: "platform-confirm-order", label: "确认订单", primary: true });
-          A.push({ act: "open-order-panel:reject", label: "驳回订单" });
-        } else {
-          A.push({ act: "open-order-panel:cancel", label: "取消订单" });
-          wait("等待平台确认订单");
-        }
-      } else if (st === ORDER_ST.discount) {
-        if (platform) {
-          A.push({ act: "open-order-panel:modify", label: "设置折扣 / 增减款", primary: true });
-          A.push({ act: "confirm-discount", label: "确认折扣" });
-          A.push({ act: "open-order-panel:reject", label: "驳回订单" });
-        } else wait("等待平台确认折扣");
-      } else if (st === ORDER_ST.deposit) {
-        /* #15：待确认定金 — 平台设置定金并确认后进入待买手确认定金 */
-        if (platform) {
-          A.push({ act: "open-order-panel:deposit", label: "设置定金", primary: true });
-          A.push({ act: "open-order-panel:modify", label: "设置折扣 / 增减款" });
-          A.push({ act: "open-order-panel:reject", label: "驳回订单" });
-        } else wait("等待平台确认定金");
-      } else if (st === ORDER_ST.depositAck) {
-        if (platform) {
-          A.push({ act: "open-order-panel:deposit", label: "修改首付比例定金" });
-          wait("等待买手确认定金");
-        } else A.push({ act: "buyer-confirm-deposit", label: "确认定金", primary: true });
-      } else if (st === ORDER_ST.depositPay) {
-        if (platform) wait("等待买手上传支付凭证");
-        else A.push({ act: "open-order-panel:pay-deposit", label: "上传付款凭证", primary: true });
-      } else if (st === ORDER_ST.depositCheck) {
-        /* #15：待平台确认定金 — 先确认定金；确认后才可生成 OC */
-        if (platform) {
-          A.push({ act: "open-order-panel:check", label: "确认定金凭证", primary: true });
-        } else wait("等待平台确认定金");
-      } else if (st === ORDER_ST.finalPay) {
-        if (platform) {
-          A.push({ act: "open-order-panel:check", label: "确认尾款凭证" });
-          A.push({ act: "gen-oc", label: "生成 OC", primary: !o.ocId });
-          A.push({ act: "settle-order", label: "订单完成", primary: !!o.ocId });
-        } else A.push({ act: "open-order-panel:pay-final", label: "上传尾款凭证", primary: true });
-      } else if (st === ORDER_ST.rejected) {
-        if (platform) A.push({ act: "platform-confirm-order", label: "恢复为待确认" });
-        else A.push({ act: "go:buyer-selection", label: "回到选款单重新下单", primary: true });
+      const ended = [ORDER_ST.done, ORDER_ST.canceled].includes(st);
+      if (ended) {
+        A.push({ act: "download:订单", label: "下载订单" });
+        return A;
       }
-      if (platform && ![ORDER_ST.done, ORDER_ST.canceled].includes(st)) {
+      if (st === ORDER_ST.rejected) {
+        if (platform) A.push({ act: "platform-confirm-order", label: "恢复为待确认" });
+        else A.push({ act: "go:buyer-selection", label: "回到选款单重新提交", primary: true });
+        A.push({ act: "download:订单", label: "下载订单" });
+        return A;
+      }
+      if (platform) {
+        A.push({ act: "open-order-panel:modify", label: "设置折扣 / 编辑商品", primary: true });
+        A.push({ act: "open-order-panel:deposit", label: "设置定金" });
+        A.push({ act: "gen-oc", label: o.ocId ? "查看 OC" : "生成 OC" });
+        A.push({ act: "open-order-panel:wave", label: "查看商品价格波动" });
+        A.push({ act: "settle-order", label: "订单完成" });
+        A.push({ act: "open-order-panel:reject", label: "订单驳回" });
+        if (st === ORDER_ST.depositCheck) A.push({ act: "open-order-panel:check", label: "确认定金凭证" });
+        if (st === ORDER_ST.finalPay) A.push({ act: "open-order-panel:check", label: "确认尾款凭证" });
         A.push({ act: "open-order-panel:invoice", label: "发票信息" });
+      } else {
+        A.push({ act: "open-order-panel:cancel", label: "取消订单" });
+        if (st === ORDER_ST.depositAck) A.push({ act: "buyer-confirm-deposit", label: "确认定金", primary: true });
+        else if (st === ORDER_ST.depositPay) A.push({ act: "open-order-panel:pay-deposit", label: "上传付款凭证", primary: true });
+        else if (st === ORDER_ST.finalPay) A.push({ act: "open-order-panel:pay-final", label: "上传尾款凭证", primary: true });
+        else if (st === ORDER_ST.confirm) wait("等待平台处理订单");
+        else if (st === ORDER_ST.discount) wait("平台可随时设置折扣");
+        else if (st === ORDER_ST.deposit) wait("等待平台设置定金");
+        else if (st === ORDER_ST.depositCheck) wait("等待平台确认定金");
       }
       A.push({ act: "download:订单", label: "下载订单" });
       return A;
@@ -1268,7 +1539,7 @@
       const unlockSelection = () => {
         if (!o.fromSelection) return;
         const s = db.selections.find(x => x.id === o.fromSelection);
-        if (s) { s.locked = false; s.status = "待确认"; }
+        if (s) { s.locked = false; s.status = "已驳回"; s.rejectReason = o.rejectReason || "订单已退回选款单"; }
       };
       /* 旧动作名兼容（历史门禁脚本/页面） */
       const alias = {
@@ -1295,13 +1566,13 @@
         log(`平台驳回订单：${o.rejectReason}（买手可回到选款单修改后重新下单）`);
         Store.pushBuyerMessage("订单被驳回", `订单 ${o.id} 被驳回：${o.rejectReason}`);
       } else if (act === "cancel") {
-        if (stageOf(st) > stageOf(ORDER_ST.confirm)) return { ok: false, msg: "平台已确认订单，取消需联系平台" };
+        if ([ORDER_ST.done, ORDER_ST.canceled].includes(st)) return { ok: false, msg: "订单已结束，不可取消" };
         o.status = ORDER_ST.canceled;
         o.cancelReason = payload.reason || "买手主动取消";
         unlockSelection();
         log(`买手取消订单：${o.cancelReason}`);
       } else if (act === "setDeposit") {
-        if (![ORDER_ST.deposit, ORDER_ST.depositAck, ORDER_ST.discount].includes(st)) return { ok: false, msg: `当前状态「${st}」不可设置定金` };
+        if ([ORDER_ST.done, ORDER_ST.canceled].includes(st)) return { ok: false, msg: "订单已结束，不可设置定金" };
         const ratio = Number(payload.ratio || o.depositRatio || Store.brandDepositRatio(o.brand));
         o.depositRatio = ratio;
         o.deposit = money(parseMoney(o.amount) * ratio);
@@ -1309,7 +1580,7 @@
         log(`平台设置首付比例 ${Math.round(ratio * 100)}%，应收定金 ¥${o.deposit}，待买手确认定金`);
         Store.pushBuyerMessage("待买手确认定金", `订单 ${o.id} 定金 ¥${o.deposit}，请在「我的订单」确认。`);
       } else if (act === "setDiscount") {
-        if (stageOf(st) > stageOf(ORDER_ST.depositAck)) return { ok: false, msg: "买手已确认定金，不可再改折扣" };
+        if ([ORDER_ST.done, ORDER_ST.canceled].includes(st)) return { ok: false, msg: "订单已结束，不可改折扣" };
         if (payload.catDiscount) {
           const cd = payload.catDiscount;
           o.catDiscount = {
@@ -1383,8 +1654,7 @@
         Store.pushBuyerMessage(pass ? `${p.kind}已确认` : `${p.kind}凭证需重新上传`,
           `订单 ${o.id}：${pass ? `${p.kind} ¥${p.amount} 已确认通过` : p.note}`);
       } else if (act === "genOc") {
-        /* #15：确认定金（进入待买手上传尾款）后才可生成 OC */
-        if (st !== ORDER_ST.finalPay) return { ok: false, msg: `请先确认定金后再生成 OC（当前「${st}」）` };
+        if ([ORDER_ST.done, ORDER_ST.canceled].includes(st)) return { ok: false, msg: "订单已结束，不可生成 OC" };
         const oc = Store.createOc(o.id);
         o.ocId = oc.id || o.ocId;
         o.contractUploaded = true;
@@ -1405,7 +1675,7 @@
         o.paidTotal = money(final.confirmed);
         log(`平台确认尾款 ¥${money(rest)}（可继续分批或点订单完成）`);
       } else if (act === "settle") {
-        if (st !== ORDER_ST.finalPay && st !== ORDER_ST.settle) return { ok: false, msg: `当前状态「${st}」不可完成订单` };
+        if ([ORDER_ST.done, ORDER_ST.canceled].includes(st)) return { ok: false, msg: "订单已结束" };
         const stats = Store.paymentStats(o);
         o.settleDiff = money(stats.diff);
         o.status = ORDER_ST.done;
@@ -1430,7 +1700,7 @@
         o.returns = o.returns || [];
         o.returns.push({ type: payload.type || "退货", sku: payload.sku, qty: Number(payload.qty || 1), reason: payload.reason || "", at: new Date().toISOString() });
       } else if (act === "modify") {
-        if (stageOf(st) > stageOf(ORDER_ST.depositAck)) return { ok: false, msg: "定金已确认，订单不可再改款" };
+        if ([ORDER_ST.done, ORDER_ST.canceled].includes(st)) return { ok: false, msg: "订单已结束，不可再改商品" };
         o.lines = payload.lines || o.lines;
         let amount = 0;
         o.lines.forEach(l => {
@@ -1693,8 +1963,11 @@
         designer: payload.designer || "",
         contact: payload.contact, phone: payload.phone,
         year: payload.year || 2015, site: payload.site || "", shipAt: payload.shipAt || "",
-        abbr: payload.abbr || "", currency: payload.currency || "CNY", textColor: payload.textColor || "黑色"
+        abbr: payload.abbr || "", currency: payload.currency || "CNY", textColor: payload.textColor || "黑色",
+        discountBase: payload.discountBase === "wholesale" ? "wholesale" : "retail"
       };
+      db.brandDiscountBase = db.brandDiscountBase || {};
+      db.brandDiscountBase[name] = payload.discountBase === "wholesale" ? "wholesale" : "retail";
       save(); syncLegacy();
       return { ok: true, msg: `品牌「${name}」已添加（登录手机 ${payload.phone}）`, name };
     },
@@ -1736,10 +2009,13 @@
     },
     addAppointment(payload) {
       const at = new Date().toISOString().slice(0, 16).replace("T", " ");
+      const fair = (db.orderingFairs || []).find(x => x.id === payload.fairId || `${x.name}（${x.season}）` === payload.fair || x.season === payload.season);
+      if (fair && !Store.isFairBookable(fair)) return "当前不在该订货会可预约时间内";
       /* #27 提交后待审核，通过后才进预约列表 */
       db.appointments.unshift({
         brand: payload.brand, store: payload.store, contact: payload.contact,
-        phone: payload.phone, date: payload.date, season: payload.season || "2026SS",
+        phone: payload.phone, date: payload.date, season: (fair && fair.season) || payload.season || "2026SS",
+        fairId: fair && fair.id, slot: payload.slot || "",
         people: Number(payload.people) || 1, submitAt: at, status: "待审核", reason: ""
       });
       save(); syncLegacy();
@@ -1941,18 +2217,17 @@
       return { ok: true };
     },
     toggleHeart(sku) {
+      const g = findGoods(sku);
+      const key = (g && (g.skc || g.sku)) || sku;
       const list = db.buyerSession.selections;
-      const idx = list.findIndex(x => x.sku === sku);
+      const idx = list.findIndex(x => x.sku === key || x.sku === sku || (g && (x.sku === g.sku || x.sku === g.skc)));
       if (idx >= 0) list.splice(idx, 1);
-      else {
-        const g = findGoods(sku);
-        if (g) {
-          const sizes = Object.fromEntries((g.sizes || ["S", "M", "L"]).map(sz => [sz, 0]));
-          list.push({
-            sku, brand: g.brand, title: g.title, season: g.season, wholesale: g.wholesale,
-            retail: g.retail, color: g.color, sampleSize: g.sampleSize, code: g.code, goodsType: g.goodsType, sizes
-          });
-        }
+      else if (g) {
+        const sizes = Object.fromEntries((g.sizes || ["S", "M", "L"]).map(sz => [sz, 0]));
+        list.push({
+          sku: key, brand: g.brand, title: g.title, season: g.season, wholesale: g.wholesale,
+          retail: g.retail, color: g.color, sampleSize: g.sampleSize, code: g.code, goodsType: g.goodsType, sizes
+        });
       }
       save();
       return idx >= 0 ? "已取消选款" : "已加入选款单（仅款式，详情内改数量）";
@@ -1975,28 +2250,28 @@
           color: g.color, sampleSize: g.sampleSize, code: g.code, goodsType: g.goodsType
         }, idx);
       });
-      const q = Store.selectionQuote(lines);
+      const q = Store.selectionQuote(lines, null, season, brand);
       db.selections.unshift({
         id, brand, season, store: db.buyerSession.store, time: new Date().toISOString().slice(0, 16).replace("T", " "),
         amount: money(q.wholesale), retailAmount: money(q.retail), pieces: q.pieces, skus: lines.length,
-        status: "待确认", buyer: db.buyerSession.store, locked: false, lines
+        status: "待审核", buyer: db.buyerSession.store, locked: true, lines
       });
       db.buyerSession.selections = db.buyerSession.selections.filter(x => x.brand !== brand);
       save(); syncLegacy();
-      return { ok: true, msg: `已生成选款单 ${id}（按品牌独立）`, id };
+      return { ok: true, msg: `已提交选款单 ${id}，等待平台审核`, id };
     },
     buyerOrders(tab) {
       const store = db.buyerSession.store;
+      const typeTab = db.buyerSession.orderType || "全部";
       return db.orders.filter(o => {
-        if (o.store !== store && store !== "Liora Amour") {
-          // demo: show all for Liora, else filter
-        }
         const st = normStatus(o.status);
         const finished = [ORDER_ST.done, ORDER_ST.canceled];
-        if (tab === "未完成") return !finished.includes(st);
-        if (tab === "已完成") return finished.includes(st);
-        return true;
-      }).filter(o => o.store === store || true);
+        if (tab === "未完成") { if (finished.includes(st)) return false; }
+        else if (tab === "已完成") { if (!finished.includes(st)) return false; }
+        if (typeTab === "首单" && o.type === "补货单") return false;
+        if (typeTab === "补货单" && o.type !== "补货单") return false;
+        return o.store === store;
+      });
     },
     downloadText(filename, content) {
       const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
@@ -2144,6 +2419,7 @@
       return `已新增 LOOK ${id}`;
     },
     setBuyerOrderTab(tab) { db.buyerSession.orderTab = tab; save(); },
+    setBuyerOrderType(tab) { db.buyerSession.orderType = tab; save(); },
     setStyleDim(dim) { db.ui.styleDim = dim; save(); },
     grantBrandToBuyer(buyerName, brand) {
       const b = db.buyers.find(x => x.name === buyerName) || db.buyers[0];

@@ -6,7 +6,7 @@
     page: "login",
     roleLogin: "platform",
     selectedBrand: "HAIZHEN WANG",
-    selectedGoods: null,
+    selectedFair: "",
     selectedSel: RR.selections[0],
     selectedOrder: RR.orders[0],
     cart: (window.Store && Store.db.buyerSession.selections.map(x => x.sku)) || JSON.parse(localStorage.getItem("rr_cart") || "[]"),
@@ -66,7 +66,15 @@
     "buyer-sub": "buyer-list",
     "buyer-add-brand": "buyer-list",
     "buyer-appoint": "buyer-list",
-    "appoint-audit": "appoint-list",
+    "appoint-list": "fair-list",
+    "appoint-audit": "fair-list",
+    "fair-appoint": "fair-list",
+    "fair-slots": "fair-list",
+    "fair-checkin": "fair-list",
+    "goods-preview": "goods-list",
+    "buyer-subs": "buyer-list",
+    "mp-qr": "buyer-profile",
+    "mp-scan": "buyer-profile",
     "role-perm": "account-list",
     "account-center": "account-list",
     "account-list": "account-list",
@@ -102,7 +110,7 @@
     if (!parent) return "";
     /* 品牌端店铺设置页即顶层，不强制回品牌列表 */
     if (state.portal === "brand" && /^brand-(discount|size|fair|pay|contract|edit)/.test(state.page)) return "";
-    if (state.portal === "buyer" && parent === "goods-list") return "buyer-home";
+    if (state.portal === "mp" && (state.page === "buyer-home" || state.page === "buyer-replenish")) return "buyer-order-hub";
     if (state.portal === "brand" && parent === "goods-list") return "brand-discount";
     return parent;
   }
@@ -169,8 +177,7 @@
         { id: "fair", label: "订货会管理" },
         { id: "goods", label: "商品管理" },
         { id: "order", label: "订单管理" },
-        /* #8 平台端隐藏「发货管理」 */
-        { id: "appoint", label: "预约管理" },
+        /* #8 平台端隐藏「发货管理」；#37 预约管理并进订货会 */
         { id: "intent", label: "意向审核" },
         { id: "buyer", label: "买手管理" },
         /* #17 角色权限 + 账户中心 → 账号权限 */
@@ -194,7 +201,10 @@
         ],
         fair: [
           { id: "fair-list", label: "订货会列表" },
-          { id: "fair-add", label: "添加订货会" }
+          { id: "fair-add", label: "添加订货会" },
+          { id: "appoint-audit", label: "审核预约" },
+          { id: "appoint-list", label: "预约列表" },
+          { id: "fair-checkin", label: "签到记录" }
         ],
         goods: [
           { id: "goods-restock", label: "补货/隐藏商品" },
@@ -225,6 +235,7 @@
         intent: [{ id: "intent-list", label: "意向管理" }],
         buyer: [
           { id: "buyer-list", label: "买手审核" },
+          { id: "buyer-subs", label: "子账号管理" },
           { id: "buyer-balance", label: "余额管理" },
           { id: "buyer-store", label: "查看店铺资料" },
           { id: "buyer-invoice", label: "修改发票信息" },
@@ -267,11 +278,15 @@
     }
   };
 
+  function selPlatformOpts() {
+    return { platform: state.portal === "platform" || state.portal === "brand" };
+  }
+
   function setPortal(p) {
     state.portal = p;
     localStorage.setItem("rr_portal", p);
     state.navStack = [];
-    if (p === "mp") state.page = "buyer-home";
+    if (p === "mp") state.page = Store.db.buyerSession.role === "checker" ? "mp-scan" : "buyer-order-hub";
     else if (p === "buyer") state.page = "buyer-home";
     else if (p === "brand") state.page = "brand-list";
     else if (p === "audit") state.page = "coverage";
@@ -313,8 +328,7 @@
 
   function topGroup(page) {
     if (page === "coverage" || page.startsWith("account") || page.startsWith("role")) return "account";
-    if (page.startsWith("appoint")) return "appoint";
-    if (page.startsWith("fair")) return "fair";
+    if (page.startsWith("appoint") || page.startsWith("fair")) return "fair";
     if (page.startsWith("brand")) return "brand";
     if (page.startsWith("goods")) return "goods";
     if (page.startsWith("order") || page.startsWith("selection") || page.startsWith("contract") || page.startsWith("oc-")) return "order";
@@ -523,6 +537,7 @@
       <span>|</span>
       <a href="javascript:;" class="${state.page === "coverage" ? "on" : ""}" data-go="coverage">覆盖核对</a>
       <a href="javascript:;" class="${state.page === "login" ? "on" : ""}" data-go="login">登录/注册</a>
+      ${state.portal === "mp" ? `<a href="javascript:;" data-act="toggle-checker">${Store.db.buyerSession.role === "checker" ? "签到员✓" : "签到员"}</a>` : ""}
     </div>`;
   }
 
@@ -771,8 +786,9 @@
           <div class="goods_small"><p>${g.wholesale}</p></div>
           <div class="goods_small ${g.status === "已删款" ? "status-del" : "status-ok"}"><p>${g.status}</p></div>
           <div class="goods_small ops uk-flex-column">
-            <a href="javascript:;" class="oto_btn" data-go="goods-add">编辑</a>
-            <a href="javascript:;" class="oto_btn" data-go="goods-view">查看</a>
+            <a href="javascript:;" class="oto_btn" data-go="goods-add" data-sku="${g.skc || g.sku}">编辑</a>
+            <a href="javascript:;" class="oto_btn" data-go="goods-preview" data-sku="${g.skc || g.sku}">预览</a>
+            <a href="javascript:;" class="oto_btn" data-act="sync-goods-price:${g.skc || g.sku}">同步价格到订单</a>
             <a href="javascript:;" class="oto_btn" data-act="toggle-delete:${g.skc || g.sku}">${g.status === "已删款" ? "取消删款" : "删款"}</a>
           </div>
         </div>
@@ -845,7 +861,7 @@
         <div class="form_item-long"><label class="req">一级分类 *</label><div>${field("cat", `<select data-act-change="goods-cat-change">${catNames.map(n => `<option value="${n}" ${n === catName ? "selected" : ""}>${n}</option>`).join("")}</select>`)}</div></div>
         <div class="form_item-long"><label class="req">二级分类 *</label><div>${field("subcat", select(subOptions, null, subName))}</div></div>
         <div class="form_item-long"><label class="req">建议零售价 *</label><div>${field("retail", input("CNY", dv("retail", "3000")))}</div></div>
-        <div class="form_item-long"><label class="req">订货价 *</label><div>${field("wholesale", input("CNY", dv("wholesale", "1350")))}</div></div>
+        <div class="form_item-long"><label class="req">订货价 *</label><div>${field("wholesale", input("CNY", dv("wholesale", "1350")))}<div class="muted" style="margin-top:6px">改价后回到商品列表，点「同步价格到订单」会更新所有未完成订单中此商品的价格并重算折扣。</div></div></div>
         <div class="form_item-long"><label>最小起订量</label><div>${field("moq", input("件", dv("moq", "1")))}</div></div>
         <div class="form_item-long"><label>缩略图</label><div class="upload-box"><div class="plus">+</div>缩略图 · &lt;5MB</div></div>
         <div class="form_item-long"><label>白底图</label><div class="upload-box"><div class="plus">+</div>白底图 · &lt;5MB</div></div>
@@ -1043,7 +1059,8 @@
       currency: raw.currency || "CNY",
       textColor: raw.textColor || "黑色",
       contact: raw.contact || "",
-      phone: raw.phone || ""
+      phone: raw.phone || "",
+      discountBase: raw.discountBase || Store.brandDiscountBase(raw.name || name) || "retail"
     };
     const cats = Store.db.catsMaster || ["女装", "男装", "男女装", "配饰", "生活方式"];
     const ratio = Math.round(Store.brandDepositRatio(b.name || name) * 100) + "%";
@@ -1073,6 +1090,7 @@
       <div class="form_item-long"><label>文字颜色</label><div>${field("textColor", select(["黑色", "白色", "品牌色"], null, b.textColor || "黑色"))}</div></div>
       <div class="form_item-long"><label>订单首付比例(定金)</label><div>${field("nbRatio", select(RR.depositRatios, null, ratio))}</div></div>
       <div class="form_item-long"><label>下单需审核买手</label><div><label class="check-inline"><input type="checkbox" data-field="nbAudit" ${need ? "checked" : ""} /> 开启后买手需先提交品牌申请</label></div></div>
+      <div class="form_item-long"><label class="req">买手折扣计算基数 *</label><div>${field("discountBase", select(["零售价", "订货价"], null, b.discountBase === "wholesale" ? "订货价" : "零售价"))}<div class="muted" style="margin-top:6px">按零售价：吊牌价 × 折扣 = 买手价。按订货价：订货价 × 折扣 = 买手价。</div></div></div>
       <div class="submit_area">
         <a href="javascript:;" class="oto_btn" data-act="${saveAct}">${isAdd ? "保存并加入品牌列表" : "保存"}</a>
         <a href="javascript:;" class="oto_btn" data-go="brand-list">返回品牌列表</a>
@@ -1255,20 +1273,19 @@
   }
 
   function pageBrandFairNew() {
-    /* #1 订货会管理·添加：选择参与品牌 */
-    const list = Store.db.orderingFairs || [];
-    const defaultSeason = RR.seasons[RR.seasons.length - 1];
-    const curFair = Store.db.fairs[defaultSeason] || { first: true, replenish: true };
+    /* #33 可预约时间 + 订货会开始时间；#32 不再在此设首单/补货 */
     const brandNames = RR.brands.map(b => b.name);
     return `<div class="boduan-container fair-create-page">
       ${subTitle("添加订货会")}
-      <div class="note">创建时<strong>手写季节</strong>（不限于下拉枚举），勾选参与品牌，并设置该季是否开放<strong>首单</strong> / <strong>补货</strong>。</div>
+      <div class="note">手写季节并勾选参与品牌。首单 / 补货请到品牌「订货会设置」按场次开关。买手端只展示<strong>可预约时间范围内</strong>的场次。</div>
       <div class="form-grid">
         <label class="req">订货会名称</label><div>${field("fairName", input("例如：2028SS 订货会"))}</div>
-        <label class="req">季节</label><div>${field("fairSeason", input("手写，例如 2028SS / 2028AW", defaultSeason))}</div>
+        <label class="req">季节</label><div>${field("fairSeason", input("手写，例如 2028SS / 2028AW", RR.seasons[RR.seasons.length - 1]))}</div>
+        <label class="req">可预约开始</label><div>${field("fairBookFrom", dateInput("2026-08-01"))}</div>
+        <label class="req">可预约结束</label><div>${field("fairBookTo", dateInput("2026-11-30"))}</div>
+        <label>订货会开始</label><div>${field("fairFrom", dateInput("2026-09-08"))}</div>
+        <label>订货会结束</label><div>${field("fairTo", dateInput("2026-09-12"))}</div>
         <label class="req">参与品牌</label><div class="span2">${checkGroup("fairBrands", brandNames, brandNames.slice(0, 3))}</div>
-        <label>首单</label><div><label class="check-inline"><input type="checkbox" data-field="fairFirst" ${curFair.first !== false ? "checked" : ""} /> 开放该季首单下单</label></div>
-        <label>补货</label><div><label class="check-inline"><input type="checkbox" data-field="fairReplenish" ${curFair.replenish !== false ? "checked" : ""} /> 开放该季补货下单</label></div>
         <label>封面/宣传图</label><div class="span2"><div class="file_area upload-box" data-act="toast:已选择宣传图（示意）"><div class="plus">+</div>上传图文封面</div></div>
         <label>图文介绍</label><div class="span2"><textarea data-field="fairIntro" placeholder="订货会说明、亮点、场次信息等" rows="5"></textarea></div>
       </div>
@@ -1279,33 +1296,132 @@
     </div>`;
   }
 
+  function currentFair() {
+    const id = state.selectedFair || ((Store.db.orderingFairs || [])[0] && Store.db.orderingFairs[0].id);
+    return (Store.db.orderingFairs || []).find(f => f.id === id) || (Store.db.orderingFairs || [])[0] || null;
+  }
+
+  function pageFairAppoint() {
+    const fair = currentFair();
+    if (!fair) return `${subTitle("查看预约")}<div class="note">请先创建订货会</div>`;
+    const rows = Store.fairAppointSummary(fair.id);
+    const ap = Store.appointmentsByFair(fair.id);
+    return `<div class="boduan-container">
+      ${subTitle("查看预约 · " + fair.name)}
+      <div class="note">按参与品牌汇总预约人数。点品牌进入该品牌的时段与接待上限。</div>
+      <table class="data-table">
+        <thead><tr><th>品牌</th><th>预约条数</th><th>已通过</th><th>通过人数</th><th>时段接待上限</th><th>操作</th></tr></thead>
+        <tbody>${rows.map(r => `<tr>
+          <td>${r.brand}</td><td>${r.total}</td><td>${r.passed}</td><td>${r.people}</td>
+          <td>${r.cap || "未设"}（${r.slots} 个时段）</td>
+          <td class="ops"><a href="javascript:;" data-go="fair-slots" data-fair="${fair.id}" data-brand="${r.brand}">维护时段</a></td>
+        </tr>`).join("") || '<tr><td colspan="6">该场次暂无参与品牌</td></tr>'}</tbody>
+      </table>
+      <div class="sub_title" style="margin-top:24px"><h4>预约明细</h4></div>
+      <table class="data-table">
+        <thead><tr><th>品牌</th><th>店铺</th><th>时间</th><th>人数</th><th>状态</th></tr></thead>
+        <tbody>${ap.map(a => `<tr>
+          <td>${a.brand}</td><td>${a.store}</td><td>${a.date || "—"}</td><td>${a.people || 1}</td>
+          <td><span class="badge ${a.status === "已通过" ? "green" : ""}">${a.status || "待审核"}</span></td>
+        </tr>`).join("") || '<tr><td colspan="5">暂无预约</td></tr>'}</tbody>
+      </table>
+      <div class="action-bar">${btn("返回列表", "btn-outline", "go:fair-list")}</div>
+    </div>`;
+  }
+
+  function pageFairSlots() {
+    const fair = currentFair();
+    if (!fair) return `${subTitle("预约时段")}<div class="note">请先创建订货会</div>`;
+    const brand = state.selectedBrand && (fair.brands || []).includes(state.selectedBrand)
+      ? state.selectedBrand
+      : (fair.brands || [])[0];
+    const slots = Store.fairSlotsOf(fair.id, brand);
+    const tpl = "日期,开始,结束,上限\\n2026-09-08,08:30,09:30,200\\n2026-09-08,09:30,11:30,150";
+    return `<div class="boduan-container">
+      ${subTitle("预约时段 · " + fair.name)}
+      <div class="note">品牌 <strong>${esc(brand || "—")}</strong>。例：8:30-9:30 可接待 200 人；9:30-11:30 可接待 150 人。可下载模板后批量导入。</div>
+      <div class="form-grid">
+        <label>选择品牌</label><div>${field("slotBrand", select(fair.brands || [], null, brand))}</div>
+      </div>
+      <div class="action-bar">${btn("切换品牌", "btn-outline", "fair-slot-brand")}${btn("下载导入模板", "btn-outline", "download:预约时段模板")}</div>
+      <table class="data-table">
+        <thead><tr><th>日期</th><th>开始</th><th>结束</th><th>接待上限</th><th>已约</th><th></th></tr></thead>
+        <tbody>${slots.map(s => `<tr>
+          <td>${s.date}</td><td>${s.from}</td><td>${s.to}</td><td>${s.cap}</td><td>${s.booked || 0}</td>
+          <td class="ops"><a href="javascript:;" data-act="del-fair-slot:${s.id}">删除</a></td>
+        </tr>`).join("") || '<tr><td colspan="6">暂无时段</td></tr>'}</tbody>
+      </table>
+      <div class="sub_title" style="margin-top:16px"><h4>新增时段</h4></div>
+      <div class="form-grid">
+        <label>日期</label><div>${field("slotDate", dateInput(fair.fairFrom || "2026-09-08"))}</div>
+        <label>开始</label><div>${field("slotFrom", input("08:30", "08:30"))}</div>
+        <label>结束</label><div>${field("slotTo", input("09:30", "09:30"))}</div>
+        <label>接待上限</label><div>${field("slotCap", input("200", "200"))}</div>
+      </div>
+      <div class="action-bar">${btn("保存时段", "btn-primary", "save-fair-slot")}</div>
+      <div class="sub_title" style="margin-top:16px"><h4>批量导入</h4></div>
+      <textarea data-field="slotImport" rows="5" placeholder="${tpl.replace(/\\n/g, "&#10;")}">日期,开始,结束,上限</textarea>
+      <div class="action-bar">${btn("导入时段", "btn-outline", "import-fair-slots")}${btn("返回查看预约", "btn-outline", "go:fair-appoint")}</div>
+    </div>`;
+  }
+
+  function pageFairCheckin() {
+    const list = Store.db.checkins || [];
+    const tab = (Store.db.ui.checkinTab || "全部");
+    const shown = list.filter(c => tab === "全部" || c.kind === tab);
+    return `<div class="boduan-container">
+      ${subTitle("签到记录")}
+      <div class="note">分别记录预约人员与非预约（现场）人员在各品牌的签到。扫码签到来自小程序。</div>
+      <div class="tabs" style="margin:12px 0">${["全部", "预约", "现场"].map(t =>
+        `<a href="javascript:;" class="oto_btn ${tab === t ? "" : ""}" data-act="checkin-tab:${t}">${t === "全部" ? "全部" : t + "签到"}</a>`
+      ).join("")}</div>
+      <table class="data-table">
+        <thead><tr><th>时间</th><th>类型</th><th>品牌</th><th>买手/访客</th><th>手机</th><th>时段</th></tr></thead>
+        <tbody>${shown.map(c => `<tr>
+          <td>${c.at}</td><td><span class="badge ${c.kind === "预约" ? "green" : ""}">${c.kind}</span></td>
+          <td>${c.brand}</td><td>${c.store}</td><td>${c.phone}</td><td>${c.slot || "—"}</td>
+        </tr>`).join("") || '<tr><td colspan="6">暂无签到</td></tr>'}</tbody>
+      </table>
+      <div class="sub_title" style="margin-top:20px"><h4>补录现场签到</h4></div>
+      <div class="form-grid">
+        <label>品牌</label><div>${field("ckBrand", select(RR.brands.map(b => b.name)))}</div>
+        <label>手机号</label><div>${field("ckPhone", input("现场访客手机"))}</div>
+        <label>姓名/店铺</label><div>${field("ckStore", input("可选"))}</div>
+      </div>
+      <div class="action-bar">${btn("登记现场签到", "btn-primary", "add-walkin-checkin")}</div>
+    </div>`;
+  }
+
   function pageFairList() {
-    /* #1 订货会列表 */
+    /* #32 订货会不再设首单/补货；#36 查看预约 */
     const list = Store.db.orderingFairs || [];
     return `<div class="boduan-container">
       ${subTitle("订货会列表")}
+      <div class="note">首单 / 补货开关在品牌管理「订货会设置」里按品牌场次配置。本列表维护场次、预约窗口和预约情况。</div>
       <div class="action-bar" style="margin-bottom:12px">
         <a href="javascript:;" class="oto_btn" data-go="fair-add">添加订货会</a>
       </div>
       <table class="data-table">
-        <thead><tr><th>名称</th><th>季节</th><th>参与品牌</th><th>首单</th><th>补货</th><th>介绍</th><th>创建时间</th><th>操作</th></tr></thead>
+        <thead><tr><th>名称</th><th>季节</th><th>参与品牌</th><th>可预约时间</th><th>订货会时间</th><th>介绍</th><th>操作</th></tr></thead>
         <tbody>
           ${list.map(f => {
-            const fair = Store.db.fairs[f.season] || { first: true, replenish: true };
             const brands = (f.brands && f.brands.length) ? f.brands.join("、") : "全部";
+            const book = (f.bookFrom || f.bookTo) ? `${f.bookFrom || "—"} ~ ${f.bookTo || "—"}` : "未设";
+            const open = (f.fairFrom || f.fairTo) ? `${f.fairFrom || "—"} ~ ${f.fairTo || "—"}` : "未设";
+            const live = Store.isFairBookable(f);
             return `<tr>
-            <td>${f.name}</td><td>${f.season || "—"}</td>
+            <td>${f.name}${live ? ' <span class="badge green">可预约</span>' : ' <span class="badge">非预约期</span>'}</td>
+            <td>${f.season || "—"}</td>
             <td>${brands}</td>
-            <td><span class="badge ${fair.first !== false ? "green" : "red"}">${fair.first !== false ? "开" : "关"}</span></td>
-            <td><span class="badge ${fair.replenish !== false ? "green" : "red"}">${fair.replenish !== false ? "开" : "关"}</span></td>
-            <td>${(f.intro || "—").slice(0, 36)}${(f.intro || "").length > 36 ? "…" : ""}</td>
-            <td>${f.createdAt || "—"}</td>
+            <td>${book}</td>
+            <td>${open}</td>
+            <td>${(f.intro || "—").slice(0, 24)}${(f.intro || "").length > 24 ? "…" : ""}</td>
             <td class="ops">
-              <a href="javascript:;" data-act="toggle-fair:${f.season}:first">${fair.first !== false ? "关首单" : "开首单"}</a>
-              <a href="javascript:;" data-act="toggle-fair:${f.season}:replenish">${fair.replenish !== false ? "关补货" : "开补货"}</a>
+              <a href="javascript:;" data-go="fair-appoint" data-fair="${f.id}">查看预约</a>
+              <a href="javascript:;" data-go="fair-slots" data-fair="${f.id}">预约时段</a>
             </td>
           </tr>`;
-          }).join("") || '<tr><td colspan="8">暂无订货会，请先添加</td></tr>'}
+          }).join("") || '<tr><td colspan="7">暂无订货会，请先添加</td></tr>'}
         </tbody>
       </table>
     </div>`;
@@ -1450,7 +1566,7 @@
       ])}
       <div class="brand_ordersList">
       <div class="items head_items"><div class="item_order-row sel-head-row">
-        <h4>买手</h4><h4>季节</h4><h4>总金额</h4><h4>总件数</h4><h4>操作</h4>
+        <h4>买手</h4><h4>季节</h4><h4>总金额</h4><h4>状态</h4><h4>操作</h4>
       </div></div>
       ${list.map(s => `
         <div class="sel-card">
@@ -1463,11 +1579,13 @@
             <div><h5 style="margin:0">${s.store}</h5></div>
             <div>${s.season}</div>
             <div><strong>${s.amount}</strong></div>
-            <div>件数：${s.pieces}<br/>SKU数：${s.skus}</div>
+            <div><span class="badge ${s.status === "待审核" ? "" : s.status === "已生成订单" ? "green" : s.status === "已驳回" ? "red" : ""}">${s.status || "待审核"}</span><br/>件数：${s.pieces} · SKU ${s.skus}</div>
             <div class="ops" style="flex-direction:column;align-items:stretch;gap:6px">
-              <a class="oto_btn" href="javascript:;" data-go="selection-detail" data-sel="${s.id}">查看详情</a>
-              <a class="oto_btn" href="javascript:;" data-gen-order="${s.id}">生成订单</a>
-              <a class="oto_btn" href="javascript:;" data-act="cancel-selection" data-sel="${s.id}">取消订单</a>
+              <a class="oto_btn" href="javascript:;" data-go="selection-detail" data-sel="${s.id}">${s.status === "待审核" ? "审核 / 编辑" : "查看详情"}</a>
+              ${s.status === "待审核" || s.status === "待确认" ? `<a class="oto_btn" href="javascript:;" data-gen-order="${s.id}">审核通过并生成订单</a>
+              <a class="oto_btn" href="javascript:;" data-act="reject-selection" data-sel="${s.id}">审核驳回</a>` : ""}
+              ${s.status === "已生成订单" ? `<span class="badge green">已生成订单</span>` : ""}
+              ${s.status === "已驳回" ? `<span class="badge red">已驳回，待买手修改</span>` : ""}
               <a class="oto_btn" href="javascript:;" data-act="download:选款单">下载选款单</a>
             </div>
           </div>
@@ -1495,7 +1613,7 @@
   }
 
   function renderSelectionLines(lines, opts = {}) {
-    const locked = !!opts.locked;
+    const locked = !!opts.locked && !opts.platformCanEdit;
     const draft = !!opts.draft;
     const hideSpecs = !!opts.hideSpecs;
     const qtyAttr = draft ? "data-draft-qty" : "data-line-qty";
@@ -1539,7 +1657,7 @@
 
   function renderSelectionWorkbench(s, opts = {}) {
     const lines = s.lines || [];
-    const quote = Store.selectionQuote(lines);
+    const quote = Store.selectionQuote(lines, null, s.season, s.brand);
     const back = opts.backAct || "go:order-selection";
     const showGen = opts.showGen !== false;
     const addOpen = state.selAddOpen;
@@ -1552,15 +1670,16 @@
           <div class="sel-work-sub">${s.id || ""} · ${s.store || ""} · ${s.season || ""} · <span class="badge">${s.status || ""}</span>${s.locked ? " · 已锁定" : ""}</div>
         </div>
         <div class="action-bar" style="margin:0">
-          ${s.locked ? "" : btn("添加款式", "btn-primary", "toggle-sel-add")}
-          ${showGen ? btn("生成订单", "btn-primary", "gen-order") : ""}
-          ${opts.showConfirm ? btn("确认选款单", "btn-primary", "save-selection-lines") : btn("保存修改", "btn-outline", "save-selection-lines")}
+          ${(!s.locked || opts.platformCanEdit) ? btn("添加款式", "btn-primary", "toggle-sel-add") : ""}
+          ${showGen && (s.status === "待审核" || s.status === "待确认") ? btn("审核通过并生成订单", "btn-primary", "gen-order") : ""}
+          ${s.status === "待审核" || s.status === "待确认" ? btn("审核驳回", "btn-outline", "reject-selection") : ""}
+          ${opts.showConfirm ? btn("确认提交选款单", "btn-primary", "submit-selection") : btn("保存修改", "btn-outline", "save-selection-lines")}
           ${opts.showCancel !== false ? btn("取消选款单", "btn-outline", "cancel-selection") : ""}
           ${btn("下载选款单", "btn-outline")}
           ${btn("返回", "btn-outline", back)}
         </div>
       </div>
-      ${addOpen && !s.locked ? `<div class="modal-panel sel-add-panel">
+      ${addOpen && (!s.locked || opts.platformCanEdit) ? `<div class="modal-panel sel-add-panel">
         <h3>添加本品牌款式</h3>
         <div class="note">选款单按品牌独立，仅可添加 ${s.brand}</div>
         <div class="sel-add-list">
@@ -1572,13 +1691,13 @@
         </div>
         <div class="action-bar">${btn("关闭", "btn-outline", "toggle-sel-add")}</div>
       </div>` : ""}
-      <div class="sel-lines">${renderSelectionLines(lines, { locked: s.locked, hideSpecs: !!opts.hideSpecs })}</div>
+      <div class="sel-lines">${renderSelectionLines(lines, { locked: s.locked, hideSpecs: !!opts.hideSpecs, platformCanEdit: !!opts.platformCanEdit })}</div>
       <p style="color:#999;font-size:12px;margin-top:12px">${opts.hideSpecs ? "买手端选款单按款式记录，不展示颜色/尺码等规格明细。" : "生成订单后选款单锁定；若需再改，需后台驳回订单后重选。平台端与买手端详情展示一致。"}</p>`;
   }
 
   function pageSelectionDetail() {
     const s = state.selectedSel || Store.db.selections[0];
-    return renderSelectionWorkbench(s, { backAct: "go:order-selection", showGen: true });
+    return renderSelectionWorkbench(s, { backAct: "go:order-selection", showGen: true, platformCanEdit: true });
   }
 
   function pageOrderList(forceType) {
@@ -1756,7 +1875,10 @@
             </tr>`;
           }).join("")}
         </tbody></table>
-        <div class="action-bar">${btn("添加款式", "btn-outline")}${btn("保存修改", "btn-primary", "save-order-modify")}</div></div>`;
+        <div class="form-grid">
+          <label>新增商品</label><div>${field("addOrderSku", select((Store.db.goods || []).filter(g => g.brand === o.brand && g.status !== "已删款").map(g => g.skc || g.sku), "选择 SKU"))}</div>
+        </div>
+        <div class="action-bar">${btn("加入本单", "btn-outline", "add-order-line")}${btn("保存修改", "btn-primary", "save-order-modify")}</div></div>`;
       })(),
       invoice: `<div class="modal-panel"><h3>申请发票</h3>
         <div class="form-grid"><label>抬头</label><div>${field("invTitle", input("", (o.invoice && o.invoice.title) || o.store))}</div>
@@ -1793,7 +1915,21 @@
         <div class="action-bar">${btn("确认定金比例", "btn-primary", "confirm-deposit")}</div>
         <hr/>
         <div class="form-grid"><label>整单折扣</label><div>${field("orderDiscount", input("如 0.45", "0.45"))}</div></div>
-        <div class="action-bar">${btn("设置折扣", "btn-outline", "set-order-discount")}</div></div>`
+        <div class="action-bar">${btn("设置折扣", "btn-outline", "set-order-discount")}</div></div>`,
+      wave: (() => {
+        const rows = Store.orderPriceWave(o.id);
+        return `<div class="modal-panel"><h3>商品价格波动</h3>
+        <div class="note">对照商品管理当前吊牌价 / 订货价。若有变动，可用「同步价格到订单」把未完成订单改成新价并重算折扣。</div>
+        <table class="data-table">
+          <thead><tr><th>SKU</th><th>商品</th><th>下单时零售/订货</th><th>当前零售/订货</th><th></th></tr></thead>
+          <tbody>${rows.map(r => `<tr>
+            <td>${r.sku}</td><td>${r.title || "—"}</td>
+            <td>¥${Store.money(r.oldRetail)} / ¥${Store.money(r.oldWholesale)}</td>
+            <td>¥${Store.money(r.nowRetail)} / ¥${Store.money(r.nowWholesale)}</td>
+            <td>${r.changed ? '<span class="badge red">有变动</span>' : '<span class="badge green">无变动</span>'}</td>
+          </tr>`).join("") || '<tr><td colspan="5">无商品</td></tr>'}</tbody>
+        </table></div>`;
+      })()
     };
 
     return `${subTitle("订单详情")}
@@ -1826,7 +1962,7 @@
           <button class="btn btn-outline" data-act="open-order-panel:substore" data-oid="${o.id}">分配子店铺</button>
           ${o.ocId ? `<button class="btn btn-outline" data-act="download:OC-${o.ocId}">下载 OC ${o.ocId}</button>` : ""}
         </div>
-        ${action ? panels[action] || "" : '<div class="note">按流程图，仅展示当前节点允许的动作；其他操作见上方「其他操作」。</div>'}
+        ${action ? panels[action] || "" : '<div class="note">未完成订单可同时设置折扣、定金、编辑商品、生成 OC、查看价格波动、完成或驳回。点「订单完成」后不可再操作。</div>'}
       </div>
       <div class="form-section">
         <h3>付款凭证与核对</h3>
@@ -2091,9 +2227,10 @@
   /* 《买手采购端》预约申请：申请线下参加订货会 */
   function pageBuyerFairAppoint() {
     const mine = Store.buyerAppointments();
-    const fairs = Store.db.orderingFairs || [];
-    const form = `<div class="form-grid">
-            <label>订货会</label><div>${field("apFair", select(fairs.map(f => `${f.name}（${f.season}）`), "请选择订货会"))}</div>
+        const fairs = Store.bookableFairs();
+        const fairOpts = fairs.length ? fairs.map(f => `${f.name}（${f.season}）`) : ["当前无可预约订货会"];
+        const form = `<div class="form-grid">
+            <label>订货会</label><div>${field("apFair", select(fairOpts, "请选择订货会"))}</div>
             <label>品牌</label><div>${field("apBrand", select(RR.brands.map(b => b.name), "请选择品牌"))}</div>
             <label>到场日期时间</label><div>${field("apDate", datetimeInput("2026-04-08T14:00"))}</div>
             <label>到场人数</label><div>${field("apPeople", input("如 2", "2"))}</div>
@@ -2348,7 +2485,7 @@
     /* 原站：h1.title_underline 买手列表；级别 select + 手机/店/省/市/品牌 text；invite 行列表；无侧栏 */
     const tab = (Store.db.ui.buyerFilter && Store.db.ui.buyerFilter.levelTab) || "全部";
     const f = Store.db.ui.buyerFilter || {};
-    let all = Store.db.buyers.slice();
+    let all = Store.db.buyers.filter(b => b.role !== "checker");
     if (tab === "待审核") all = all.filter(b => b.status === "待审核");
     else if (tab !== "全部") all = all.filter(b => b.level === tab);
     const phone = f.phone || "";
@@ -2413,6 +2550,8 @@
                 <a href="javascript:;" data-go="buyer-sub">查看子店铺信息</a>
                 <a href="javascript:;" data-go="buyer-add-brand">添加品牌</a>
                 <a href="javascript:;" data-go="buyer-appoint">添加预约</a>
+                <a href="javascript:;" data-go="buyer-subs" data-buyer="${b.name}">子账号管理</a>
+                ${b.status === "已通过" ? `<label class="check-inline" style="display:inline-flex;margin-top:6px"><input type="checkbox" data-act="toggle-self-sub:${b.name}" ${b.allowSelfSub ? "checked" : ""} /> 允许自行添加子账号</label>` : ""}
               </div>
             </div>`).join("") || '<div class="item"><div>暂无买手</div></div>'}
         </div>
@@ -2485,6 +2624,19 @@
     const lab = label || (state.page === "buyer-replenish" ? "我的补货单" : "我的选款单");
     return `<div class="side_action float-sel-tab">
       <ul><li><div data-toggle-cart>${lab}${state.cart.length ? `<span class="dot">${state.cart.length}</span>` : ""}</div></li></ul>
+    </div>`;
+  }
+
+  function pageBuyerOrderHub() {
+    if (!isMp()) return pageBuyerHome();
+    return `<div class="rr-mp-stack">
+      <p class="rr-mp-lead">选择本次要做的事</p>
+      <button type="button" class="rr-mp-hero-btn" data-go="buyer-home">
+        <b>品牌</b><small>看款 · 加入选款单</small>
+      </button>
+      <button type="button" class="rr-mp-hero-btn alt" data-go="buyer-replenish">
+        <b>补货</b><small>已下过首单的品牌补货</small>
+      </button>
     </div>`;
   }
 
@@ -2640,8 +2792,14 @@
           </header>
         </article>`;
       const grid = state.viewMode === "code"
-        ? `<div class="rr-mp-code-grid">${list.map(g => `
-            <button type="button" class="rr-mp-code-cell" data-go="buyer-detail" data-sku="${esc(g.skc || g.sku)}">${esc(g.code || g.sku.slice(-3))}</button>`).join("") || `<div class="rr-mp-empty">无匹配商品</div>`}</div>`
+        ? `<div class="rr-mp-code-grid">${list.map(g => {
+            const id = g.skc || g.sku;
+            const on = state.hearts.includes(id);
+            return `<div class="rr-mp-code-wrap">
+              <button type="button" class="rr-mp-heart sm ${on ? "on" : ""}" data-heart="${esc(id)}" title="加入选款单">${on ? "♥" : "♡"}</button>
+              <button type="button" class="rr-mp-code-cell" data-go="buyer-detail" data-sku="${esc(id)}">${esc(g.code || g.sku.slice(-3))}</button>
+            </div>`;
+          }).join("") || `<div class="rr-mp-empty">无匹配商品</div>`}</div>`
         : `<div class="rr-mp-grid2">${list.map(g => `
             <article class="rr-mp-card rr-mp-card-tap rr-mp-goods" data-go="buyer-detail" data-sku="${esc(g.skc || g.sku)}">
               <button type="button" class="rr-mp-heart ${state.hearts.includes(g.skc || g.sku) ? "on" : ""}" data-heart="${esc(g.skc || g.sku)}">${state.hearts.includes(g.skc || g.sku) ? "♥" : "♡"}</button>
@@ -3031,10 +3189,9 @@
       const ui = mpUi();
       const q = (ui.q["buyer-orders"] || "").trim().toLowerCase();
       const shown = list.filter(o => !q || `${o.brand} ${o.id} ${o.season} ${o.status}`.toLowerCase().includes(q));
+      const typeTab = Store.db.buyerSession.orderType || "全部";
       return mpPage(
-        `<div class="rr-mp-seg">${["全部", "已完成", "未完成"].map(t =>
-          `<button type="button" class="rr-mp-seg-btn ${tab === t ? "on" : ""}" data-tabsoft data-order-tab="${t}">${t}</button>`
-        ).join("")}</div>${mpSearch("搜索品牌 / 订单号", ui.q["buyer-orders"] || "")}`,
+        `${mpChipRow(["全部", "首单", "补货单"], typeTab, "order-type:")}${mpChipRow(["全部", "已完成", "未完成"], tab, "order-tab:")}${mpSearch("搜索品牌 / 订单号", ui.q["buyer-orders"] || "")}`,
         shown.map(o => {
           const acts = Store.orderActions(o, "buyer");
           const pay = Store.paymentStats(o);
@@ -3146,7 +3303,7 @@
     const panel = state.orderAction;
     const payPanels = {
       cancel: `<div class="modal-panel"><h3>取消订单</h3>
-        <div class="note">仅「待平台确认」可自行取消；取消后选款单解锁，可修改后重新下单。</div>
+        <div class="note">未完成订单买手可主动取消；取消后选款单退回「已驳回」，可修改后重新提交。</div>
         <div class="form-grid"><label>取消原因</label><div class="span2">${field("cancelReason", input("如：本季调整采购计划", "本季调整采购计划"))}</div></div>
         <div class="action-bar">${btn("确认取消订单", "btn-primary", "buyer-cancel-order")}</div></div>`,
       "pay-deposit": `<div class="modal-panel"><h3>上传定金付款凭证</h3>
@@ -3536,6 +3693,51 @@
     }
     if (act.startsWith("toast:")) { toast(act.slice(6)); return; }
 
+    if (act.startsWith("order-type:")) {
+      Store.setBuyerOrderType(act.slice("order-type:".length));
+      render();
+      toast("已筛选：" + act.slice("order-type:".length));
+      return;
+    }
+    if (act.startsWith("order-tab:")) {
+      Store.setBuyerOrderTab(act.slice("order-tab:".length));
+      render();
+      toast("已切换：" + act.slice("order-tab:".length));
+      return;
+    }
+    if (act.startsWith("sync-goods-price:")) {
+      toast(Store.syncGoodsPriceToOrders(act.slice("sync-goods-price:".length)).msg);
+      render();
+      return;
+    }
+    if (act.startsWith("toggle-self-sub:")) {
+      const name = act.slice("toggle-self-sub:".length);
+      const b = Store.db.buyers.find(x => x.name === name);
+      toast(Store.setBuyerAllowSelfSub(name, !(b && b.allowSelfSub)));
+      render();
+      return;
+    }
+    if (act.startsWith("del-fair-slot:")) {
+      const fair = currentFair();
+      const brand = state.selectedBrand || (fair && fair.brands && fair.brands[0]);
+      toast(Store.removeFairSlot(fair && fair.id, brand, act.slice("del-fair-slot:".length)));
+      render();
+      return;
+    }
+    if (act.startsWith("checkin-tab:")) {
+      Store.db.ui.checkinTab = act.slice("checkin-tab:".length);
+      Store.persist();
+      render();
+      return;
+    }
+    if (act === "toggle-checker") {
+      Store.db.buyerSession.role = Store.db.buyerSession.role === "checker" ? "buyer" : "checker";
+      Store.persist();
+      if (state.portal === "mp") state.page = Store.db.buyerSession.role === "checker" ? "mp-scan" : "buyer-order-hub";
+      toast(Store.db.buyerSession.role === "checker" ? "已切换为平台签到员（仅子账号 + 扫一扫）" : "已切回买手账号");
+      render();
+      return;
+    }
     if (act.startsWith("cat:")) {
       Store.db.buyerSession.cat = act.slice(4);
       Store.persist();
@@ -3619,6 +3821,8 @@
         downloadCsv("selections.csv", ["单号,品牌,店铺,季节,金额,状态"].concat(list.map(s => `${s.id},${s.brand},${s.store},${s.season},${s.amount},${s.status}`)));
       } else if (what.includes("订单")) {
         downloadCsv("orders.csv", ["订单号,品牌,类型,店铺,金额,状态"].concat(Store.db.orders.map(o => `${o.id},${o.brand},${o.type},${o.store},${o.amount},${o.status}`)));
+      } else if (what.includes("预约时段")) {
+        downloadCsv("fair_slots_template.csv", ["日期,开始,结束,上限", "2026-09-08,08:30,09:30,200", "2026-09-08,09:30,11:30,150"]);
       } else if (what.includes("预约")) {
         downloadCsv("appointments.csv", ["品牌,店铺,联系人,手机,时间,季节"].concat(Store.db.appointments.map(a => `${a.brand},${a.store},${a.contact},${a.phone},${a.date},${a.season}`)));
       } else if (what.includes("模板")) {
@@ -3760,7 +3964,7 @@
     if (act.startsWith("delete-sel-line:")) {
       const sku = act.split(":")[1];
       const sel = state.selectedSel || Store.db.selections[0];
-      const r = Store.removeSelectionLine(sel.id, sku);
+      const r = Store.removeSelectionLine(sel.id, sku, selPlatformOpts());
       toast(r.msg);
       state.selectedSel = Store.db.selections.find(x => x.id === sel.id);
       render();
@@ -3776,7 +3980,7 @@
     if (act.startsWith("add-sel-line:")) {
       const sku = act.split(":")[1];
       const sel = state.selectedSel || Store.db.selections[0];
-      const r = Store.addSelectionLine(sel.id, sku);
+      const r = Store.addSelectionLine(sel.id, sku, selPlatformOpts());
       toast(r.msg);
       state.selectedSel = Store.db.selections.find(x => x.id === sel.id);
       state.selAddOpen = false;
@@ -4114,6 +4318,19 @@
         render();
         break;
       }
+      case "reject-selection": {
+        const id = selId || (el && el.getAttribute("data-sel")) || (state.selectedSel && state.selectedSel.id);
+        const r = Store.rejectSelection(id, "请修改后重新提交");
+        toast(r.msg || r);
+        render();
+        break;
+      }
+      case "submit-selection": {
+        const sel = state.selectedSel || Store.db.selections[0];
+        toast((Store.submitSelection(sel && sel.id) || {}).msg || "已提交");
+        render();
+        break;
+      }
       case "gen-order": {
         const id = selId || (el && el.getAttribute("data-gen-order"));
         const r = Store.genOrderFromSelection(id || (Store.db.selections[0] && Store.db.selections[0].id));
@@ -4346,6 +4563,7 @@
           contact: f.contact,
           phone: f.phone,
           needAudit: !!f.nbAudit,
+          discountBase: f.discountBase === "订货价" ? "wholesale" : "retail",
           ratio: (Number(String(f.nbRatio).replace("%", "")) || 30) / 100
         });
         toast(r.msg);
@@ -4683,6 +4901,7 @@
           contact: f.contact, phone: f.phone,
           cats, styles, crowds,
           needAudit: !!f.nbAudit,
+          discountBase: f.discountBase === "订货价" ? "wholesale" : "retail",
           ratio: (Number(String(f.nbRatio).replace("%", "")) || 30) / 100
         }));
         render();
@@ -4796,8 +5015,10 @@
           season: String(f.fairSeason).trim(),
           intro: f.fairIntro,
           cover: true,
-          first: !!f.fairFirst,
-          replenish: !!f.fairReplenish,
+          bookFrom: f.fairBookFrom,
+          bookTo: f.fairBookTo,
+          fairFrom: f.fairFrom,
+          fairTo: f.fairTo,
           brands
         });
         toast(r.msg || r);
@@ -4832,6 +5053,74 @@
         const r = Store.addBuyer({ name: f.buyerName, phone: f.buyerPhone, city: f.buyerCity, level: f.buyerLevel });
         toast(r.msg);
         if (r.ok) go("buyer-list");
+        break;
+      }
+      case "add-sub-account": {
+        const f = readFields();
+        const owner = state.selectedBuyer || (Store.db.buyers[0] && Store.db.buyers[0].name);
+        const r = Store.addBuyerSubAccount(owner, { name: f.subAccName, phone: f.subAccPhone });
+        toast(r.msg);
+        render();
+        break;
+      }
+      case "save-fair-slot": {
+        const f = readFields();
+        const fair = currentFair();
+        const brand = f.slotBrand || state.selectedBrand || (fair && fair.brands && fair.brands[0]);
+        const r = Store.saveFairSlot(fair && fair.id, brand, { date: f.slotDate, from: f.slotFrom, to: f.slotTo, cap: f.slotCap });
+        toast(r.msg);
+        if (brand) state.selectedBrand = brand;
+        render();
+        break;
+      }
+      case "import-fair-slots": {
+        const f = readFields();
+        const fair = currentFair();
+        const brand = f.slotBrand || state.selectedBrand || (fair && fair.brands && fair.brands[0]);
+        toast(Store.importFairSlots(fair && fair.id, brand, f.slotImport).msg);
+        render();
+        break;
+      }
+      case "fair-slot-brand": {
+        const f = readFields();
+        if (f.slotBrand) state.selectedBrand = f.slotBrand;
+        render();
+        break;
+      }
+      case "add-walkin-checkin": {
+        const f = readFields();
+        toast(Store.addCheckin({ brand: f.ckBrand, phone: f.ckPhone, store: f.ckStore, kind: "现场" }).msg);
+        render();
+        break;
+      }
+      case "scan-checkin": {
+        const f = readFields();
+        const phone = String(f.scanPhone || "").split(" ")[0];
+        const fair = (Store.db.orderingFairs || []).find(x => x.name === f.scanFair);
+        const hasAp = (Store.db.appointments || []).some(a =>
+          (a.phone === phone || a.store === ((Store.db.buyers || []).find(b => b.phone === phone) || {}).name)
+          && a.brand === f.scanBrand
+          && (a.status === "已通过" || a.status === "已预约")
+        );
+        toast(Store.addCheckin({ fairId: fair && fair.id, brand: f.scanBrand, phone, kind: hasAp ? "预约" : "现场" }).msg);
+        render();
+        break;
+      }
+      case "add-order-line": {
+        const f = readFields();
+        const oid = (state.selectedOrder && state.selectedOrder.id) || (Store.db.orders[0] && Store.db.orders[0].id);
+        const r = Store.addOrderLine(oid, f.addOrderSku);
+        toast(r.msg);
+        state.selectedOrder = Store.db.orders.find(o => o.id === oid);
+        state.orderAction = "modify";
+        render();
+        break;
+      }
+      case "add-checker-sub": {
+        const f = readFields();
+        const owner = (Store.db.buyers.find(b => b.role === "checker") || {}).name || "平台签到员";
+        toast(Store.addBuyerSubAccount(owner, { name: f.subAccName, phone: f.subAccPhone }).msg);
+        render();
         break;
       }
       case "grant-brand": {
@@ -4913,7 +5202,7 @@
       }
       case "save-selection-lines": {
         const sel = state.selectedSel || Store.db.selections[0];
-        toast(Store.saveSelectionLines(sel.id, sel.lines || []).msg);
+        toast(Store.saveSelectionLines(sel.id, sel.lines || [], selPlatformOpts()).msg);
         state.selectedSel = Store.db.selections.find(x => x.id === sel.id);
         if (state.portal === "buyer" && state.page === "buyer-selection-edit") go("buyer-selection");
         else render();
@@ -5089,7 +5378,7 @@
 
   function pageBuyerDetail() {
     /* 原站商品详情：goods_detail-container / goods_info / size 加减 / 加入选款 */
-    const g = Store.db.goods.find(x => x.sku === state.selectedGoods) || Store.db.goods[0];
+    const g = Store.db.goods.find(x => x.sku === state.selectedGoods || x.skc === state.selectedGoods) || Store.db.goods[0];
     const sizes = g.sizes && g.sizes.length ? g.sizes : ["XS", "S", "M", "L"];
     const price = Store.parseMoney(g.wholesale);
     const totalQty = sizes.reduce((a, sz) => a + (state.qty[sz] || 0), 0);
@@ -5228,6 +5517,18 @@
       ? Object.keys(balances).map(brand => ({ brand, amount: balances[brand] }))
       : RR.brands.slice(0, 5).map((b, i) => ({ brand: b.name, amount: i === 0 ? 2480 : 0 }));
     const substores = s.substores || buyer.substores || [];
+    if (isMp() && s.role === "checker") {
+      const list = (Store.db.buyers.find(b => b.role === "checker") || buyer).subAccounts || [];
+      return mpPage("", `<p class="rr-mp-lead">签到员账号：只能管理子账号，并用扫一扫识别买手签到。</p>
+        <div class="rr-mp-stack">${list.map(x => `<article class="rr-mp-card">
+          <header class="rr-mp-card-hd"><div class="rr-mp-card-ttl"><b>${esc(x.name)}</b><small>${esc(x.phone)}</small></div></header>
+        </article>`).join("") || `<div class="rr-mp-empty">暂无子账号</div>`}</div>
+        <article class="rr-mp-card rr-mp-form">
+          <label class="rr-mp-lab">姓名</label>${field("subAccName", input("子账号姓名"))}
+          <label class="rr-mp-lab">手机号</label>${field("subAccPhone", input("11 位手机号"))}
+          <button type="button" class="rr-mp-cta" data-act="add-checker-sub">添加子账号</button>
+        </article>`);
+    }
     if (isMp()) {
       const chips = `<div class="rr-mp-chips">${[
         ["info", "个人信息"], ["balance", "余额"], ["sub", "子店铺"], ["addr", "地址"], ["inv", "发票"]
@@ -5656,6 +5957,70 @@
       </div>`;
   }
 
+  function pageGoodsPreview() {
+    const sku = state.selectedGoods;
+    const g = Store.db.goods.find(x => (x.skc || x.sku) === sku || x.sku === sku) || Store.db.goods[0];
+    state.selectedGoods = g.sku;
+    const prevPortal = state.portal;
+    state.portal = "buyer";
+    const body = pageBuyerDetail();
+    state.portal = prevPortal;
+    return `<div class="mall-preview-page">
+      <div class="note">商城商品详情预览（买手端展示效果，只看不改）</div>
+      ${body.replace('data-act="add-to-order"', 'data-act="toast:预览模式不可加入选款单"')
+        .replace('data-act="go:buyer-brand"', 'data-act="go:goods-list"')
+        .replace(">返回列表<", ">返回商品列表<")}
+      <div class="action-bar">${btn("返回商品列表", "btn-outline", "go:goods-list")}</div>
+    </div>`;
+  }
+
+  function pageBuyerSubs() {
+    const name = state.selectedBuyer || (Store.db.buyers[0] && Store.db.buyers[0].name);
+    const b = Store.db.buyers.find(x => x.name === name) || Store.db.buyers[0] || {};
+    const list = b.subAccounts || [];
+    return `${subTitle("子账号管理 · " + (b.name || ""))}
+      <div class="note">子账号与主账号共享订单、选款单。登录方式同样为手机号 + 验证码。默认<strong>不允许</strong>买手自行添加，由平台在此开通。</div>
+      <p>自行添加子账号：<strong>${b.allowSelfSub ? "允许" : "不允许"}</strong>
+        <a href="javascript:;" data-act="toggle-self-sub:${b.name}">${b.allowSelfSub ? "改为不允许" : "改为允许"}</a></p>
+      <table class="data-table">
+        <thead><tr><th>姓名</th><th>手机号</th><th>添加日期</th></tr></thead>
+        <tbody>${list.map(s => `<tr><td>${s.name}</td><td>${s.phone}</td><td>${s.at || "—"}</td></tr>`).join("") || "<tr><td colspan=3>暂无子账号</td></tr>"}</tbody>
+      </table>
+      <div class="form-grid" style="margin-top:16px">
+        <label>姓名</label><div>${field("subAccName", input("店员姓名"))}</div>
+        <label>手机号</label><div>${field("subAccPhone", input("11 位手机号"))}</div>
+      </div>
+      <div class="action-bar">${btn("新增子账号", "btn-primary", "add-sub-account")}${btn("返回买手列表", "btn-outline", "go:buyer-list")}</div>`;
+  }
+
+  function pageMpQr() {
+    const s = Store.db.buyerSession;
+    return `<div class="rr-mp-stack">
+      <article class="rr-mp-card" style="text-align:center">
+        <h3 class="rr-mp-sec">我的签到码</h3>
+        <p class="rr-mp-lead">${esc(s.store)} · ${esc(s.phone)}</p>
+        <div class="rr-mp-qr" aria-hidden="true">${esc((s.phone || "").slice(-4))}</div>
+        <p class="rr-mp-lead">给现场签到员扫描，记录本账号在各品牌的到场。</p>
+      </article>
+    </div>`;
+  }
+
+  function pageMpScan() {
+    const fairs = Store.db.orderingFairs || [];
+    const fair = fairs[0];
+    const buyers = (Store.db.buyers || []).filter(b => b.role !== "checker" && b.status === "已通过");
+    return `<div class="rr-mp-stack">
+      <article class="rr-mp-card rr-mp-form">
+        <h3 class="rr-mp-sec">扫码签到</h3>
+        <p class="rr-mp-lead">原型示意：识别买手手机号后写入该品牌签到记录。</p>
+        <label class="rr-mp-lab">订货会</label>${field("scanFair", select(fairs.map(f => f.name), null, fair && fair.name))}
+        <label class="rr-mp-lab">品牌</label>${field("scanBrand", select(RR.brands.map(b => b.name)))}
+        <label class="rr-mp-lab">买手手机号</label>${field("scanPhone", select(buyers.map(b => b.phone + " " + b.name), null, buyers[0] && (buyers[0].phone + " " + buyers[0].name)))}
+        <button type="button" class="rr-mp-cta" data-act="scan-checkin">确认签到</button>
+      </article>
+    </div>`;
+  }
+
   const pages = {
     login: pageLogin,
     register: pageBuyerRegister,
@@ -5669,6 +6034,7 @@
     "goods-list": pageGoodsList,
     "goods-add": pageGoodsAdd,
     "goods-view": pageGoodsAdd,
+    "goods-preview": pageGoodsPreview,
     "goods-batch": pageGoodsBatch,
     "goods-restock": pageGoodsRestock,
     "goods-look": pageGoodsLook,
@@ -5684,6 +6050,9 @@
     "brand-fair-new": pageBrandFairNew,
     "fair-list": pageFairList,
     "fair-add": pageBrandFairNew,
+    "fair-appoint": pageFairAppoint,
+    "fair-slots": pageFairSlots,
+    "fair-checkin": pageFairCheckin,
     "brand-pay": pageBrandPay,
     "brand-contract": pageBrandContract,
     "brand-deposit": pageBrandDeposit,
@@ -5745,6 +6114,7 @@
       <label>人数 *</label><div>${field("mpPeople", input("到场人数", "1"))}</div>`),
     "role-perm": pageRolePerm,
     "buyer-home": pageBuyerHome,
+    "buyer-order-hub": pageBuyerOrderHub,
     "buyer-brand": pageBuyerBrand,
     "buyer-brand-about": pageBuyerBrandAbout,
     "buyer-detail": pageBuyerDetail,
@@ -5762,6 +6132,9 @@
     "buyer-replenish": pageBuyerReplenish,
     "buyer-cart": pageBuyerCart,
     "buyer-replenish-cart": pageBuyerCart,
+    "buyer-subs": pageBuyerSubs,
+    "mp-qr": pageMpQr,
+    "mp-scan": pageMpScan,
     "mp-home": pageMP
   };
 
@@ -5775,16 +6148,17 @@
 
   function mpTabId() {
     const p = state.page || "";
-    if (p === "buyer-replenish" || p === "buyer-replenish-cart") return "buyer-replenish";
-    if (p === "buyer-cart") return "buyer-home";
+    if (p === "buyer-order-hub" || p === "buyer-home" || p === "buyer-brand" || p === "buyer-brand-about" || p === "buyer-detail" || p === "buyer-replenish" || p === "buyer-replenish-cart" || p === "buyer-cart") return "buyer-order-hub";
     if (p.startsWith("buyer-selection")) return "buyer-selection";
     if (p === "buyer-appoint-apply" || p === "buyer-appoint-detail") return "buyer-appoint-apply";
-    if (p.startsWith("buyer-order") || p === "buyer-profile" || p === "buyer-message" || p === "buyer-message-detail" || p === "buyer-intent" || p === "buyer-intent-detail") return "buyer-profile";
-    return "buyer-home";
+    if (p.startsWith("buyer-order")) return "buyer-orders";
+    if (p === "mp-scan" || p === "mp-qr") return "buyer-profile";
+    return "buyer-profile";
   }
 
   function mpTitle() {
     const p = state.page || "";
+    if (p === "buyer-order-hub") return "去订货";
     if (p === "buyer-home") return "品牌";
     if (p === "buyer-brand" || p === "buyer-brand-about") return state.selectedBrand || "品牌";
     if (p === "buyer-detail") return "商品详情";
@@ -5800,16 +6174,19 @@
     if (p === "buyer-message") return "消息";
     if (p === "buyer-message-detail") return "消息详情";
     if (p === "buyer-look-detail") return "LOOKBOOK";
-    if (p === "buyer-profile") return "我的";
+    if (p === "mp-qr") return "我的签到码";
+    if (p === "mp-scan") return "扫一扫";
+    if (p === "buyer-profile") return Store.db.buyerSession.role === "checker" ? "子账号" : "我的";
     return "ROOMROOM";
   }
 
   function mpMineHub() {
     const unread = Store.unreadMessageCount();
     const items = [
-      ["buyer-orders", "我的订单", "查看订单进度"],
       ["buyer-intent", "意向品牌", "申请可订品牌"],
-      ["buyer-message", "消息通知", unread ? `${unread} 条未读` : "暂无未读"]
+      ["buyer-message", "消息通知", unread ? `${unread} 条未读` : "暂无未读"],
+      ["mp-qr", "我的签到码", "给现场扫码签到"],
+      ["mp-scan", "扫一扫", "识别买手签到"]
     ];
     return `<div class="rr-mp-hub">
       ${items.map(([id, t, s]) => `<a class="rr-mp-hub-item" href="javascript:;" data-go="${id}">
@@ -5819,15 +6196,24 @@
   }
 
   function mpShell(inner) {
+    const checker = Store.db.buyerSession.role === "checker";
     const tab = mpTabId();
-    const tabs = [
-      ["buyer-home", "品牌", "brand"],
-      ["buyer-replenish", "补货", "restock"],
-      ["buyer-selection", "选款", "sel"],
-      ["buyer-appoint-apply", "预约申请", "appoint"],
-      ["buyer-profile", "我的", "mine"]
-    ];
-    const canBack = !["buyer-home", "buyer-replenish", "buyer-selection", "buyer-appoint-apply", "buyer-profile"].includes(state.page);
+    const tabs = checker
+      ? [
+          ["mp-scan", "扫一扫", "appoint"],
+          ["buyer-profile", "子账号", "mine"]
+        ]
+      : [
+          ["buyer-order-hub", "去订货", "brand"],
+          ["buyer-selection", "选款", "sel"],
+          ["buyer-appoint-apply", "预约申请", "appoint"],
+          ["buyer-orders", "订单", "restock"],
+          ["buyer-profile", "我的", "mine"]
+        ];
+    const rootPages = checker
+      ? ["mp-scan", "buyer-profile"]
+      : ["buyer-order-hub", "buyer-selection", "buyer-appoint-apply", "buyer-orders", "buyer-profile"];
+    const canBack = !rootPages.includes(state.page);
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, "0");
     const mm = String(now.getMinutes()).padStart(2, "0");
@@ -5853,15 +6239,19 @@
         </nav>
         ${showFab ? mpFabCart() : ""}
       </div>
-      <p class="rr-mp-hint">小程序 · 苹果风玻璃态（参考锐涞底栏）· 内容与买手端一致</p>
+      <p class="rr-mp-hint">小程序 · 苹果风玻璃态 · 内容与买手端一致</p>
     </div>`;
   }
 
   function render() {
     if (state.portal === "mp" && !["coverage", "flow-map", "login", "register", "register-status"].includes(state.page)) {
       /* #24 小程序原型：内容与买手端一致 */
-      if (!String(state.page || "").startsWith("buyer-") && state.page !== "buyer-home") {
-        state.page = "buyer-home";
+      if (!String(state.page || "").startsWith("buyer-") && !String(state.page || "").startsWith("mp-")) {
+        state.page = Store.db.buyerSession.role === "checker" ? "mp-scan" : "buyer-order-hub";
+      }
+      if (Store.db.buyerSession.role === "checker") {
+        const allow = ["mp-scan", "buyer-profile", "coverage", "flow-map", "login"];
+        if (!allow.includes(state.page)) state.page = "mp-scan";
       }
     }
     if (["login", "register", "register-status"].includes(state.page)) {
@@ -5945,6 +6335,8 @@
         const sku = el.getAttribute("data-sku");
         if (ship) state.selectedShip = Store.db.shipments.find(x => x.id === ship) || state.selectedShip;
         if (sku) state.selectedGoods = sku;
+        const fairId = el.getAttribute("data-fair");
+        if (fairId) state.selectedFair = fairId;
         const aid = el.getAttribute("data-aid");
         if (aid != null && aid !== "") {
           const a = Store.db.appointments[Number(aid)];
@@ -6018,7 +6410,7 @@
         const size = el.getAttribute("data-size");
         const d = Number(el.getAttribute("data-d"));
         const selObj = state.selectedSel || Store.db.selections[0];
-        const r = Store.bumpSelectionQty(selObj.id, sku, size, d);
+        const r = Store.bumpSelectionQty(selObj.id, sku, size, d, selPlatformOpts());
         if (!r.ok) toast(r.msg);
         state.selectedSel = Store.db.selections.find(x => x.id === selObj.id) || selObj;
         render();
