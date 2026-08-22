@@ -4,7 +4,7 @@
  */
 (() => {
   /* v6：订单流程按《订单流程图》重建 + 注册审核链路，旧结构不再兼容 */
-  const KEY = "rr_biz_v10";
+  const KEY = "rr_biz_v11";
 
   /* #4 联系手机即品牌端登录账号；演示号 13800000001 起按品牌顺序分配 */
   (RR.brands || []).forEach((b, i) => {
@@ -66,6 +66,37 @@
     /* 旧版曾用「待确认定金」表示买手确认节点；现行 #15 该文案=平台设定金节点，由 ORDER_FLOW 优先识别 */
     "待品牌确认定金": ORDER_ST.depositAck
   };
+  const SEL_ST = {
+    draft: "待提交",
+    confirm: "待确认",
+    ordered: "已生成订单",
+    canceled: "已取消"
+  };
+  const ORDER_VIEW = { open: "未完成", done: "已完成", canceled: "已取消" };
+  function orderFrozen(status) {
+    const st = normStatus(status);
+    return st === ORDER_ST.done || st === ORDER_ST.canceled || st === ORDER_ST.rejected;
+  }
+  function orderViewStatus(o) {
+    const st = normStatus(o && o.status);
+    if (st === ORDER_ST.done) return ORDER_VIEW.done;
+    if (st === ORDER_ST.canceled) return ORDER_VIEW.canceled;
+    if (st === ORDER_ST.rejected) return null;
+    return ORDER_VIEW.open;
+  }
+  function normSelStatus(s) {
+    const t = String((s && s.status) || s || "").trim();
+    if (t === "待审核") return SEL_ST.confirm;
+    if (t === "已驳回") return SEL_ST.draft;
+    if (t === SEL_ST.draft || t === SEL_ST.confirm || t === SEL_ST.ordered || t === SEL_ST.canceled) return t;
+    if (t === "待确认") return SEL_ST.confirm;
+    return SEL_ST.draft;
+  }
+  function timeInSlot(slot, dateStr) {
+    const t = String(dateStr || "").replace("T", " ").slice(11, 16);
+    if (!t || !slot || !slot.from || !slot.to) return true;
+    return t >= slot.from && t < slot.to;
+  }
   function normStatus(s) {
     const t = String(s || "").trim();
     /* 现行正式状态优先，避免被 LEGACY 误伤 */
@@ -230,12 +261,16 @@
     return {
       goods: clone(SEED.goods).map((g, i) => enrichGoods(g, i)),
       selections: clone(SEED.selections).map((s, i) => {
-        const status = (s.status === "待确认" && i % 3 === 0) ? "待审核" : s.status;
+        let status = s.status;
+        if (status === "已驳回") status = SEL_ST.draft;
+        if (status === "待审核" || status === "待确认" || !status) {
+          status = (i % 3 === 0) ? SEL_ST.confirm : SEL_ST.draft;
+        }
         return {
           ...s,
           status,
           createdAt: s.createdAt || s.date || s.time || "",
-          locked: status === "已生成订单" || status === "待审核",
+          locked: status === SEL_ST.ordered || status === SEL_ST.confirm,
           lines: (s.brand === "IAN HYLTON" && i === 0
             ? clone(SEED.selectionLines)
             : linesForBrand(s.brand)).map((l, j) => enrichLine(l, j))
@@ -265,11 +300,11 @@
         source: "平台录入", contact: "签到员", reason: "", regAt: ""
       }]),
       intentions: clone(SEED.intentions),
-      /* 预约管理：预约需平台/品牌审核后才算参会名额 */
+      /* 预约不再人工审核：提交即占用名额 */
       appointments: clone(SEED.appointments).map((a, i) => ({
         ...a,
         people: a.people || (i % 2 === 0 ? 2 : 1),
-        status: i % 4 === 0 ? "待审核" : "已通过",
+        status: "已通过",
         reason: ""
       })),
       contracts: [
@@ -549,7 +584,21 @@
       if (!merged.brandDeposit) merged.brandDeposit = clone(base.brandDeposit);
       if (!merged.regSession) merged.regSession = clone(base.regSession);
       if (Array.isArray(merged.appointments)) {
-        merged.appointments = merged.appointments.map((a, i) => ({ ...a, status: a.status || (i % 3 === 0 ? "待审核" : "已通过"), reason: a.reason || "" }));
+        merged.appointments = merged.appointments.map((a) => ({
+          ...a,
+          status: a.status === "待审核" ? "已通过" : (a.status || "已通过"),
+          reason: a.reason || ""
+        }));
+      }
+      if (Array.isArray(merged.selections)) {
+        merged.selections = merged.selections.map((s) => {
+          const status = normSelStatus(s);
+          return {
+            ...s,
+            status,
+            locked: status === SEL_ST.ordered || status === SEL_ST.confirm || (status === SEL_ST.canceled)
+          };
+        });
       }
       if (merged.buyerSession.newOnly == null) merged.buyerSession.newOnly = false;
       /* 订单：状态归一到新流程节点，并补齐付款凭证等新字段 */
@@ -646,7 +695,9 @@
         if (!forceType && f.type !== "全部" && o.type !== f.type) return false;
         if (f.brand !== "全部" && o.brand !== f.brand) return false;
         if (f.season !== "全部" && o.season !== f.season) return false;
-        if (f.status !== "全部" && o.status !== f.status) return false;
+        const view = orderViewStatus(o);
+        if (!view) return false;
+        if (f.status !== "全部" && view !== f.status && o.status !== f.status) return false;
         if (f.store && !o.store.includes(f.store)) return false;
         if (f.id && !o.id.includes(f.id)) return false;
         return true;
@@ -1091,7 +1142,7 @@
     syncGoodsPriceToOrders(sku) {
       const g = findGoods(sku);
       if (!g) return { ok: false, msg: "商品不存在" };
-      const closed = [ORDER_ST.done, ORDER_ST.canceled];
+      const closed = [ORDER_ST.done, ORDER_ST.canceled, ORDER_ST.rejected];
       let hit = 0;
       (db.orders || []).forEach(o => {
         if (closed.includes(normStatus(o.status))) return;
@@ -1139,7 +1190,7 @@
       const o = db.orders.find(x => x.id === orderId);
       const g = findGoods(sku);
       if (!o || !g) return { ok: false, msg: "订单或商品不存在" };
-      if ([ORDER_ST.done, ORDER_ST.canceled].includes(normStatus(o.status))) return { ok: false, msg: "订单已结束，不可改商品" };
+      if (orderFrozen(o.status)) return { ok: false, msg: "订单已结束，不可改商品" };
       o.lines = o.lines || [];
       if (o.lines.some(l => l.sku === g.sku || l.sku === g.skc)) return { ok: false, msg: "订单已包含该商品" };
       const sizes = Object.fromEntries((g.sizes || ["S", "M", "L"]).map((sz, i) => [sz, i === 0 ? 1 : 0]));
@@ -1155,20 +1206,26 @@
     rejectSelection(selId, reason) {
       const s = db.selections.find(x => x.id === selId);
       if (!s) return { ok: false, msg: "选款单不存在" };
-      s.status = "已驳回";
+      const st = normSelStatus(s);
+      if (st !== SEL_ST.confirm && st !== "待审核") return { ok: false, msg: "只有待确认的选款单可驳回" };
+      s.status = SEL_ST.draft;
       s.locked = false;
       s.rejectReason = reason || "请修改后重新提交";
       save(); syncLegacy();
-      Store.pushBuyerMessage("选款单被驳回", `选款单 ${s.id} 被驳回：${s.rejectReason}`);
-      return { ok: true, msg: "已驳回，买手可继续修改后重新提交" };
+      Store.pushBuyerMessage("选款单被驳回", `选款单 ${s.id} 已退回待提交：${s.rejectReason}`);
+      return { ok: true, msg: "已驳回，状态退回待提交，买手可修改后再提交" };
     },
     submitSelection(selId) {
       const s = db.selections.find(x => x.id === selId);
       if (!s) return { ok: false, msg: "选款单不存在" };
-      s.status = "待审核";
+      const st = normSelStatus(s);
+      if (st === SEL_ST.confirm) return { ok: false, msg: "已提交，等待平台确认" };
+      if (st !== SEL_ST.draft) return { ok: false, msg: `当前状态「${st}」不可提交` };
+      s.status = SEL_ST.confirm;
       s.locked = true;
+      s.rejectReason = "";
       save();
-      return { ok: true, msg: "已提交，等待平台审核" };
+      return { ok: true, msg: "已提交，等待平台确认" };
     },
     markMessagesRead() {
       (db.buyerMessages || []).forEach(m => { m.read = true; });
@@ -1238,11 +1295,10 @@
     genOrderFromSelection(selId) {
       const s = db.selections.find(x => x.id === selId);
       if (!s) return { ok: false, msg: "选款单不存在" };
-      if (s.status === "已生成订单") return { ok: false, msg: "选款单已生成订单，不可重复生成" };
-      if (s.status === "已取消") return { ok: false, msg: "选款单已取消" };
-      if (s.status === "已驳回") return { ok: false, msg: "选款单已驳回，请买手修改后重新提交" };
-      if (s.status && s.status !== "待审核" && s.status !== "待确认") {
-        return { ok: false, msg: `当前状态「${s.status}」不可生成订单` };
+      if (s.status === SEL_ST.ordered) return { ok: false, msg: "选款单已生成订单，不可重复生成" };
+      if (s.status === SEL_ST.canceled) return { ok: false, msg: "选款单已取消" };
+      if (normSelStatus(s) !== SEL_ST.confirm) {
+        return { ok: false, msg: `当前状态「${normSelStatus(s)}」不可生成订单，需买手提交为待确认` };
       }
 
       // replenishment rule if season has no first order for this store (platform mock: check buyerSession for Liora, else allow)
@@ -1282,7 +1338,7 @@
         fromSelection: s.id,
         flowLog: [{ at: new Date().toISOString().slice(0, 16).replace("T", " "), text: "买手由选款单生成订单，等待平台确认" }]
       });
-      s.status = "已生成订单";
+      s.status = SEL_ST.ordered;
       s.locked = true;
       save(); syncLegacy();
       return { ok: true, msg: `已生成订单 ${orderId}`, orderId };
@@ -1290,17 +1346,19 @@
     canMutateSelection(s, opts) {
       const platform = !!(opts && opts.platform);
       if (!s) return { ok: false, msg: "选款单不存在" };
-      if (s.status === "已生成订单") return { ok: false, msg: "选款单已生成订单，不可修改" };
-      if (s.status === "已取消") return { ok: false, msg: "选款单已取消" };
-      if (platform && (s.status === "待审核" || s.status === "待确认")) return { ok: true };
-      if (s.locked) return { ok: false, msg: "选款单已锁定，买手提交后需平台驳回才能再改" };
+      const st = normSelStatus(s);
+      if (st === SEL_ST.ordered) return { ok: false, msg: "选款单已生成订单，不可修改" };
+      if (st === SEL_ST.canceled) return { ok: false, msg: "选款单已取消" };
+      if (platform && st === SEL_ST.confirm) return { ok: true };
+      if (st === SEL_ST.draft) return { ok: true };
+      if (s.locked) return { ok: false, msg: "选款单已提交，需平台驳回后才能再改" };
       return { ok: true };
     },
     cancelSelection(selId) {
       const s = db.selections.find(x => x.id === selId);
       if (!s) return "选款单不存在";
-      if (s.status === "已生成订单") return "已生成订单的选款单不可取消，需先驳回订单";
-      s.status = "已取消";
+      if (normSelStatus(s) === SEL_ST.ordered) return "已生成订单的选款单不可取消，需先驳回订单";
+      s.status = SEL_ST.canceled;
       s.locked = true;
       save(); syncLegacy();
       return `选款单 ${selId} 已取消`;
@@ -1437,6 +1495,10 @@
     },
     /* ---------- 订单流程（对齐《订单流程图》） ---------- */
     ORDER_ST,
+    SEL_ST,
+    ORDER_VIEW,
+    orderViewStatus,
+    normSelStatus,
     orderStage(o) { return stageOf(o && o.status); },
     orderFlowNodes(o) {
       const cur = stageOf(o && o.status);
@@ -1469,29 +1531,27 @@
         diff: total - confirmed
       };
     },
-    /* #40：未完成订单平台可并行操作；完成/取消后不再出操作 */
+    /* #52：对外只有未完成/已完成/已取消；未完成仍可并行操作 */
     orderActions(o, side) {
       const st = normStatus(o && o.status);
+      const view = orderViewStatus(o);
       const platform = side !== "buyer";
       const A = [];
-      const wait = t => A.push({ label: t, wait: true });
-      const ended = [ORDER_ST.done, ORDER_ST.canceled].includes(st);
-      if (ended) {
+      if (view === ORDER_VIEW.done || view === ORDER_VIEW.canceled) {
         A.push({ act: "download:订单", label: "下载订单" });
         return A;
       }
       if (st === ORDER_ST.rejected) {
-        if (platform) A.push({ act: "platform-confirm-order", label: "恢复为待确认" });
-        else A.push({ act: "go:buyer-selection", label: "回到选款单重新提交", primary: true });
+        if (!platform) A.push({ act: "go:buyer-selection", label: "回到选款单重新提交", primary: true });
         A.push({ act: "download:订单", label: "下载订单" });
         return A;
       }
       if (platform) {
-        A.push({ act: "open-order-panel:modify", label: "设置折扣 / 编辑商品", primary: true });
+        A.push({ act: "open-order-panel:modify", label: "设置折扣 / 编辑商品" });
         A.push({ act: "open-order-panel:deposit", label: "设置定金" });
         A.push({ act: "gen-oc", label: o.ocId ? "查看 OC" : "生成 OC" });
         A.push({ act: "open-order-panel:wave", label: "查看商品价格波动" });
-        A.push({ act: "settle-order", label: "订单完成" });
+        A.push({ act: "settle-order", label: "订单完成", primary: true });
         A.push({ act: "open-order-panel:reject", label: "订单驳回" });
         if (st === ORDER_ST.depositCheck) A.push({ act: "open-order-panel:check", label: "确认定金凭证" });
         if (st === ORDER_ST.finalPay) A.push({ act: "open-order-panel:check", label: "确认尾款凭证" });
@@ -1501,30 +1561,17 @@
         if (st === ORDER_ST.depositAck) A.push({ act: "buyer-confirm-deposit", label: "确认定金", primary: true });
         else if (st === ORDER_ST.depositPay) A.push({ act: "open-order-panel:pay-deposit", label: "上传付款凭证", primary: true });
         else if (st === ORDER_ST.finalPay) A.push({ act: "open-order-panel:pay-final", label: "上传尾款凭证", primary: true });
-        else if (st === ORDER_ST.confirm) wait("等待平台处理订单");
-        else if (st === ORDER_ST.discount) wait("平台可随时设置折扣");
-        else if (st === ORDER_ST.deposit) wait("等待平台设置定金");
-        else if (st === ORDER_ST.depositCheck) wait("等待平台确认定金");
       }
       A.push({ act: "download:订单", label: "下载订单" });
       return A;
     },
     orderPendingTips(o) {
       if (!o) return [];
-      const st = normStatus(o.status);
-      const map = {
-        [ORDER_ST.confirm]: ["待确认订单（可驳回）"],
-        [ORDER_ST.discount]: ["待确认折扣（设置折扣后点击确认）"],
-        [ORDER_ST.deposit]: ["待确认定金（设置定金后点击确认）"],
-        [ORDER_ST.depositAck]: ["待买手确认定金"],
-        [ORDER_ST.depositPay]: ["待买手上传支付凭证"],
-        [ORDER_ST.depositCheck]: ["待平台确认定金（确认后可生成 OC）"],
-        [ORDER_ST.finalPay]: ["待买手上传尾款（可多次确认；平台可点订单完成）"],
-        [ORDER_ST.done]: [],
-        [ORDER_ST.rejected]: ["已驳回：" + (o.rejectReason || "—")],
-        [ORDER_ST.canceled]: ["已取消：" + (o.cancelReason || "买手主动取消")]
-      };
-      return (map[st] || []).slice();
+      const view = orderViewStatus(o);
+      if (view === ORDER_VIEW.done) return [];
+      if (view === ORDER_VIEW.canceled) return ["已取消：" + (o.cancelReason || "买手主动取消")];
+      if (normStatus(o.status) === ORDER_ST.rejected) return ["已驳回，内容已退回选款单"];
+      return ["未完成：可订单完成或驳回订单"];
     },
 
     advanceOrder(orderId, action, payload = {}) {
@@ -1539,7 +1586,7 @@
       const unlockSelection = () => {
         if (!o.fromSelection) return;
         const s = db.selections.find(x => x.id === o.fromSelection);
-        if (s) { s.locked = false; s.status = "已驳回"; s.rejectReason = o.rejectReason || "订单已退回选款单"; }
+        if (s) { s.locked = false; s.status = SEL_ST.draft; s.rejectReason = o.rejectReason || "订单已退回选款单"; }
       };
       /* 旧动作名兼容（历史门禁脚本/页面） */
       const alias = {
@@ -1572,7 +1619,7 @@
         unlockSelection();
         log(`买手取消订单：${o.cancelReason}`);
       } else if (act === "setDeposit") {
-        if ([ORDER_ST.done, ORDER_ST.canceled].includes(st)) return { ok: false, msg: "订单已结束，不可设置定金" };
+        if (orderFrozen(st)) return { ok: false, msg: "订单已结束，不可设置定金" };
         const ratio = Number(payload.ratio || o.depositRatio || Store.brandDepositRatio(o.brand));
         o.depositRatio = ratio;
         o.deposit = money(parseMoney(o.amount) * ratio);
@@ -1580,7 +1627,7 @@
         log(`平台设置首付比例 ${Math.round(ratio * 100)}%，应收定金 ¥${o.deposit}，待买手确认定金`);
         Store.pushBuyerMessage("待买手确认定金", `订单 ${o.id} 定金 ¥${o.deposit}，请在「我的订单」确认。`);
       } else if (act === "setDiscount") {
-        if ([ORDER_ST.done, ORDER_ST.canceled].includes(st)) return { ok: false, msg: "订单已结束，不可改折扣" };
+        if (orderFrozen(st)) return { ok: false, msg: "订单已结束，不可改折扣" };
         if (payload.catDiscount) {
           const cd = payload.catDiscount;
           o.catDiscount = {
@@ -1654,7 +1701,7 @@
         Store.pushBuyerMessage(pass ? `${p.kind}已确认` : `${p.kind}凭证需重新上传`,
           `订单 ${o.id}：${pass ? `${p.kind} ¥${p.amount} 已确认通过` : p.note}`);
       } else if (act === "genOc") {
-        if ([ORDER_ST.done, ORDER_ST.canceled].includes(st)) return { ok: false, msg: "订单已结束，不可生成 OC" };
+        if (orderFrozen(st)) return { ok: false, msg: "订单已结束，不可生成 OC" };
         const oc = Store.createOc(o.id);
         o.ocId = oc.id || o.ocId;
         o.contractUploaded = true;
@@ -1675,7 +1722,7 @@
         o.paidTotal = money(final.confirmed);
         log(`平台确认尾款 ¥${money(rest)}（可继续分批或点订单完成）`);
       } else if (act === "settle") {
-        if ([ORDER_ST.done, ORDER_ST.canceled].includes(st)) return { ok: false, msg: "订单已结束" };
+        if (orderFrozen(st)) return { ok: false, msg: "订单已结束" };
         const stats = Store.paymentStats(o);
         o.settleDiff = money(stats.diff);
         o.status = ORDER_ST.done;
@@ -1700,7 +1747,7 @@
         o.returns = o.returns || [];
         o.returns.push({ type: payload.type || "退货", sku: payload.sku, qty: Number(payload.qty || 1), reason: payload.reason || "", at: new Date().toISOString() });
       } else if (act === "modify") {
-        if ([ORDER_ST.done, ORDER_ST.canceled].includes(st)) return { ok: false, msg: "订单已结束，不可再改商品" };
+        if (orderFrozen(st)) return { ok: false, msg: "订单已结束，不可再改商品" };
         o.lines = payload.lines || o.lines;
         let amount = 0;
         o.lines.forEach(l => {
@@ -2010,16 +2057,44 @@
     addAppointment(payload) {
       const at = new Date().toISOString().slice(0, 16).replace("T", " ");
       const fair = (db.orderingFairs || []).find(x => x.id === payload.fairId || `${x.name}（${x.season}）` === payload.fair || x.season === payload.season);
-      if (fair && !Store.isFairBookable(fair)) return "当前不在该订货会可预约时间内";
-      /* #27 提交后待审核，通过后才进预约列表 */
+      if (fair && !Store.isFairBookable(fair)) return { ok: false, msg: "当前不在该订货会可预约时间内" };
+      const brand = payload.brand;
+      if (!brand || brand === "请选择品牌") return { ok: false, msg: "请选择品牌" };
+      if (payload.fromBuyer !== false) {
+        const gate = Store.brandOrderable(brand);
+        if (!gate.ok) return { ok: false, needBrandApply: true, brand, msg: gate.msg || "该品牌需先申请，通过后再预约" };
+      }
+      const people = Number(payload.people) || 1;
+      const dateStr = String(payload.date || "").replace("T", " ");
+      const day = dateStr.slice(0, 10);
+      let slot = null;
+      if (fair && brand) {
+        const slots = Store.fairSlotsOf(fair.id, brand);
+        if (payload.slotId) slot = slots.find(s => s.id === payload.slotId) || null;
+        if (!slot && slots.length) {
+          slot = slots.find(s => s.date === day && timeInSlot(s, dateStr)) || slots.find(s => s.date === day) || null;
+        }
+        if (slot && Number(slot.booked || 0) + people > Number(slot.cap || 0)) {
+          return { ok: false, msg: `「${brand}」${slot.date} ${slot.from}-${slot.to} 接待已满（上限 ${slot.cap} 人），无需再审预约` };
+        }
+      }
+      if (slot) slot.booked = Number(slot.booked || 0) + people;
       db.appointments.unshift({
-        brand: payload.brand, store: payload.store, contact: payload.contact,
-        phone: payload.phone, date: payload.date, season: (fair && fair.season) || payload.season || "2026SS",
-        fairId: fair && fair.id, slot: payload.slot || "",
-        people: Number(payload.people) || 1, submitAt: at, status: "待审核", reason: ""
+        brand,
+        store: payload.store,
+        contact: payload.contact,
+        phone: payload.phone,
+        date: dateStr,
+        season: (fair && fair.season) || payload.season || "2026SS",
+        fairId: fair && fair.id,
+        slot: slot ? `${slot.from}-${slot.to}` : (payload.slot || ""),
+        people,
+        submitAt: at,
+        status: "已通过",
+        reason: ""
       });
       save(); syncLegacy();
-      return "预约已提交，等待平台审核";
+      return { ok: true, msg: slot ? `预约已生效（${slot.date} ${slot.from}-${slot.to}）` : "预约已生效" };
     },
     /* 买手端「预约申请」：申请线下参加订货会 */
     buyerAppointments() {
@@ -2254,20 +2329,21 @@
       db.selections.unshift({
         id, brand, season, store: db.buyerSession.store, time: new Date().toISOString().slice(0, 16).replace("T", " "),
         amount: money(q.wholesale), retailAmount: money(q.retail), pieces: q.pieces, skus: lines.length,
-        status: "待审核", buyer: db.buyerSession.store, locked: true, lines
+        status: SEL_ST.draft, buyer: db.buyerSession.store, locked: false, lines
       });
       db.buyerSession.selections = db.buyerSession.selections.filter(x => x.brand !== brand);
       save(); syncLegacy();
-      return { ok: true, msg: `已提交选款单 ${id}，等待平台审核`, id };
+      return { ok: true, msg: `已生成选款单 ${id}（待提交），确认无误后提交平台`, id };
     },
     buyerOrders(tab) {
       const store = db.buyerSession.store;
       const typeTab = db.buyerSession.orderType || "全部";
       return db.orders.filter(o => {
-        const st = normStatus(o.status);
-        const finished = [ORDER_ST.done, ORDER_ST.canceled];
-        if (tab === "未完成") { if (finished.includes(st)) return false; }
-        else if (tab === "已完成") { if (!finished.includes(st)) return false; }
+        const view = orderViewStatus(o);
+        if (!view) return false;
+        if (tab === "未完成" && view !== ORDER_VIEW.open) return false;
+        if (tab === "已完成" && view !== ORDER_VIEW.done) return false;
+        if (tab === "已取消" && view !== ORDER_VIEW.canceled) return false;
         if (typeTab === "首单" && o.type === "补货单") return false;
         if (typeTab === "补货单" && o.type !== "补货单") return false;
         return o.store === store;

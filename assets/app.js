@@ -202,7 +202,6 @@
         fair: [
           { id: "fair-list", label: "订货会列表" },
           { id: "fair-add", label: "添加订货会" },
-          { id: "appoint-audit", label: "审核预约" },
           { id: "appoint-list", label: "预约列表" },
           { id: "fair-checkin", label: "签到记录" }
         ],
@@ -227,10 +226,9 @@
           { id: "order-kingdee", label: "金蝶同步" }
         ],
         ship: [{ id: "ship-list", label: "发货管理" }],
-        /* #27 审核预约要保留；预约列表只展示已通过 */
+        /* 预约不再人工审核；预约列表只展示已生效记录 */
         appoint: [
-          { id: "appoint-list", label: "预约列表" },
-          { id: "appoint-audit", label: "审核预约" }
+          { id: "appoint-list", label: "预约列表" }
         ],
         intent: [{ id: "intent-list", label: "意向管理" }],
         buyer: [
@@ -303,7 +301,8 @@
       Store.db.ui.restockKind = "";
       Store.persist();
     }
-    /* 品牌下「订货会设置」走品牌二级页，不再跳到订货会创建 */
+    if (page === "appoint-audit") page = "appoint-list";
+    if (page === "goods-cat" && state.portal === "brand") page = "goods-list";
     if (page === "brand-fair-new") page = "fair-add";
     if (page === "goods-look") page = "goods-list";
     if (page === "goods-add") { state.goodsSpecs = null; state.goodsDraft = null; }
@@ -625,6 +624,9 @@
       if (group === "brand") {
         /* #18 品牌端店铺设置用品牌列表行样式，侧栏隐藏，仅当前品牌 */
         items = [];
+      }
+      if (group === "goods") {
+        items = items.filter(i => i.id !== "goods-cat");
       }
       if (group === "order") {
         items = items.filter(i => !["order-recon", "order-appoint"].includes(i.id));
@@ -1322,7 +1324,7 @@
         <thead><tr><th>品牌</th><th>店铺</th><th>时间</th><th>人数</th><th>状态</th></tr></thead>
         <tbody>${ap.map(a => `<tr>
           <td>${a.brand}</td><td>${a.store}</td><td>${a.date || "—"}</td><td>${a.people || 1}</td>
-          <td><span class="badge ${a.status === "已通过" ? "green" : ""}">${a.status || "待审核"}</span></td>
+          <td><span class="badge ${a.status === "已通过" ? "green" : ""}">${a.status || "已通过"}</span></td>
         </tr>`).join("") || '<tr><td colspan="5">暂无预约</td></tr>'}</tbody>
       </table>
       <div class="action-bar">${btn("返回列表", "btn-outline", "go:fair-list")}</div>
@@ -1579,13 +1581,13 @@
             <div><h5 style="margin:0">${s.store}</h5></div>
             <div>${s.season}</div>
             <div><strong>${s.amount}</strong></div>
-            <div><span class="badge ${s.status === "待审核" ? "" : s.status === "已生成订单" ? "green" : s.status === "已驳回" ? "red" : ""}">${s.status || "待审核"}</span><br/>件数：${s.pieces} · SKU ${s.skus}</div>
+            <div><span class="badge ${s.status === Store.SEL_ST.confirm ? "" : s.status === Store.SEL_ST.ordered ? "green" : s.status === Store.SEL_ST.canceled ? "red" : ""}">${s.status || Store.SEL_ST.draft}</span><br/>件数：${s.pieces} · SKU ${s.skus}</div>
             <div class="ops" style="flex-direction:column;align-items:stretch;gap:6px">
-              <a class="oto_btn" href="javascript:;" data-go="selection-detail" data-sel="${s.id}">${s.status === "待审核" ? "审核 / 编辑" : "查看详情"}</a>
-              ${s.status === "待审核" || s.status === "待确认" ? `<a class="oto_btn" href="javascript:;" data-gen-order="${s.id}">审核通过并生成订单</a>
+              <a class="oto_btn" href="javascript:;" data-go="selection-detail" data-sel="${s.id}">${s.status === Store.SEL_ST.confirm ? "确认 / 编辑" : "查看详情"}</a>
+              ${s.status === Store.SEL_ST.confirm ? `<a class="oto_btn" href="javascript:;" data-gen-order="${s.id}">审核通过并生成订单</a>
               <a class="oto_btn" href="javascript:;" data-act="reject-selection" data-sel="${s.id}">审核驳回</a>` : ""}
-              ${s.status === "已生成订单" ? `<span class="badge green">已生成订单</span>` : ""}
-              ${s.status === "已驳回" ? `<span class="badge red">已驳回，待买手修改</span>` : ""}
+              ${s.status === Store.SEL_ST.ordered ? `<span class="badge green">已生成订单</span>` : ""}
+              ${s.status === Store.SEL_ST.draft ? `<span class="badge">待买手提交</span>` : ""}
               <a class="oto_btn" href="javascript:;" data-act="download:选款单">下载选款单</a>
             </div>
           </div>
@@ -1659,21 +1661,23 @@
     const lines = s.lines || [];
     const quote = Store.selectionQuote(lines, null, s.season, s.brand);
     const back = opts.backAct || "go:order-selection";
-    const showGen = opts.showGen !== false;
     const addOpen = state.selAddOpen;
     const candidates = Store.db.goods.filter(g => g.brand === s.brand && g.status !== "已删款" && !(lines || []).some(l => l.sku === g.sku));
+    const platform = !!opts.platformCanEdit;
+    const st = Store.normSelStatus(s);
     return `
       ${renderSelQuoteBar(quote, s.brand)}
       <div class="sel-work-head">
         <div>
           <div class="sub_title"><h4>选款单详情（件数: ${quote.pieces}, SKU 数: ${quote.skus}）</h4></div>
-          <div class="sel-work-sub">${s.id || ""} · ${s.store || ""} · ${s.season || ""} · <span class="badge">${s.status || ""}</span>${s.locked ? " · 已锁定" : ""}</div>
+          <div class="sel-work-sub">${s.id || ""} · ${s.store || ""} · ${s.season || ""} · <span class="badge">${st}</span>${s.locked ? " · 已锁定" : ""}</div>
         </div>
         <div class="action-bar" style="margin:0">
           ${(!s.locked || opts.platformCanEdit) ? btn("添加款式", "btn-primary", "toggle-sel-add") : ""}
-          ${showGen && (s.status === "待审核" || s.status === "待确认") ? btn("审核通过并生成订单", "btn-primary", "gen-order") : ""}
-          ${s.status === "待审核" || s.status === "待确认" ? btn("审核驳回", "btn-outline", "reject-selection") : ""}
-          ${opts.showConfirm ? btn("确认提交选款单", "btn-primary", "submit-selection") : btn("保存修改", "btn-outline", "save-selection-lines")}
+          ${platform && st === Store.SEL_ST.confirm ? btn("审核通过并生成订单", "btn-primary", "gen-order") : ""}
+          ${platform && st === Store.SEL_ST.confirm ? btn("审核驳回", "btn-outline", "reject-selection") : ""}
+          ${opts.showConfirm && st === Store.SEL_ST.draft ? btn("提交平台确认", "btn-primary", "submit-selection") : ""}
+          ${platform || st === Store.SEL_ST.draft ? btn("保存修改", "btn-outline", "save-selection-lines") : ""}
           ${opts.showCancel !== false ? btn("取消选款单", "btn-outline", "cancel-selection") : ""}
           ${btn("下载选款单", "btn-outline")}
           ${btn("返回", "btn-outline", back)}
@@ -1707,7 +1711,7 @@
     const title = forceType === "补货单" ? "补货单管理" : "订单管理";
     /* 原站订单管理筛选：品牌/季节/状态=select；国家/省/城市/店铺/订单号=text */
     /* 订单状态取值＝《订单流程图》节点 */
-    const statusOpts = Store.ORDER_FLOW.concat([Store.ORDER_ST.rejected, Store.ORDER_ST.canceled]);
+    const statusOpts = [Store.ORDER_VIEW.open, Store.ORDER_VIEW.done, Store.ORDER_VIEW.canceled];
     const filters = forceType
       ? [
           ["选择品牌", select(RR.brands.map(b => b.name), "全部", f.brand)],
@@ -1742,6 +1746,7 @@
           const dep = Store.parseMoney(o.deposit);
           const due = Math.max(0, dep - paid);
           const pay = Store.paymentStats(o);
+          const view = Store.orderViewStatus(o) || o.status;
           const acts = Store.orderActions(o, "platform");
           return `<div class="order-live-card">
             <div class="order-live-head">
@@ -1770,8 +1775,8 @@
                   <div>已核对：${Store.money(pay.confirmed)} · 未付：${Store.money(pay.unpaid)}</div>
                 </div>
                 <div class="col tips">
-                  ${tips.map(t => `<div>· ${t}</div>`).join("") || `<div class="muted">· ${o.status}</div>`}
-                  <div class="badge" style="margin-top:8px">${o.status}${o.whitelist ? " · 白名单" : ""}</div>
+                  ${tips.map(t => `<div>· ${t}</div>`).join("")}
+                  <div class="badge" style="margin-top:8px">${view}${o.whitelist ? " · 白名单" : ""}</div>
                 </div>
               </div>
               <div class="order-live-actions">
@@ -1794,11 +1799,13 @@
 
   /* 订单流程节点条（平台端/买手端共用） */
   function orderFlowSteps(o) {
-    const nodes = Store.orderFlowNodes(o);
-    const st = o.status;
-    const ended = st === Store.ORDER_ST.rejected || st === Store.ORDER_ST.canceled;
-    return `${ended ? `<div class="flow-ended">当前：${st}${o.rejectReason ? " · " + o.rejectReason : ""}${o.cancelReason ? " · " + o.cancelReason : ""}</div>` : ""}
-      <div class="flow-steps">
+    const view = Store.orderViewStatus(o) || o.status;
+    const nodes = [
+      { name: "未完成", owner: "平台可完成 / 驳回", current: view === Store.ORDER_VIEW.open, done: view === Store.ORDER_VIEW.done },
+      { name: "已完成", owner: "不再改价 / 改定金", current: view === Store.ORDER_VIEW.done, done: false },
+      { name: "已取消", owner: "买手取消", current: view === Store.ORDER_VIEW.canceled, done: false }
+    ];
+    return `<div class="flow-steps">
         ${nodes.map((n, i) => `<div class="fstep ${n.done ? "done" : ""} ${n.current ? "cur" : ""}">
           <i>${i + 1}</i><b>${n.name}</b><em>${n.owner}</em>
         </div>`).join("")}
@@ -1938,7 +1945,7 @@
         <span class="badge">${o.type}</span>
         <span>最小起订额 ¥${Store.money(rules.minAmount)}</span>
         <span>已选金额 ¥${o.amount}</span>
-        <span class="badge gray">${o.status}${o.whitelist ? " · 白名单" : ""}</span>
+        <span class="badge gray">${Store.orderViewStatus(o) || o.status}${o.whitelist ? " · 白名单" : ""}</span>
       </div>
       ${orderFlowSteps(o)}
       <div class="stat-row">
@@ -1950,7 +1957,7 @@
         <div class="stat"><div class="l">SKU 数</div><div class="n">${skuCount}</div></div>
       </div>
       <div class="form-section">
-        <h3>当前节点可执行操作 · ${o.status}</h3>
+        <h3>当前可执行操作 · ${Store.orderViewStatus(o) || o.status}</h3>
         <div class="action-bar flow-actions">
           ${actions.map(a => a.wait
             ? `<span class="wait-chip">${a.label}</span>`
@@ -1959,10 +1966,9 @@
         <div class="action-bar sub-actions">
           <span class="muted">其他操作：</span>
           <button class="btn btn-outline" data-act="open-order-panel:voucher" data-oid="${o.id}">上传付款凭证</button>
-          <button class="btn btn-outline" data-act="open-order-panel:substore" data-oid="${o.id}">分配子店铺</button>
           ${o.ocId ? `<button class="btn btn-outline" data-act="download:OC-${o.ocId}">下载 OC ${o.ocId}</button>` : ""}
         </div>
-        ${action ? panels[action] || "" : '<div class="note">未完成订单可同时设置折扣、定金、编辑商品、生成 OC、查看价格波动、完成或驳回。点「订单完成」后不可再操作。</div>'}
+        ${action ? panels[action] || "" : '<div class="note">未完成订单可设置折扣、定金、编辑商品、生成 OC、查看价格波动。点「订单完成」后不可再改价、改定金。驳回则退回选款单（待提交）。</div>'}
       </div>
       <div class="form-section">
         <h3>付款凭证与核对</h3>
@@ -2166,11 +2172,10 @@
   }
 
   function pageOrderAppoint() {
-    /* #27 预约列表 = 审核通过的预约，不出现待审核 */
     const list = (Store.db.appointments || []).filter(a => a.status === "已通过" || a.status === "已预约");
     return `<div class="brand_goodsList-container">
       ${subTitle("预约列表")}
-      <div class="note">本页只显示<strong>审核通过</strong>的预约。待审核请到侧栏「审核预约」处理。</div>
+      <div class="note">预约按时段接待上限自动生效，不再人工审核。本页为已预约记录。</div>
       ${filterPanel([
         ["选择品牌:", select(RR.brands.map(b => b.name), "全部")],
         ["店铺名:", input("店铺名")]
@@ -2190,38 +2195,10 @@
     </div>`;
   }
 
-  /* 《平台运营后台》预约管理 · 审核预约 */
   function pageAppointAudit() {
-    const list = Store.db.appointments.map((a, i) => ({ ...a, index: i }));
-    const pending = list.filter(a => (a.status || "待审核") === "待审核");
-    const rejectIdx = Store.db.ui.rejectAppoint;
-    return `${subTitle("审核预约")}
-      <div class="note">买手在「预约申请」提交后进入待审核；通过后计入订货会到场名额，拒绝需填写原因并通知买手。</div>
-      <div class="stat-row">
-        <div class="stat"><div class="l">待审核</div><div class="n">${pending.length}</div></div>
-        <div class="stat"><div class="l">已通过</div><div class="n">${list.filter(a => a.status === "已通过").length}</div></div>
-        <div class="stat"><div class="l">已拒绝</div><div class="n">${list.filter(a => a.status === "已拒绝").length}</div></div>
-      </div>
-      ${rejectIdx !== "" && rejectIdx != null ? `<div class="reject-panel">
-        <h4>拒绝预约 · ${(Store.db.appointments[rejectIdx] || {}).store || ""}</h4>
-        <div class="form-grid">
-          <label>拒绝原因</label><div>${field("appointReason", input("如：该场次名额已满，请改约"))}</div>
-        </div>
-        <div class="action-bar">${btn("确认拒绝", "btn-primary", "submit-reject-appoint")}${btn("取消", "btn-outline", "cancel-reject-appoint")}</div>
-      </div>` : ""}
-      <table class="data-table">
-        <thead><tr><th>店铺名</th><th>品牌</th><th>场次</th><th>预约时间</th><th>人数</th><th>手机号</th><th>提交时间</th><th>状态</th><th>操作</th></tr></thead>
-        <tbody>${list.map(a => `<tr>
-          <td>${a.store}</td><td>${a.brand}</td><td>${a.season || "—"}</td><td>${a.date || "—"}</td>
-          <td>${a.people || 1}</td><td>${a.phone}</td><td>${a.submitAt || "—"}</td>
-          <td><span class="badge ${a.status === "已通过" ? "green" : a.status === "已拒绝" ? "red" : ""}">${a.status || "待审核"}</span>
-            ${a.reason ? `<div class="red-text" style="font-size:12px">${a.reason}</div>` : ""}</td>
-          <td class="ops">${(a.status || "待审核") === "待审核"
-            ? `<a href="javascript:;" data-act="approve-appoint:${a.index}">通过</a>
-               <a href="javascript:;" data-act="reject-appoint:${a.index}">拒绝</a>`
-            : `<a href="javascript:;" data-act="approve-appoint:${a.index}">重新通过</a>`}</td>
-        </tr>`).join("") || '<tr><td colspan="9">暂无预约</td></tr>'}</tbody>
-      </table>`;
+    return `${subTitle("预约列表")}
+      <div class="note">预约审核已取消，按时段人数上限自动生效。请到侧栏「预约列表」查看。</div>
+      <div class="action-bar">${btn("打开预约列表", "btn-primary", "go:appoint-list")}</div>`;
   }
 
   /* 《买手采购端》预约申请：申请线下参加订货会 */
@@ -2246,9 +2223,9 @@
         return `${a.brand} ${a.season} ${a.status}`.toLowerCase().includes(q);
       });
       return mpPage(
-        `${mpChipRow(["全部", "待审核", "已通过", "已拒绝"], tab, "mp-chip:appointTab:")}${mpSearch("搜索品牌 / 季节", ui.q["buyer-appoint-apply"] || "")}`,
+        `${mpChipRow(["全部", "已通过"], tab, "mp-chip:appointTab:")}${mpSearch("搜索品牌 / 季节", ui.q["buyer-appoint-apply"] || "")}`,
         `<article class="rr-mp-card rr-mp-form">
-          <p class="rr-mp-lead">提交后待平台审核，通过后可到场看款。</p>
+          <p class="rr-mp-lead">品牌已通过或不需审核则直接预约；需审核未通过会跳到申请品牌页。名额满了会提示，不再人工审预约。</p>
           ${form}
           <button type="button" class="rr-mp-cta" data-act="submit-buyer-appoint">提交预约申请</button>
         </article>
@@ -2260,7 +2237,7 @@
               <b>${a.brand}</b>
               <small>${a.season || "—"} · ${a.date || "—"}</small>
             </div>
-            <span class="rr-mp-pill">${a.status || "待审核"}</span>
+            <span class="rr-mp-pill">${a.status === "已通过" ? "已预约" : (a.status || "已预约")}</span>
             <span class="rr-mp-chevron">›</span>
           </header>
           <div class="rr-mp-metrics">
@@ -2273,7 +2250,7 @@
     return `<div class="oto-main_container buyer-fe">
       <div class="oto_container content-page">
         ${subTitle("预约申请 · 线下参加订货会")}
-        <div class="note">提交后进入<strong>待审核</strong>；平台在「审核预约」通过后才会出现在预约列表，届时可以到场看款。</div>
+        <div class="note">品牌已通过或不需审核则<strong>直接预约成功</strong>；需审核且未通过会跳到「意向品牌」申请，通过后再约。时段满员会直接提示，不再走预约审核。</div>
         <div class="form-section intent-apply">
           ${form}
           <div class="action-bar">${btn("提交预约申请", "btn-primary", "submit-buyer-appoint")}</div>
@@ -2283,7 +2260,7 @@
           <thead><tr><th>订货会/品牌</th><th>到场时间</th><th>人数</th><th>状态</th><th>说明</th></tr></thead>
           <tbody>${mine.map(a => `<tr>
             <td>${a.season || "—"} · ${a.brand}</td><td>${a.date || "—"}</td><td>${a.people || 1}</td>
-            <td><span class="badge ${a.status === "已通过" ? "green" : a.status === "已拒绝" ? "red" : ""}">${a.status || "待审核"}</span></td>
+            <td><span class="badge ${a.status === "已通过" ? "green" : a.status === "已拒绝" ? "red" : ""}">${a.status === "已通过" ? "已预约" : (a.status || "已预约")}</span></td>
             <td>${a.reason || (a.status === "已拒绝" ? "" : "可到场看款")}</td>
           </tr>`).join("") || '<tr><td colspan="5">暂无预约记录</td></tr>'}</tbody>
         </table>
@@ -2992,7 +2969,7 @@
         <header class="rr-mp-card-hd">
           <div class="rr-mp-avatar">${esc((a.brand || "").slice(0, 2))}</div>
           <div class="rr-mp-card-ttl"><b>${esc(a.brand || "预约详情")}</b><small>${esc(a.season || "")}</small></div>
-          <span class="rr-mp-pill">${a.status || "待审核"}</span>
+          <span class="rr-mp-pill">${a.status === "已通过" ? "已预约" : (a.status || "已预约")}</span>
         </header>
         ${mpKv([
           ["订货会", a.season],
@@ -3095,22 +3072,24 @@
       const q = (ui.q["buyer-selection"] || "").trim().toLowerCase();
       const tab = ui.selTab || "全部";
       const shown = list.filter(s => {
-        const st = s.locked ? "已取消" : "待确认";
+        const st = Store.normSelStatus(s);
         if (tab !== "全部" && st !== tab) return false;
         if (!q) return true;
         return `${s.brand} ${s.id} ${s.season}`.toLowerCase().includes(q);
       });
       return mpPage(
-        `${mpChipRow(["全部", "待确认", "已取消"], tab, "mp-chip:selTab:")}${mpSearch("搜索品牌 / 单号", ui.q["buyer-selection"] || "")}`,
-        `${hearts.length ? `<button type="button" class="rr-mp-cta" data-act="buyer-confirm-hearts">按品牌确认选款单</button>` : ""}
-        ${shown.map(s => `<article class="rr-mp-card rr-mp-card-tap" data-go="buyer-selection-edit" data-sel="${s.id}">
+        `${mpChipRow(["全部", "待提交", "待确认", "已取消"], tab, "mp-chip:selTab:")}${mpSearch("搜索品牌 / 单号", ui.q["buyer-selection"] || "")}`,
+        `${hearts.length ? `<button type="button" class="rr-mp-cta" data-act="buyer-confirm-hearts">按品牌生成待提交选款单</button>` : ""}
+        ${shown.map(s => {
+          const st = Store.normSelStatus(s);
+          return `<article class="rr-mp-card rr-mp-card-tap" data-go="buyer-selection-edit" data-sel="${s.id}">
           <header class="rr-mp-card-hd">
             <div class="rr-mp-avatar">${esc((s.brand || "").slice(0, 2))}</div>
             <div class="rr-mp-card-ttl">
               <b>${s.brand}</b>
               <small>${s.season} · ${s.createdAt || s.date || s.time || "—"}</small>
             </div>
-            ${s.locked ? `<span class="rr-mp-pill mute">已取消</span>` : `<span class="rr-mp-pill">待确认</span>`}
+            <span class="rr-mp-pill${st === Store.SEL_ST.canceled ? " mute" : ""}">${st}</span>
             <span class="rr-mp-chevron">›</span>
           </header>
           <div class="rr-mp-metrics">
@@ -3118,12 +3097,13 @@
             <span><em>${s.skus}</em>SKU</span>
             <span><em>${s.pieces}</em>件数</span>
           </div>
-          ${s.locked ? "" : `<footer class="rr-mp-card-ft">
-            <a href="javascript:;" data-go="buyer-selection-edit" data-sel="${s.id}">修改</a>
+          <footer class="rr-mp-card-ft">
+            <a href="javascript:;" data-go="buyer-selection-edit" data-sel="${s.id}">${st === Store.SEL_ST.draft ? "编辑" : "查看"}</a>
             <a href="javascript:;" data-act="download:选款单">下载</a>
-            <a href="javascript:;" class="on" data-act="buyer-confirm-sel" data-sel="${s.id}">确认订单</a>
-          </footer>`}
-        </article>`).join("") || `<div class="rr-mp-empty">暂无选款单</div>`}`
+            ${st === Store.SEL_ST.draft ? `<a href="javascript:;" class="on" data-act="submit-selection" data-sel="${s.id}">提交</a>` : ""}
+          </footer>
+        </article>`;
+        }).join("") || `<div class="rr-mp-empty">暂无选款单</div>`}`
       );
     }
     /* 原站：selection-container > selection_list > item > selection_info */
@@ -3133,10 +3113,12 @@
         <div class="public_right-container">
           <div class="addr-container selection_list-container">
             <div class="sub_title">选款单</div>
-            ${hearts.length ? `<div class="action-bar">${btn("按品牌确认选款单", "btn-primary", "buyer-confirm-hearts")}</div>` : ""}
+            ${hearts.length ? `<div class="action-bar">${btn("按品牌生成待提交选款单", "btn-primary", "buyer-confirm-hearts")}</div>` : ""}
             <div class="addr_list selection_list">
               <div class="items">
-                ${list.map(s => `
+                ${list.map(s => {
+                  const st = Store.normSelStatus(s);
+                  return `
                   <div class="item">
                     <div class="selection_info">
                       <h6>${s.createdAt || s.date || s.time || "—"}</h6>
@@ -3148,19 +3130,19 @@
                       <div class="selection_price">
                         <h2 style="font-size:14px">吊牌价:¥${s.retail || s.amount}</h2>
                         <p>¥${s.amount}</p>
-                        <p>${s.skus} SKU</p>
+                        <p>${s.skus} SKU · ${st}</p>
                       </div>
                       <div class="total_num"><p>总数:${s.pieces}</p></div>
                       <div class="selection_action">
-                        ${s.locked ? "已取消" : `
-                          <a href="javascript:;" data-go="buyer-selection-edit" data-sel="${s.id}">修改</a>
-                          <span>|</span>
-                          <a href="javascript:;" data-act="download:选款单">下载</a>
-                          <span>|</span>
-                          <a href="javascript:;" data-act="buyer-confirm-sel" data-sel="${s.id}">确认订单</a>`}
+                        <a href="javascript:;" data-go="buyer-selection-edit" data-sel="${s.id}">${st === Store.SEL_ST.draft ? "修改" : "查看"}</a>
+                        <span>|</span>
+                        <a href="javascript:;" data-act="download:选款单">下载</a>
+                        ${st === Store.SEL_ST.draft ? `<span>|</span>
+                          <a href="javascript:;" data-act="submit-selection" data-sel="${s.id}">提交</a>` : ""}
                       </div>
                     </div>
-                  </div>`).join("") || '<div class="note">暂无选款单</div>'}
+                  </div>`;
+                }).join("") || '<div class="note">暂无选款单</div>'}
               </div>
             </div>
           </div>
@@ -3191,7 +3173,7 @@
       const shown = list.filter(o => !q || `${o.brand} ${o.id} ${o.season} ${o.status}`.toLowerCase().includes(q));
       const typeTab = Store.db.buyerSession.orderType || "全部";
       return mpPage(
-        `${mpChipRow(["全部", "首单", "补货单"], typeTab, "order-type:")}${mpChipRow(["全部", "已完成", "未完成"], tab, "order-tab:")}${mpSearch("搜索品牌 / 订单号", ui.q["buyer-orders"] || "")}`,
+        `${mpChipRow(["全部", "首单", "补货单"], typeTab, "order-type:")}${mpChipRow(["全部", "未完成", "已完成", "已取消"], tab, "order-tab:")}${mpSearch("搜索品牌 / 订单号", ui.q["buyer-orders"] || "")}`,
         shown.map(o => {
           const acts = Store.orderActions(o, "buyer");
           const pay = Store.paymentStats(o);
@@ -3213,7 +3195,7 @@
                 <b>${o.brand}${o.type === "补货单" ? " · 补货" : ""}</b>
                 <small>${o.season} · ${o.createdAt || "—"}</small>
               </div>
-              <span class="rr-mp-pill">${o.status}</span>
+              <span class="rr-mp-pill">${Store.orderViewStatus(o) || o.status}</span>
               <span class="rr-mp-chevron">›</span>
             </header>
             <div class="rr-mp-metrics">
@@ -3234,7 +3216,7 @@
           <div class="filter_list filter_type">
             <div class="sub_title line_circle">我的订单</div>
             <ul class="uk-tab-right items">
-              ${["全部", "已完成", "未完成"].map(t =>
+              ${["全部", "未完成", "已完成", "已取消"].map(t =>
                 `<li class="${tab === t ? "uk-active" : ""}"><a href="javascript:;" data-tabsoft data-order-tab="${t}">${t}</a></li>`
               ).join("")}
             </ul>
@@ -3258,7 +3240,7 @@
                         <h6>${o.brand}&nbsp;</h6>
                       </div>
                       <div class="order_state">
-                        <p>${o.status}</p><p>¥${o.amount}</p>
+                        <p>${Store.orderViewStatus(o) || o.status}</p><p>¥${o.amount}</p>
                         <p class="muted">已付 ¥${Store.money(pay.confirmed)} · 待付 ¥${Store.money(pay.unpaid)}</p>
                       </div>
                       <div class="order_action ops">
@@ -3303,7 +3285,7 @@
     const panel = state.orderAction;
     const payPanels = {
       cancel: `<div class="modal-panel"><h3>取消订单</h3>
-        <div class="note">未完成订单买手可主动取消；取消后选款单退回「已驳回」，可修改后重新提交。</div>
+        <div class="note">未完成订单买手可主动取消；取消后选款单退回「待提交」，可修改后再提交。</div>
         <div class="form-grid"><label>取消原因</label><div class="span2">${field("cancelReason", input("如：本季调整采购计划", "本季调整采购计划"))}</div></div>
         <div class="action-bar">${btn("确认取消订单", "btn-primary", "buyer-cancel-order")}</div></div>`,
       "pay-deposit": `<div class="modal-panel"><h3>上传定金付款凭证</h3>
@@ -3514,7 +3496,7 @@
       ["平台", "设置品牌订单首付比例（定金）", "品牌列表列 + 收款设置内保存比例", "ok"],
       ["平台", "设置品牌商品下单是否需要审核买手", "品牌列表「下单需审核买手」开关", "ok"],
       ["平台", "风格 / 适用人群 / 平台标准尺码配置", "品牌管理主数据三页", "ok"],
-      ["平台", "预约管理：预约列表 / 审核预约", "预约管理分组（通过·拒绝含原因）", "ok"],
+      ["平台", "预约管理：预约列表（无人工审核，按名额自动生效）", "订货会侧栏预约列表", "ok"],
       ["平台", "意向申请：审核买手提交的品牌申请", "意向审核", "ok"],
       ["平台", "订货会管理：创建订货会（含首单/补货开关）/ 订货会列表", "创建新订货会（原季节控制已并入）", "ok"],
       ["平台", "商品管理：补货/隐藏、批量导入、列表", "商品管理分组", "ok"],
@@ -4326,8 +4308,9 @@
         break;
       }
       case "submit-selection": {
-        const sel = state.selectedSel || Store.db.selections[0];
-        toast((Store.submitSelection(sel && sel.id) || {}).msg || "已提交");
+        const id = selId || (el && el.getAttribute("data-sel")) || (state.selectedSel && state.selectedSel.id);
+        toast((Store.submitSelection(id) || {}).msg || "已提交");
+        if (id) state.selectedSel = Store.db.selections.find(x => x.id === id) || state.selectedSel;
         render();
         break;
       }
@@ -4531,14 +4514,21 @@
         if (!f.apPhone) { toast("请填写联系人手机号"); break; }
         if (!f.apBrand || f.apBrand === "请选择品牌") { toast("请选择品牌"); break; }
         const fair = (Store.db.orderingFairs || []).find(x => `${x.name}（${x.season}）` === f.apFair);
-        toast(Store.addAppointment({
+        const r = Store.addAppointment({
           brand: f.apBrand, store: Store.db.buyerSession.store,
           contact: Store.db.buyerSession.store, phone: f.apPhone,
           date: String(f.apDate || "").replace("T", " "),
           season: (fair && fair.season) || (Store.db.buyerSession.season !== "全部" && Store.db.buyerSession.season) || "2026SS",
-          people: f.apPeople
-        }));
-        render();
+          people: f.apPeople,
+          fair: f.apFair,
+          fairId: fair && fair.id,
+          fromBuyer: true
+        });
+        toast(r.msg || r);
+        if (r.needBrandApply) {
+          state.selectedBrand = r.brand;
+          go(isMp() ? "buyer-intent" : "buyer-intent");
+        } else render();
         break;
       }
       case "add-brand": {
@@ -5154,10 +5144,15 @@
         const f = readFields();
         if (!f.mpStore || !f.mpPhone) { toast("请填写店铺名和手机号"); break; }
         const date = String(f.mpDate || "").replace("T", " ");
-        toast(Store.addAppointment({
+        const r = Store.addAppointment({
           brand: f.mpBrand, store: f.mpStore, contact: f.mpContact || f.mpStore,
-          phone: f.mpPhone, date, season: f.mpSeason
-        }));
+          phone: f.mpPhone, date, season: f.mpSeason, fromBuyer: true
+        });
+        toast(r.msg || r);
+        if (r.needBrandApply) {
+          state.selectedBrand = r.brand;
+          go("buyer-intent");
+        } else render();
         break;
       }
       case "buyer-filter": {
@@ -5185,12 +5180,9 @@
       }
       case "buyer-confirm-sel": {
         const id = selId || (el && el.getAttribute("data-sel"));
-        const r = Store.genOrderFromSelection(id);
-        toast(r.msg);
-        if (r.ok) {
-          state.selectedOrder = Store.db.orders.find(o => o.id === r.orderId);
-          go("buyer-orders");
-        } else render();
+        const r = Store.submitSelection(id);
+        toast(r.msg || r);
+        render();
         break;
       }
       case "buyer-confirm-order": {
@@ -5230,15 +5222,17 @@
           const f = readFields();
           const buyer = Store.db.buyers[0] || {};
           const date = String(f.mpDate || "").replace("T", " ");
-          toast(Store.addAppointment({
+          const r = Store.addAppointment({
             brand: f.mpBrand,
             store: buyer.name || "代约店铺",
             contact: buyer.contact || buyer.name || "联系人",
             phone: buyer.phone || "13800000000",
             date,
             season: f.mpSeason,
-            people: f.mpPeople
-          }));
+            people: f.mpPeople,
+            fromBuyer: false
+          });
+          toast(r.msg || r);
           render();
           break;
         }
